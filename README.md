@@ -2,6 +2,8 @@
 
 This repository is a public-safe, shareable version of the Antigravity memory system after Phase 1 to Phase 3 of the `brain v2` upgrade.
 
+See [SHARE_NOTES.md](SHARE_NOTES.md) for a short collaborator-oriented note on what this repo is, what is intentionally missing, and how to review it.
+
 It includes:
 
 - a high-level explanation of how `brain` and `memory` work
