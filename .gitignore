@@ -1,0 +1,4 @@
+brain/layer1_stream/
+brain/layer2_core/
+brain/layer3_index/*.db
+brain/ops/.sync_state.json
