@@ -1,5 +1,4 @@
 import os
-import time
 import asyncio
 import json
 import re
@@ -8,13 +7,16 @@ from watchdog.events import FileSystemEventHandler
 from neural_memory import Brain
 from neural_memory.storage import SQLiteStorage
 from neural_memory.engine.encoder import MemoryEncoder
+from layer3_metadata import (
+    build_chunk_metadata,
+    build_tags,
+    derive_project_name,
+    infer_source_timestamp,
+    resolve_workspace_root,
+)
 
 # Configuration
-# Override with ANTIGRAVITY_WORKSPACE_ROOT if needed.
-WORKSPACE_ROOT = os.environ.get(
-    "ANTIGRAVITY_WORKSPACE_ROOT",
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
-)
+WORKSPACE_ROOT = resolve_workspace_root(__file__)
 MONITOR_PATTERN = os.path.join("brain", "layer1_stream")
 BRAIN_PREFIX = "antigravity_"
 STATE_FILE = os.path.join(WORKSPACE_ROOT, "brain", "ops", ".sync_state.json")
@@ -83,18 +85,12 @@ class LogSyncHandler(FileSystemEventHandler):
 
     async def process_file(self, file_path):
         try:
-            if not self._init_done: return
+            if not self._init_done:
+                return
             
             norm_path = os.path.normpath(file_path)
-            parts = norm_path.split(os.sep)
-            
-            project_name = "Global"
-            if "projects" in parts:
-                idx = parts.index("projects")
-                if len(parts) > idx + 1:
-                    project_name = parts[idx+1]
-            elif "Antigravity" in parts:
-                project_name = "Root"
+            project_name = derive_project_name(norm_path, WORKSPACE_ROOT)
+            source_timestamp = infer_source_timestamp(norm_path)
 
             await asyncio.sleep(0.5)
             
@@ -116,12 +112,31 @@ class LogSyncHandler(FileSystemEventHandler):
 
                 print(f"[{project_name}] New content in {os.path.basename(norm_path)}")
                 
+                brain = await self._get_brain_for_project(project_name)
                 encoder = await self._get_encoder(project_name)
                 chunks = self._chunk_content(new_content)
                 for chunk in chunks:
-                    if len(chunk.strip()) > 10:
-                        await encoder.encode(chunk, metadata={"project": project_name, "source": norm_path})
-                        print(f"  Synced to brain_{project_name}: {chunk[:50]}...")
+                    if len(chunk["content"].strip()) > 10:
+                        metadata = build_chunk_metadata(
+                            file_path=norm_path,
+                            workspace_root=WORKSPACE_ROOT,
+                            project_name=project_name,
+                            brain_name=brain.name,
+                            chunk=chunk,
+                            source_timestamp=source_timestamp,
+                        )
+                        tags = build_tags(metadata)
+                        await encoder.encode(
+                            chunk["content"],
+                            timestamp=source_timestamp,
+                            metadata=metadata,
+                            tags=tags,
+                        )
+                        heading = metadata.get("source_heading", "(no heading)")
+                        print(
+                            f"  Synced to {brain.name}: "
+                            f"{heading} [chunk {metadata['chunk_index'] + 1}/{metadata['chunk_count']}]"
+                        )
 
                 self.offsets[norm_path] = current_size
                 self._save_state()
@@ -130,7 +145,7 @@ class LogSyncHandler(FileSystemEventHandler):
 
     def _chunk_content(self, text):
         """
-        Phase 4 Upgrade: Semantic Chunking
+        Phase 2 Upgrade: Metadata-aware semantic chunking
         - Respects Markdown Headers
         - Implements Overlap
         - Filters noisy short text
@@ -140,14 +155,25 @@ class LogSyncHandler(FileSystemEventHandler):
         current_chunk = []
         current_header = ""
         
+        def flush_chunk():
+            content = "\n".join(current_chunk).strip()
+            if len(content) > 15:
+                chunks.append(
+                    {
+                        "content": content,
+                        "heading": current_header or None,
+                    }
+                )
+        
         for line in lines:
-            line = line.strip()
-            if not line: continue
+            line = line.strip().lstrip("\ufeff")
+            if not line:
+                continue
             
             # If it's a header, start a new chunk but include context
             if line.startswith('#'):
                 if current_chunk:
-                    chunks.append("\n".join(current_chunk))
+                    flush_chunk()
                     # Overlap: keep the last 2 lines for context
                     current_chunk = current_chunk[-2:] if len(current_chunk) > 2 else current_chunk
                 
@@ -158,14 +184,19 @@ class LogSyncHandler(FileSystemEventHandler):
                 
                 # Max chunk size ~500 chars
                 if len("\n".join(current_chunk)) > 500:
-                    chunks.append("\n".join(current_chunk))
+                    flush_chunk()
                     # Overlap
                     current_chunk = [current_header] + current_chunk[-2:] if current_header else current_chunk[-3:]
 
         if current_chunk:
-            chunks.append("\n".join(current_chunk))
-            
-        return [c.strip() for c in chunks if len(c.strip()) > 15]
+            flush_chunk()
+
+        total_chunks = len(chunks)
+        for index, chunk in enumerate(chunks):
+            chunk["chunk_index"] = index
+            chunk["chunk_count"] = total_chunks
+
+        return chunks
 
 async def main():
     print("NeuralMemory Multi-Project Watcher Started...")
