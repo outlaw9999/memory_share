@@ -17,7 +17,27 @@ except ImportError:
 
 
 class AtlasAdapter:
-    """Adapter for searching and reading code context from ATLAS."""
+    """Adapter for searching and reading code context from ATLAS.
+    
+    PHASE 8: CONTEXT ENGINE (FROZEN)
+    ================================
+    
+    This class implements the frozen Phase 8 contract for code context retrieval.
+    
+    Stable CLI commands:
+    - kit symbol <q>        → definition() returns code_symbol JSON
+    - kit context <symbol>  → get_unified_context() returns code_context JSON
+    - kit callers <symbol>  → callers() returns list[code_caller]
+    - kit snippet <path>    → snippet() returns code_snippet
+    
+    JSON fields are locked:
+    - code_symbol: {type, name, kind, path, line, rank}
+    - code_context: {type, symbol, definition, callers, callees, snippet, metrics, docs}
+    
+    These contracts MUST NOT change. JSON structure serves Agent tool schema.
+    
+    Phase 9 (Graph Exploration) adds only new methods without modifying Phase 8 outputs.
+    """
 
     def __init__(self, workspace_root: Path):
         self.workspace_root = workspace_root
@@ -249,6 +269,39 @@ class AtlasAdapter:
             )
         peers.sort(key=lambda item: (self._is_test_path(item["path"]), item["name"], item["line"]))
         return peers[:limit]
+
+    def get_impact_info(
+        self,
+        symbol: str,
+        *,
+        depth: int = 3,
+        limit: int = 50,
+    ) -> Dict[str, Any]:
+        """
+        PHASE 9: Analyze blast radius of a symbol (reverse call graph).
+        
+        Returns symbols that would be affected if this symbol is changed.
+        
+        Args:
+            symbol: Symbol to analyze
+            depth: Traversal depth (default 3)
+            limit: Maximum results (default 50)
+        
+        Returns:
+            Dict with type="code_impact" and affected symbols list
+        """
+        affected = self.store.trace_impact(symbol, max_depth=depth, limit=limit)
+        
+        return {
+            "type": "code_impact",
+            "symbol": symbol,
+            "affected": affected,
+            "metrics": {
+                "affected_count": len(affected),
+                "max_depth": max([item["depth"] for item in affected], default=0),
+                "has_cycles": any(item["depth"] >= depth for item in affected),
+            },
+        }
 
 
 class BrainAdapter:

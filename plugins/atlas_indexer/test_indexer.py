@@ -326,6 +326,89 @@ def test_graph_store_search_related_symbols_prefers_higher_degree_and_excludes_e
     assert results[0]["degree"] > results[1]["degree"] >= results[2]["degree"]
 
 
+def test_graph_store_search_related_symbols_uses_call_indexes_for_candidate_degree(tmp_path: Path):
+    db_path = tmp_path / "atlas.db"
+    store = GraphStore(db_path)
+    source_path = tmp_path / "memory.py"
+    store.update_file(
+        source_path,
+        [
+            Symbol("memory_store", "function", str(source_path), 1),
+            Symbol("read_memory", "function", str(source_path), 2),
+            Symbol("memory_adapter", "function", str(source_path), 3),
+            Symbol("memory", "function", str(source_path), 4),
+        ],
+        [
+            CallSite("sync_memory", "memory_store", str(source_path), 10),
+            CallSite("flush_memory", "memory_store", str(source_path), 11),
+            CallSite("main", "read_memory", str(source_path), 12),
+        ],
+    )
+
+    plan = store.conn.execute(
+        """
+        EXPLAIN QUERY PLAN
+        WITH candidates AS (
+            SELECT
+                s.rowid,
+                s.name,
+                s.kind,
+                s.file,
+                s.line,
+                bm25(symbol_fts) AS fts_rank
+            FROM symbol_fts
+            JOIN symbols AS s ON s.rowid = symbol_fts.rowid
+            WHERE symbol_fts MATCH ?
+              AND s.name != ?
+            ORDER BY
+                bm25(symbol_fts) ASC,
+                length(s.name) ASC,
+                s.name ASC,
+                s.file ASC,
+                s.line ASC
+            LIMIT ?
+        ),
+        degree AS (
+            SELECT rowid, SUM(cnt) AS deg
+            FROM (
+                SELECT c.rowid, COUNT(*) AS cnt
+                FROM candidates AS c
+                JOIN calls ON calls.caller = c.name
+                GROUP BY c.rowid
+                UNION ALL
+                SELECT c.rowid, COUNT(*) AS cnt
+                FROM candidates AS c
+                JOIN calls ON calls.callee = c.name
+                GROUP BY c.rowid
+            )
+            GROUP BY rowid
+        )
+        SELECT
+            c.name,
+            c.kind,
+            c.file,
+            c.line,
+            c.fts_rank,
+            COALESCE(d.deg, 0) AS degree
+        FROM candidates AS c
+        LEFT JOIN degree AS d ON d.rowid = c.rowid
+        ORDER BY
+            c.fts_rank ASC,
+            COALESCE(d.deg, 0) DESC,
+            length(c.name) ASC,
+            c.name ASC,
+            c.file ASC,
+            c.line ASC
+        LIMIT ?
+        """,
+        ("memory*", "memory", 50, 10),
+    ).fetchall()
+
+    assert any("SEARCH calls USING COVERING INDEX idx_calls_caller_cover" in detail for *_, detail in plan)
+    assert any("SEARCH calls USING COVERING INDEX idx_calls_callee_cover" in detail for *_, detail in plan)
+    assert not any(detail == "SCAN calls" for *_, detail in plan)
+
+
 def test_indexer_waits_for_coalescing_window(tmp_path: Path):
     source_path = tmp_path / "tracked.py"
     source_path.write_text("def task():\n    return 1\n", encoding="utf-8")

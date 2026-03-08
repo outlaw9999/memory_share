@@ -45,6 +45,12 @@ def parse_args():
     related_parser.add_argument("--module-limit", type=int, default=8, help="Limit symbols from the same file")
     related_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
 
+    impact_parser = subparsers.add_parser("impact", help="Analyze blast radius of a symbol (reverse call graph)")
+    impact_parser.add_argument("symbol", help="Symbol name")
+    impact_parser.add_argument("--depth", type=int, default=3, help="Traversal depth")
+    impact_parser.add_argument("--limit", type=int, default=50, help="Maximum results")
+    impact_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+
     return parser.parse_args()
 
 
@@ -164,6 +170,29 @@ def main():
                     name = item.get("name") or item.get("caller") or item.get("callee")
                     print(f"  {name} [{item['path']}:{item['line']}]")
             return
+        return
+
+    if args.command == "impact":
+        impact = atlas.get_impact_info(
+            args.symbol,
+            depth=args.depth,
+            limit=args.limit,
+        )
+        payload = {"query": args.symbol, "results": [impact]}
+        if args.json or not sys.stdout.isatty():
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        else:
+            if not impact["affected"]:
+                print(f"No symbols affected by '{args.symbol}'.")
+                return
+            
+            print(f"--- Impact: Blast Radius of '{args.symbol}' ---")
+            print(f"Affected count: {impact['metrics']['affected_count']}")
+            print(f"Max depth: {impact['metrics']['max_depth']}")
+            print(f"Has cycles: {impact['metrics']['has_cycles']}")
+            print("")
+            for item in impact["affected"]:
+                print(f"  [{item['depth']}] {item['name']} [{item['path']}:{item['line']}]")
         return
 
     print("Antigravity Memory Kit v0.1.0-phase7.5")

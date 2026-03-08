@@ -214,3 +214,242 @@ def test_kit_json_contract_for_symbol_callers_and_snippet(tmp_path: Path, monkey
         "module_peer_count": 1,
         "has_definition": True,
     }
+
+
+def test_phase_8_contract_is_stable(tmp_path: Path, monkeypatch, capsys):
+    """
+    REGRESSION TEST: Phase 8 (Context Engine) JSON contract is FROZEN.
+    
+    This test ensures that the JSON structure returned by Phase 8 commands
+    (symbol, context, callers, snippet) never drifts, even after Phase 9/10 changes.
+    
+    Agent tool schemas depend on these exact field names and types.
+    
+    Related: ARCHITECTURE.md Phase 8
+    """
+    source_path = tmp_path / "module.py"
+    source_path.write_text(
+        "def api():\n"
+        "    return 1\n\n"
+        "def caller():\n"
+        "    return api()\n",
+        encoding="utf-8",
+    )
+
+    graph = GraphStore(tmp_path / ".antigravity" / "atlas" / "atlas.db")
+    indexer = AtlasIndexer(workspace_root=tmp_path, graph_store=graph)
+    indexer.coalesce_window_seconds = 0.0
+    indexer.handle_event(FakeEvent({"txn_id": "txn-1", "ts": 1.0, "target": "module.py"}))
+    assert indexer.poll() == ["module.py"]
+
+    monkeypatch.setenv("ANTIGRAVITY_WORKSPACE_ROOT", str(tmp_path))
+
+    import kit
+
+    # Phase 8: kit symbol contract
+    monkeypatch.setattr("sys.argv", ["kit.py", "symbol", "api", "--json"])
+    kit.main()
+    payload = json.loads(capsys.readouterr().out)
+    
+    # Frozen fields at top level
+    assert {"query", "results"}.issubset(set(payload.keys()))
+    result = payload["results"][0]
+    assert {"type", "name", "kind", "path", "line", "rank"}.issubset(set(result.keys()))
+    assert result["type"] == "code_symbol"
+
+    # Phase 8: kit context contract
+    monkeypatch.setattr(
+        "sys.argv",
+        ["kit.py", "context", "api", "--json"],
+    )
+    kit.main()
+    payload = json.loads(capsys.readouterr().out)
+    context = payload["results"][0]
+    
+    # Frozen top-level structure
+    assert {"type", "symbol", "definition", "callers", "callees", "snippet", "metrics", "docs"}.issubset(
+        set(context.keys())
+    )
+    assert context["type"] == "code_context"
+    
+    # Frozen metrics structure
+    assert {"caller_count", "callee_count", "doc_count", "has_definition"}.issubset(set(context["metrics"].keys()))
+    
+    # Frozen definition structure
+    assert {"type", "name", "kind", "path", "line", "rank"} == set(context["definition"].keys())
+    
+    # Frozen callers array element structure
+    for caller_item in context["callers"]:
+        assert {"type", "caller", "callee", "path", "line", "rank"}.issubset(set(caller_item.keys()))
+
+
+def test_phase_9_impact_traversal_basic(tmp_path: Path):
+    """
+    PHASE 9: Basic reverse call graph traversal.
+    
+    Graph:
+        caller_a → target
+        caller_b → caller_a
+    
+    impact(target) = [caller_a, caller_b]  (recursive, up to depth limit)
+    impact(caller_a) = [caller_b]
+    """
+    source_path = tmp_path / "service.py"
+    source_path.write_text(
+        "def target():\n"
+        "    return 1\n\n"
+        "def caller_a():\n"
+        "    return target()\n\n"
+        "def caller_b():\n"
+        "    return caller_a()\n",
+        encoding="utf-8",
+    )
+
+    store = GraphStore(tmp_path / ".antigravity" / "atlas" / "atlas.db")
+    indexer = AtlasIndexer(workspace_root=tmp_path, graph_store=store)
+    indexer.coalesce_window_seconds = 0.0
+    indexer.handle_event(FakeEvent({"txn_id": "txn-1", "ts": 1.0, "target": "service.py"}))
+    assert indexer.poll() == ["service.py"]
+
+    adapter = AtlasAdapter(tmp_path)
+    
+    # Test impact of target() - finds all callers recursively
+    impact_target = adapter.get_impact_info("target", depth=3, limit=50)
+    assert impact_target["type"] == "code_impact"
+    assert impact_target["symbol"] == "target"
+    assert len(impact_target["affected"]) == 2
+    assert impact_target["affected"][0]["name"] == "caller_a"
+    assert impact_target["affected"][0]["depth"] == 1
+    assert impact_target["affected"][1]["name"] == "caller_b"
+    assert impact_target["affected"][1]["depth"] == 2
+    
+    # Test impact of caller_a()
+    impact_caller_a = adapter.get_impact_info("caller_a", depth=3, limit=50)
+    assert len(impact_caller_a["affected"]) == 1
+    assert impact_caller_a["affected"][0]["name"] == "caller_b"
+    assert impact_caller_a["affected"][0]["depth"] == 1
+
+
+def test_phase_9_impact_respects_depth_limit(tmp_path: Path):
+    """
+    PHASE 9: Depth limit prevents traversal beyond max_depth.
+    
+    Graph:
+        d → c → b → a
+    
+    impact(a, depth=2) should return [b, c] but NOT [d]
+    """
+    source_path = tmp_path / "chain.py"
+    source_path.write_text(
+        "def a():\n"
+        "    return 1\n\n"
+        "def b():\n"
+        "    return a()\n\n"
+        "def c():\n"
+        "    return b()\n\n"
+        "def d():\n"
+        "    return c()\n",
+        encoding="utf-8",
+    )
+
+    store = GraphStore(tmp_path / ".antigravity" / "atlas" / "atlas.db")
+    indexer = AtlasIndexer(workspace_root=tmp_path, graph_store=store)
+    indexer.coalesce_window_seconds = 0.0
+    indexer.handle_event(FakeEvent({"txn_id": "txn-1", "ts": 1.0, "target": "chain.py"}))
+    assert indexer.poll() == ["chain.py"]
+
+    adapter = AtlasAdapter(tmp_path)
+    
+    # With depth=2, should find b and c but not d
+    impact = adapter.get_impact_info("a", depth=2, limit=50)
+    affected_names = {item["name"] for item in impact["affected"]}
+    
+    assert "b" in affected_names  # depth 1
+    assert "c" in affected_names  # depth 2
+    assert "d" not in affected_names  # depth 3 (beyond limit)
+
+
+def test_phase_9_impact_handles_cycles(tmp_path: Path):
+    """
+    PHASE 9: Depth limit prevents infinite loops from cycles.
+    
+    Graph:
+        a → b → a (cycle)
+    
+    impact(a, depth=3) should complete without hang and mark has_cycles=True
+    """
+    source_path = tmp_path / "cycle.py"
+    source_path.write_text(
+        "def a():\n"
+        "    return b()\n\n"
+        "def b():\n"
+        "    return a()\n",
+        encoding="utf-8",
+    )
+
+    store = GraphStore(tmp_path / ".antigravity" / "atlas" / "atlas.db")
+    indexer = AtlasIndexer(workspace_root=tmp_path, graph_store=store)
+    indexer.coalesce_window_seconds = 0.0
+    indexer.handle_event(FakeEvent({"txn_id": "txn-1", "ts": 1.0, "target": "cycle.py"}))
+    assert indexer.poll() == ["cycle.py"]
+
+    adapter = AtlasAdapter(tmp_path)
+    
+    # Should not hang, should respect depth limit
+    impact = adapter.get_impact_info("a", depth=2, limit=50)
+    
+    # Should find b (depth 1)
+    assert any(item["name"] == "b" for item in impact["affected"])
+    
+    # No infinite loop, completes normally
+    assert impact["type"] == "code_impact"
+
+
+def test_phase_9_impact_json_contract(tmp_path: Path, monkeypatch, capsys):
+    """
+    PHASE 9: JSON contract for kit impact command.
+    
+    Output structure must be:
+    {
+        "type": "code_impact",
+        "symbol": "<symbol>",
+        "affected": [{"name": "...", "depth": ..., "path": "...", "line": ...}],
+        "metrics": {"affected_count": ..., "max_depth": ..., "has_cycles": ...}
+    }
+    """
+    source_path = tmp_path / "api.py"
+    source_path.write_text(
+        "def api():\n"
+        "    return 1\n\n"
+        "def handler():\n"
+        "    return api()\n",
+        encoding="utf-8",
+    )
+
+    store = GraphStore(tmp_path / ".antigravity" / "atlas" / "atlas.db")
+    indexer = AtlasIndexer(workspace_root=tmp_path, graph_store=store)
+    indexer.coalesce_window_seconds = 0.0
+    indexer.handle_event(FakeEvent({"txn_id": "txn-1", "ts": 1.0, "target": "api.py"}))
+    assert indexer.poll() == ["api.py"]
+
+    monkeypatch.setenv("ANTIGRAVITY_WORKSPACE_ROOT", str(tmp_path))
+
+    import kit
+
+    # Test impact command output
+    monkeypatch.setattr("sys.argv", ["kit.py", "impact", "api", "--json"])
+    kit.main()
+    payload = json.loads(capsys.readouterr().out)
+    
+    # Frozen top-level structure
+    assert {"query", "results"}.issubset(set(payload.keys()))
+    impact = payload["results"][0]
+    assert {"type", "symbol", "affected", "metrics"}.issubset(set(impact.keys()))
+    assert impact["type"] == "code_impact"
+    
+    # Frozen affected array element structure
+    for item in impact["affected"]:
+        assert {"name", "depth", "path", "line"}.issubset(set(item.keys()))
+    
+    # Frozen metrics structure
+    assert {"affected_count", "max_depth", "has_cycles"}.issubset(set(impact["metrics"].keys()))

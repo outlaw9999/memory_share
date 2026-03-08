@@ -12,6 +12,33 @@ It includes:
 - a background consolidation job for duplicate, stale, and promotion review
 - architecture and rollout reports
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the `.kit` architecture roadmap through Phase 10.
+
+## Project Evolution
+
+`.kit` evolved from a simple SQLite-backed index into a lightweight code intelligence engine for agents.
+
+| Phase | Capability | Status |
+| --- | --- | --- |
+| 1-5 | SQLite storage and call graph | complete |
+| 6-7 | FTS5 symbol search | complete |
+| 8 | Context engine via `kit symbol` and `kit context` | frozen |
+| 9 | Graph exploration via `kit related` and planned `kit impact` | in progress |
+| 10 | Semantic graph with symbol identity | planned |
+
+Current primitives:
+
+```text
+kit symbol <symbol>
+kit related <symbol>
+```
+
+Planned:
+
+```text
+kit impact <symbol>
+```
+
 It excludes:
 
 - personal notes
@@ -121,6 +148,10 @@ All commands return a stable JSON envelope so tools and agents can treat `kit` a
 - similar symbol names from the local FTS index
 - direct callers and callees from the call graph
 - peer symbols from the same file/module
+
+Planned next step:
+
+- `kit impact <symbol>` for reverse call-graph traversal and blast-radius analysis
 
 ## Caveats
 

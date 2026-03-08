@@ -280,27 +280,19 @@ class GraphStore:
         if fts_query is None:
             return []
 
+        candidate_limit = max(limit * 5, 50)
         sql = """
-        WITH degree AS (
-            SELECT name, COUNT(*) AS deg
-            FROM (
-                SELECT caller AS name FROM calls
-                UNION ALL
-                SELECT callee AS name FROM calls
-            )
-            GROUP BY name
-        )
-        SELECT
-            s.name,
-            s.kind,
-            s.file,
-            s.line,
-            bm25(symbol_fts) AS fts_rank,
-            COALESCE(d.deg, 0) AS degree
-        FROM symbol_fts
-        JOIN symbols AS s ON s.rowid = symbol_fts.rowid
-        LEFT JOIN degree AS d ON d.name = s.name
-        WHERE symbol_fts MATCH ?
+        WITH candidates AS (
+            SELECT
+                s.rowid,
+                s.name,
+                s.kind,
+                s.file,
+                s.line,
+                bm25(symbol_fts) AS fts_rank
+            FROM symbol_fts
+            JOIN symbols AS s ON s.rowid = symbol_fts.rowid
+            WHERE symbol_fts MATCH ?
         """
         params: list[object] = [fts_query]
         if exclude_name:
@@ -308,13 +300,49 @@ class GraphStore:
             params.append(exclude_name)
 
         sql += """
+            ORDER BY
+                bm25(symbol_fts) ASC,
+                length(s.name) ASC,
+                s.name ASC,
+                s.file ASC,
+                s.line ASC
+            LIMIT ?
+        ),
+        degree AS (
+            SELECT rowid, SUM(cnt) AS deg
+            FROM (
+                SELECT c.rowid, COUNT(*) AS cnt
+                FROM candidates AS c
+                JOIN calls ON calls.caller = c.name
+                GROUP BY c.rowid
+                UNION ALL
+                SELECT c.rowid, COUNT(*) AS cnt
+                FROM candidates AS c
+                JOIN calls ON calls.callee = c.name
+                GROUP BY c.rowid
+            )
+            GROUP BY rowid
+        )
+        SELECT
+            c.name,
+            c.kind,
+            c.file,
+            c.line,
+            c.fts_rank,
+            COALESCE(d.deg, 0) AS degree
+        FROM candidates AS c
+        LEFT JOIN degree AS d ON d.rowid = c.rowid
+        """
+        params.append(candidate_limit)
+
+        sql += """
         ORDER BY
-            bm25(symbol_fts) ASC,
+            c.fts_rank ASC,
             COALESCE(d.deg, 0) DESC,
-            length(s.name) ASC,
-            s.name ASC,
-            s.file ASC,
-            s.line ASC
+            length(c.name) ASC,
+            c.name ASC,
+            c.file ASC,
+            c.line ASC
         LIMIT ?
         """
         params.append(limit)
@@ -348,3 +376,67 @@ class GraphStore:
             (caller, limit),
         ).fetchall()
         return [CallSite(caller_name, callee, file, line) for caller_name, callee, file, line in rows]
+
+    def trace_impact(self, symbol: str, max_depth: int = 5, limit: int = 100) -> List[dict]:
+        """
+        Reverse call graph traversal: Find all symbols that depend on this symbol.
+        
+        Uses recursive CTE with depth limit to prevent infinite loops from cycles.
+        
+        Args:
+            symbol: Target symbol to analyze
+            max_depth: Maximum traversal depth (default 5)
+            limit: Maximum results returned (default 100)
+        
+        Returns:
+            List of dicts with keys: {name, depth, path, line}
+            Sorted by depth (nearest to furthest)
+        """
+        cur = self.conn.cursor()
+        
+        sql = """
+        WITH RECURSIVE reverse_impact(name, depth) AS (
+            -- Base case: Find direct callers of the target symbol
+            SELECT DISTINCT caller, 1
+            FROM calls
+            WHERE callee = ?
+            
+            UNION
+            
+            -- Recursive case: Find callers of callers (with depth limit)
+            SELECT DISTINCT c.caller, ri.depth + 1
+            FROM calls c
+            JOIN reverse_impact ri ON c.callee = ri.name
+            WHERE ri.depth < ?
+        )
+        SELECT DISTINCT ri.name, ri.depth
+        FROM reverse_impact ri
+        ORDER BY ri.depth ASC, ri.name ASC
+        LIMIT ?
+        """
+        
+        try:
+            rows = cur.execute(sql, (symbol, max_depth, limit)).fetchall()
+            
+            # Enrich results with symbol metadata (path, line)
+            result = []
+            for name, depth in rows:
+                symbol_info = cur.execute(
+                    "SELECT file, line FROM symbols WHERE name = ? ORDER BY line LIMIT 1",
+                    (name,)
+                ).fetchone()
+                
+                if symbol_info:
+                    path, line = symbol_info
+                    result.append({
+                        "name": name,
+                        "depth": depth,
+                        "path": path,
+                        "line": line,
+                    })
+            
+            return result
+        except Exception:
+            # If CTE not supported or other error, return empty
+            return []
+
