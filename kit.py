@@ -37,6 +37,14 @@ def parse_args():
     context_parser.add_argument("--doc-limit", type=int, default=5, help="Limit related docs")
     context_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
 
+    related_parser = subparsers.add_parser("related", help="Explore nearby code around a symbol")
+    related_parser.add_argument("symbol", help="Symbol name")
+    related_parser.add_argument("--similar-limit", type=int, default=5, help="Limit similar symbols")
+    related_parser.add_argument("--callers-limit", type=int, default=5, help="Limit callers")
+    related_parser.add_argument("--callees-limit", type=int, default=5, help="Limit callees")
+    related_parser.add_argument("--module-limit", type=int, default=8, help="Limit symbols from the same file")
+    related_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+
     return parser.parse_args()
 
 
@@ -132,8 +140,34 @@ def main():
                 print(context["snippet"]["snippet"])
         return
 
+    if args.command == "related":
+        related = atlas.get_related_info(
+            args.symbol,
+            similar_limit=args.similar_limit,
+            caller_limit=args.callers_limit,
+            callee_limit=args.callees_limit,
+            module_limit=args.module_limit,
+        )
+        payload = {"query": args.symbol, "results": [related]}
+        if args.json or not sys.stdout.isatty():
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        else:
+            print(f"--- Related: '{args.symbol}' ---")
+            for label, items, metric_key in [
+                ("Similar", related["related"]["similar"], "similar_count"),
+                ("Callers", related["related"]["callers"], "caller_count"),
+                ("Callees", related["related"]["callees"], "callee_count"),
+                ("Module", related["related"]["module_peers"], "module_peer_count"),
+            ]:
+                print(f"{label}: {related['metrics'][metric_key]}")
+                for item in items:
+                    name = item.get("name") or item.get("caller") or item.get("callee")
+                    print(f"  {name} [{item['path']}:{item['line']}]")
+            return
+        return
+
     print("Antigravity Memory Kit v0.1.0-phase7.5")
-    print("Usage: kit symbol|callers|snippet|context ...")
+    print("Usage: kit symbol|callers|snippet|context|related ...")
 
 
 if __name__ == "__main__":

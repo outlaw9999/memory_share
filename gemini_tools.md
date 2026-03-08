@@ -68,11 +68,28 @@ kit context write_memory --json
 
 Use this when you want the full picture in one tool call.
 
+## 5. Related Symbols
+
+```bash
+kit related <symbol> --json
+```
+
+Returns nearby symbols for exploration: similar names, direct callers, direct callees, and same-file peers.
+
+Example:
+
+```bash
+kit related write_memory --json
+```
+
+Use this after `kit context` when you want to explore adjacent APIs, refactor targets, or local module patterns.
+
 ## Recommended Workflow
 
 1. Call `kit context` first when you already know the target symbol.
 2. Fall back to `kit symbol` when you need discovery or disambiguation.
-3. Use `kit callers` for wider impact analysis beyond the default context window.
-4. Call `kit snippet` only after you need more local code than `kit context` returns.
+3. Use `kit related` when you need nearby APIs, module peers, or alternate entry points.
+4. Use `kit callers` for wider impact analysis beyond the default context window.
+5. Call `kit snippet` only after you need more local code than `kit context` returns.
 
 This keeps context small, reduces token usage, and treats `kit` as the stable query surface for code navigation.

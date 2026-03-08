@@ -90,6 +90,51 @@ def test_atlas_adapter_context_prefers_production_definition(tmp_path: Path):
 
     assert context["definition"]["path"] == str(prod_path)
     assert "return 1" in context["snippet"]["snippet"]
+
+
+def test_atlas_adapter_related_returns_neighbors_and_peers(tmp_path: Path):
+    source_path = tmp_path / "memory_store.py"
+    source_path.write_text(
+        "def write_memory():\n"
+        "    flush_memory()\n"
+        "    return read_memory()\n\n"
+        "def read_memory():\n"
+        "    return 1\n\n"
+        "def flush_memory():\n"
+        "    return 0\n\n"
+        "def sync_memory():\n"
+        "    return write_memory()\n",
+        encoding="utf-8",
+    )
+
+    graph = GraphStore(tmp_path / ".antigravity" / "atlas" / "atlas.db")
+    indexer = AtlasIndexer(workspace_root=tmp_path, graph_store=graph)
+    indexer.coalesce_window_seconds = 0.0
+    indexer.handle_event(FakeEvent({"txn_id": "txn-1", "ts": 1.0, "target": "memory_store.py"}))
+    assert indexer.poll() == ["memory_store.py"]
+
+    adapter = AtlasAdapter(tmp_path)
+    related = adapter.get_related_info("write_memory", similar_limit=5, caller_limit=5, callee_limit=5, module_limit=8)
+
+    assert related["type"] == "code_related"
+    assert related["definition"]["name"] == "write_memory"
+    assert [item["caller"] for item in related["related"]["callers"]] == ["sync_memory"]
+    assert [item["callee"] for item in related["related"]["callees"]] == ["flush_memory", "read_memory"]
+    assert "write_memory" not in [item["name"] for item in related["related"]["similar"]]
+    assert [item["name"] for item in related["related"]["module_peers"]] == [
+        "flush_memory",
+        "read_memory",
+        "sync_memory",
+    ]
+    assert related["metrics"] == {
+        "similar_count": 3,
+        "caller_count": 1,
+        "callee_count": 2,
+        "module_peer_count": 3,
+        "has_definition": True,
+    }
+
+
 def test_kit_json_contract_for_symbol_callers_and_snippet(tmp_path: Path, monkeypatch, capsys):
     source_path = tmp_path / "worker.py"
     source_path.write_text(
@@ -146,5 +191,26 @@ def test_kit_json_contract_for_symbol_callers_and_snippet(tmp_path: Path, monkey
         "caller_count": 1,
         "callee_count": 0,
         "doc_count": 0,
+        "has_definition": True,
+    }
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["kit.py", "related", "task", "--similar-limit", "5", "--callers-limit", "5", "--callees-limit", "5", "--json"],
+    )
+    kit.main()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["query"] == "task"
+    related = payload["results"][0]
+    assert related["type"] == "code_related"
+    assert related["definition"]["name"] == "task"
+    assert related["related"]["callers"][0]["caller"] == "main"
+    assert related["related"]["callees"] == []
+    assert all(item["name"] != "task" for item in related["related"]["similar"])
+    assert related["metrics"] == {
+        "similar_count": 0,
+        "caller_count": 1,
+        "callee_count": 0,
+        "module_peer_count": 1,
         "has_definition": True,
     }

@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -160,6 +161,94 @@ class AtlasAdapter:
                 "has_definition": definition is not None,
             },
         }
+
+    def get_related_info(
+        self,
+        symbol: str,
+        *,
+        similar_limit: int = 5,
+        caller_limit: int = 5,
+        callee_limit: int = 5,
+        module_limit: int = 8,
+    ) -> Dict[str, Any]:
+        definition = self.definition(symbol)
+        callers = self.callers(symbol, limit=caller_limit)
+        callees = self.callees(symbol, limit=callee_limit)
+        similar = self._similar_symbols(symbol, limit=similar_limit)
+        module_peers: List[Dict[str, Any]] = []
+        if definition is not None:
+            module_peers = self._module_peers(definition["path"], definition["name"], limit=module_limit)
+
+        return {
+            "type": "code_related",
+            "symbol": symbol,
+            "definition": definition,
+            "related": {
+                "similar": similar,
+                "callers": callers,
+                "callees": callees,
+                "module_peers": module_peers,
+            },
+            "metrics": {
+                "similar_count": len(similar),
+                "caller_count": len(callers),
+                "callee_count": len(callees),
+                "module_peer_count": len(module_peers),
+                "has_definition": definition is not None,
+            },
+        }
+
+    def _similar_symbols(self, symbol: str, limit: int) -> List[Dict[str, Any]]:
+        family_query = self._family_query(symbol)
+        results = []
+        seen = set()
+        for item in self.store.search_related_symbols(
+            family_query,
+            exclude_name=symbol,
+            limit=max(limit * 4, 10),
+        ):
+            if item["name"] in seen or self._is_test_path(str(item["file"])):
+                continue
+            seen.add(str(item["name"]))
+            results.append(
+                {
+                    "type": "code_symbol",
+                    "name": item["name"],
+                    "kind": item["kind"],
+                    "path": item["file"],
+                    "line": item["line"],
+                    "rank": 1.0,
+                    "fts_rank": item["fts_rank"],
+                    "degree": item["degree"],
+                }
+            )
+            if len(results) >= limit:
+                break
+        return results
+
+    def _family_query(self, symbol: str) -> str:
+        tokens = [token for token in re.split(r"[^0-9A-Za-z_]+|_", symbol) if token]
+        if tokens:
+            return max(enumerate(tokens), key=lambda item: (len(item[1]), item[0]))[1]
+        return symbol
+
+    def _module_peers(self, path: str, symbol_name: str, limit: int) -> List[Dict[str, Any]]:
+        peers = []
+        for item in self.store.list_symbols(path):
+            if item.name == symbol_name:
+                continue
+            peers.append(
+                {
+                    "type": "code_symbol",
+                    "name": item.name,
+                    "kind": item.kind,
+                    "path": item.file,
+                    "line": item.line,
+                    "rank": 1.0,
+                }
+            )
+        peers.sort(key=lambda item: (self._is_test_path(item["path"]), item["name"], item["line"]))
+        return peers[:limit]
 
 
 class BrainAdapter:

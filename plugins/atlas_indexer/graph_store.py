@@ -265,6 +265,74 @@ class GraphStore:
             return None
         return " ".join(f"{token}*" for token in tokens)
 
+    def search_related_symbols(
+        self,
+        query: str,
+        *,
+        exclude_name: Optional[str] = None,
+        limit: int = 10,
+    ) -> list[dict[str, object]]:
+        normalized_query = query.strip()
+        if not normalized_query or not self._symbol_fts_enabled:
+            return []
+
+        fts_query = self._build_fts_query(normalized_query)
+        if fts_query is None:
+            return []
+
+        sql = """
+        WITH degree AS (
+            SELECT name, COUNT(*) AS deg
+            FROM (
+                SELECT caller AS name FROM calls
+                UNION ALL
+                SELECT callee AS name FROM calls
+            )
+            GROUP BY name
+        )
+        SELECT
+            s.name,
+            s.kind,
+            s.file,
+            s.line,
+            bm25(symbol_fts) AS fts_rank,
+            COALESCE(d.deg, 0) AS degree
+        FROM symbol_fts
+        JOIN symbols AS s ON s.rowid = symbol_fts.rowid
+        LEFT JOIN degree AS d ON d.name = s.name
+        WHERE symbol_fts MATCH ?
+        """
+        params: list[object] = [fts_query]
+        if exclude_name:
+            sql += " AND s.name != ?"
+            params.append(exclude_name)
+
+        sql += """
+        ORDER BY
+            bm25(symbol_fts) ASC,
+            COALESCE(d.deg, 0) DESC,
+            length(s.name) ASC,
+            s.name ASC,
+            s.file ASC,
+            s.line ASC
+        LIMIT ?
+        """
+        params.append(limit)
+
+        cur = self.conn.cursor()
+        rows = cur.execute(sql, params).fetchall()
+        return [
+            {
+                "name": name,
+                "kind": kind,
+                "file": file,
+                "line": line,
+                "fts_rank": fts_rank,
+                "degree": degree,
+            }
+            for name, kind, file, line, fts_rank, degree in rows
+        ]
+
     def find_callers(self, callee: str, limit: int = 50) -> List[CallSite]:
         cur = self.conn.cursor()
         rows = cur.execute(

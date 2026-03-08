@@ -300,6 +300,32 @@ def test_graph_store_find_callees_uses_covering_index(tmp_path: Path):
     ]
 
 
+def test_graph_store_search_related_symbols_prefers_higher_degree_and_excludes_exact(tmp_path: Path):
+    db_path = tmp_path / "atlas.db"
+    store = GraphStore(db_path)
+    source_path = tmp_path / "memory.py"
+    store.update_file(
+        source_path,
+        [
+            Symbol("memory_store", "function", str(source_path), 1),
+            Symbol("read_memory", "function", str(source_path), 2),
+            Symbol("memory_adapter", "function", str(source_path), 3),
+            Symbol("memory", "function", str(source_path), 4),
+        ],
+        [
+            CallSite("sync_memory", "memory_store", str(source_path), 10),
+            CallSite("flush_memory", "memory_store", str(source_path), 11),
+            CallSite("main", "read_memory", str(source_path), 12),
+        ],
+    )
+
+    results = store.search_related_symbols("memory", exclude_name="memory", limit=10)
+
+    assert [item["name"] for item in results] == ["memory_store", "read_memory", "memory_adapter"]
+    assert all(item["name"] != "memory" for item in results)
+    assert results[0]["degree"] > results[1]["degree"] >= results[2]["degree"]
+
+
 def test_indexer_waits_for_coalescing_window(tmp_path: Path):
     source_path = tmp_path / "tracked.py"
     source_path.write_text("def task():\n    return 1\n", encoding="utf-8")

@@ -85,6 +85,7 @@ kit symbol <query> --json
 kit callers <symbol> --json
 kit snippet <path>:<line> --json
 kit context <symbol> --json
+kit related <symbol> --json
 ```
 
 Design goals:
@@ -114,6 +115,12 @@ All commands return a stable JSON envelope so tools and agents can treat `kit` a
 - a local source snippet around the definition
 - related Brain documentation hits
 - simple metrics such as caller/callee/doc counts
+
+`kit related` is the exploration query for agent workflows. It aggregates:
+
+- similar symbol names from the local FTS index
+- direct callers and callees from the call graph
+- peer symbols from the same file/module
 
 ## Caveats
 

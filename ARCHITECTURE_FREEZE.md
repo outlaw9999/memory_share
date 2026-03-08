@@ -81,6 +81,7 @@ kit symbol <query>
 kit callers <symbol>
 kit snippet <path>:<line>
 kit context <symbol>
+kit related <symbol>
 ```
 
 Responsibilities:
@@ -91,6 +92,7 @@ Responsibilities:
 | `callers` | inspect indexed call graph relationships |
 | `snippet` | retrieve minimal code context from the filesystem |
 | `context` | aggregate definition, call graph, snippet, and related notes in one query |
+| `related` | explore neighboring symbols via similar names, graph edges, and module peers |
 
 Data sources:
 
