@@ -58,12 +58,13 @@ class JournalEngine:
             f.write(json.dumps(record) + "\n")
         return txn_id
 
-    def commit(self, txn_id: str):
-        """Xác nhận giao dịch thành công."""
+    def commit(self, txn_id: str, new_hash: Optional[str] = None):
+        """Xác nhận giao dịch thành công (Atomic Commit)."""
         record = {
             "type": "commit",
             "txn_id": txn_id, 
-            "ts": time.time()
+            "ts": time.time(),
+            "new_hash": new_hash
         }
         with open(self.journal_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
