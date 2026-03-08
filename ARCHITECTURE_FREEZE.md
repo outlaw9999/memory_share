@@ -80,6 +80,7 @@ Commands:
 kit symbol <query>
 kit callers <symbol>
 kit snippet <path>:<line>
+kit context <symbol>
 ```
 
 Responsibilities:
@@ -89,6 +90,7 @@ Responsibilities:
 | `symbol` | search indexed code symbols and related documentation |
 | `callers` | inspect indexed call graph relationships |
 | `snippet` | retrieve minimal code context from the filesystem |
+| `context` | aggregate definition, call graph, snippet, and related notes in one query |
 
 Data sources:
 

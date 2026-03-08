@@ -22,6 +22,7 @@ def test_bridge_indexes_only_after_commit(tmp_path: Path):
     journal_path.parent.mkdir(parents=True, exist_ok=True)
     graph = GraphStore(workspace_root / ".antigravity" / "atlas" / "atlas.db")
     indexer = AtlasIndexer(workspace_root=workspace_root, graph_store=graph)
+    indexer.coalesce_window_seconds = 0.0
     tailer = JournalTailer(journal_path)
     bridge = AtlasTailerBridge(tailer, indexer)
 
@@ -54,6 +55,7 @@ def test_bridge_factory_uses_workspace_defaults(tmp_path: Path):
     journal_path = tmp_path / ".antigravity" / "memory" / "journal.jsonl"
     journal_path.parent.mkdir(parents=True, exist_ok=True)
     bridge = AtlasTailerBridge.from_workspace(tmp_path)
+    bridge.indexer.coalesce_window_seconds = 0.0
 
     _append_record(
         journal_path,
@@ -79,6 +81,7 @@ def test_bridge_replay_skips_duplicate_txn(tmp_path: Path):
 
     graph = GraphStore(tmp_path / ".antigravity" / "atlas" / "atlas.db")
     indexer = AtlasIndexer(workspace_root=tmp_path, graph_store=graph)
+    indexer.coalesce_window_seconds = 0.0
     tailer = JournalTailer(tmp_path / ".antigravity" / "memory" / "journal.jsonl")
     bridge = AtlasTailerBridge(tailer, indexer)
     replay_event = SimpleNamespace(txn={"txn_id": "txn-1", "ts": 1.0, "target": "tracked.py"})

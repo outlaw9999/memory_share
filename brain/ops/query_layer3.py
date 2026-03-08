@@ -87,7 +87,47 @@ def build_sql(args: argparse.Namespace) -> tuple[str, list[object]]:
     return query, params
 
 
-def rank_row(row: sqlite3.Row) -> dict[str, object]:
+def search_metadata(
+    query: str,
+    brain: str | None = None,
+    project: str | None = None,
+    scope: str | None = None,
+    privacy: str | None = None,
+    include_private: bool = False,
+    source_kind: str | None = None,
+    source_layer: str | None = None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    """Programmatic entry point for searching Layer 3 metadata."""
+    if not os.path.exists(DB_PATH):
+        return []
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    # Prepare mock args for build_sql
+    class Args:
+        pass
+
+    args = Args()
+    args.query = query
+    args.brain = brain
+    args.project = project
+    args.scope = scope
+    args.privacy = privacy
+    args.include_private = include_private
+    args.source_kind = source_kind
+    args.source_layer = source_layer
+    args.limit = limit
+
+    sql, params = build_sql(args) # type: ignore
+    rows = conn.execute(sql, params).fetchall()
+    results = [rank_row(row) for row in rows]
+    results.sort(key=lambda item: item["score"], reverse=True)
+    return results[: max(1, limit)]
+
+
+def rank_row(row: sqlite3.Row) -> dict[str, Any]:
     metadata = json.loads(row["metadata"] or "{}")
     created_at = metadata.get("indexed_at") or metadata.get("source_timestamp") or row["created_at"]
 

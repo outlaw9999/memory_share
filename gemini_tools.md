@@ -52,10 +52,27 @@ kit snippet runtime/kernel.py:120 --json
 
 Use this only after a concrete path and line number are known.
 
+## 4. Unified Context
+
+```bash
+kit context <symbol> --json
+```
+
+Returns the best matching definition, callers, callees, a local snippet, related docs, and lightweight metrics.
+
+Example:
+
+```bash
+kit context write_memory --json
+```
+
+Use this when you want the full picture in one tool call.
+
 ## Recommended Workflow
 
-1. Call `kit symbol` before opening large files.
-2. Use `kit callers` to narrow investigation scope.
-3. Call `kit snippet` only after you know the exact file location.
+1. Call `kit context` first when you already know the target symbol.
+2. Fall back to `kit symbol` when you need discovery or disambiguation.
+3. Use `kit callers` for wider impact analysis beyond the default context window.
+4. Call `kit snippet` only after you need more local code than `kit context` returns.
 
 This keeps context small, reduces token usage, and treats `kit` as the stable query surface for code navigation.

@@ -7,3 +7,4 @@ brain/ops/.sync_state.json
 __pycache__/
 *.pyc
 .antigravity/
+.tmp_context_smoke/

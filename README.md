@@ -84,6 +84,7 @@ Primary commands:
 kit symbol <query> --json
 kit callers <symbol> --json
 kit snippet <path>:<line> --json
+kit context <symbol> --json
 ```
 
 Design goals:
@@ -105,3 +106,15 @@ kit
 ```
 
 All commands return a stable JSON envelope so tools and agents can treat `kit` as the official query API.
+
+`kit context` is the highest-level query for agent workflows. It aggregates:
+
+- the best matching code definition
+- caller and callee relationships
+- a local source snippet around the definition
+- related Brain documentation hits
+- simple metrics such as caller/callee/doc counts
+
+## Caveats
+
+- Snapshot assumption: `kit snippet` reads directly from the filesystem. Results may diverge if indexing has not caught up with recent edits.
