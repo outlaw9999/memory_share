@@ -1,118 +1,118 @@
 """
-JournalTailer: WAL-aware journal stream reader for Antigravity Phase 6 kernel.
+WAL-aware journal tailer for the Phase 6 Antigravity kernel.
 
-Architecture:
-    journal.jsonl (intent/commit/rollback WAL)
-           ↓
-    JournalTailer.poll() [read new entries]
-           ↓
-    TransactionBuffer { pending[txn_id]: intent_record }
-           ↓
-    emit NODE_UPDATED [only on commit]
-           ↓
-    Subscribers (ATLAS, Telemetry, Vectorizer)
-
-Design:
-- O(1) poll: Only read appended lines
-- WAL-native: Parses intent|commit|rollback, not events
-- Silent failure proof: Only emits when txn commits
-- Torn line safe: Detects partial JSON and waits for next poll
-- Truncation resilient: Resets offset on file shrink
+The tailer consumes append-only journal records shaped like:
+`intent -> commit|rollback`.
+It buffers intents by transaction id and only emits semantic events
+once the transaction is committed.
 """
 
 import json
 import os
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Any, Callable, List, Optional
+from typing import Any, Callable, Dict, List, Union
 
 
 class EventType(Enum):
     """Semantic events derived from WAL transactions."""
+
     NODE_UPDATED = "node_updated"
 
 
+@dataclass
 class JournalEvent:
-    """Minimal event representation."""
-    def __init__(self, event_type: EventType, txn: Dict[str, Any]):
-        self.event_type = event_type
-        self.txn = txn
-        self.ts = txn.get("ts", 0.0)
-        self.txn_id = txn.get("txn_id")
+    """Semantic event emitted after a transaction commits."""
+
+    event_type: EventType
+    txn: Dict[str, Any]
+    ts: float
+    txn_id: str | None
 
 
 class JournalTailer:
-    """WAL-aware journal tailer: intent → commit → emit."""
+    """WAL-aware journal tailer: intent -> commit -> emit."""
 
-    def __init__(self, journal_path: str = ".antigravity/memory/journal.jsonl"):
+    def __init__(self, journal_path: Union[str, Path] = ".antigravity/memory/journal.jsonl"):
         self.path = Path(journal_path)
         self.offset = 0
-        self._pending: Dict[str, Any] = {}  # txn_id → intent_record
-        self.subscribers: List[Callable] = []
+        self._pending: Dict[str, Dict[str, Any]] = {}
+        self.subscribers: List[Callable[[JournalEvent], None]] = []
 
-    def subscribe(self, callback: Callable) -> None:
-        """Register event subscriber: callback(event_type, event)."""
+    def subscribe(self, callback: Callable[[JournalEvent], None]) -> None:
+        """Register a subscriber that receives committed semantic events."""
+
         self.subscribers.append(callback)
 
     def _emit(self, event_type: EventType, txn: Dict[str, Any]) -> None:
         """Emit semantic event to all subscribers."""
-        event = JournalEvent(event_type, txn)
+
+        event = JournalEvent(
+            event_type=event_type,
+            txn=txn,
+            ts=txn.get("ts", 0.0),
+            txn_id=txn.get("txn_id"),
+        )
         for sub in self.subscribers:
             try:
                 sub(event)
-            except Exception as e:
-                print(f"Subscriber error: {e}")
+            except Exception as exc:
+                print(f"Subscriber error: {exc}")
 
     def poll(self) -> None:
         """
-        Poll journal: read new entries, update transaction buffer, emit on commit.
-        
-        Handles:
-        - Truncation: if file < offset, reset offset to 0
-        - Torn lines: if JSONDecodeError, break and retry next poll
-        - Out-of-order records: maintain intent buffer until commit arrives
+        Poll the journal and process only newly appended complete lines.
+
+        If the journal is truncated, the tailer resets its offset and
+        discards buffered intents because the source of truth changed.
+        If the active line is torn or incomplete, the tailer leaves the
+        offset unchanged so the next poll can retry the same bytes.
         """
+
         if not self.path.exists():
             return
 
-        # Handle truncation (e.g., checkpoint reset)
-        file_size = os.path.getsize(self.path)
+        try:
+            file_size = os.path.getsize(self.path)
+        except OSError:
+            return
+
         if file_size < self.offset:
             self.offset = 0
+            self._pending.clear()
 
-        with open(self.path, "r", encoding="utf-8") as f:
-            f.seek(self.offset)
-            while True:
-                line = f.readline()
-                if not line or not line.endswith("\n"):
-                    # Incomplete line (torn write): wait for next poll
-                    break
+        try:
+            with open(self.path, "r", encoding="utf-8") as handle:
+                handle.seek(self.offset)
+                while True:
+                    line = handle.readline()
+                    if not line or not line.endswith("\n"):
+                        break
 
-                try:
-                    rec = json.loads(line)
-                    self._handle_record(rec)
-                    self.offset = f.tell()  # Update only after successful parse
-                except json.JSONDecodeError:
-                    # Torn line: don't update offset, retry next poll
-                    break
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        break
+
+                    self._handle_record(record)
+                    self.offset = handle.tell()
+        except OSError:
+            return
 
     def _handle_record(self, rec: Dict[str, Any]) -> None:
-        """
-        Process WAL record: intent stores txn, commit/rollback derives event.
-        """
+        """Process a WAL record and derive semantic events on commit."""
+
         rec_type = rec.get("type")
         txn_id = rec.get("txn_id")
+        if not txn_id:
+            return
 
         if rec_type == "intent":
-            # Store pending transaction
             self._pending[txn_id] = rec
-
         elif rec_type == "commit":
-            # Emit event only when txn commits
             txn = self._pending.pop(txn_id, None)
             if txn:
                 self._emit(EventType.NODE_UPDATED, txn)
-
         elif rec_type == "rollback":
-            # Discard pending transaction
             self._pending.pop(txn_id, None)
