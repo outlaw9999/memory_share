@@ -13,7 +13,7 @@ import os
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Union
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 
 logger = logging.getLogger(__name__)
@@ -38,12 +38,19 @@ class JournalEvent:
 class JournalTailer:
     """WAL-aware journal tailer: intent -> commit -> emit."""
 
-    def __init__(self, journal_path: Union[str, Path] = ".antigravity/memory/journal.jsonl"):
+    def __init__(
+        self,
+        journal_path: Union[str, Path] = ".antigravity/memory/journal.jsonl",
+        state_path: Union[str, Path, None] = None,
+    ):
         self.path = Path(journal_path)
+        self.state_path = Path(state_path) if state_path is not None else self.path.with_suffix(".offset.json")
         self.offset = 0
         self._last_commit_ts = 0.0
+        self._file_id: Tuple[int, int] | None = None
         self._pending: Dict[str, Dict[str, Any]] = {}
         self.subscribers: List[Callable[[JournalEvent], None]] = []
+        self._load_state()
 
     def subscribe(self, callback: Callable[[JournalEvent], None]) -> None:
         """Register a subscriber that receives committed semantic events."""
@@ -65,6 +72,71 @@ class JournalTailer:
             except Exception as exc:
                 print(f"Subscriber error: {exc}")
 
+    def _load_state(self) -> None:
+        """Load durable tailer state if it exists."""
+
+        if not self.state_path.exists():
+            return
+
+        try:
+            with self.state_path.open("r", encoding="utf-8") as handle:
+                state = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Failed to load tailer state from %s: %s", self.state_path, exc)
+            return
+
+        self.offset = int(state.get("offset", 0))
+        self._last_commit_ts = float(state.get("last_commit_ts", 0.0))
+        pending = state.get("pending", {})
+        self._pending = pending if isinstance(pending, dict) else {}
+
+        raw_file_id = state.get("file_id")
+        if isinstance(raw_file_id, list) and len(raw_file_id) == 2:
+            self._file_id = (int(raw_file_id[0]), int(raw_file_id[1]))
+
+    def _save_state(self) -> None:
+        """Persist the current cursor and pending transaction state atomically."""
+
+        state = {
+            "offset": self.offset,
+            "last_commit_ts": self._last_commit_ts,
+            "pending": self._pending,
+            "file_id": list(self._file_id) if self._file_id is not None else None,
+        }
+        tmp_path = self.state_path.with_name(self.state_path.name + ".tmp")
+
+        try:
+            self.state_path.parent.mkdir(parents=True, exist_ok=True)
+            with tmp_path.open("w", encoding="utf-8") as handle:
+                json.dump(state, handle)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_path, self.state_path)
+        except OSError as exc:
+            logger.warning("Failed to persist tailer state to %s: %s", self.state_path, exc)
+            try:
+                if tmp_path.exists():
+                    tmp_path.unlink()
+            except OSError:
+                pass
+
+    def _current_file_id(self) -> Tuple[int, int] | None:
+        """Return a stable identifier for the current journal file."""
+
+        try:
+            stat = self.path.stat()
+        except OSError:
+            return None
+        return (stat.st_dev, stat.st_ino)
+
+    def _reset_state(self, file_id: Tuple[int, int] | None) -> None:
+        """Reset cursor state when the journal identity changes."""
+
+        self.offset = 0
+        self._last_commit_ts = 0.0
+        self._pending.clear()
+        self._file_id = file_id
+
     def poll(self) -> None:
         """
         Poll the journal and process only newly appended complete lines.
@@ -78,14 +150,24 @@ class JournalTailer:
         if not self.path.exists():
             return
 
+        current_file_id = self._current_file_id()
+        if current_file_id is None:
+            return
+
+        if self._file_id is None:
+            self._file_id = current_file_id
+        elif current_file_id != self._file_id:
+            logger.info("Journal file identity changed; resetting tailer cursor")
+            self._reset_state(current_file_id)
+            self._save_state()
+
         try:
             file_size = os.path.getsize(self.path)
         except OSError:
             return
-
         if file_size < self.offset:
-            self.offset = 0
-            self._pending.clear()
+            self._reset_state(current_file_id)
+            self._save_state()
 
         try:
             with open(self.path, "r", encoding="utf-8") as handle:
@@ -102,6 +184,8 @@ class JournalTailer:
 
                     self._handle_record(record)
                     self.offset = handle.tell()
+                    self._file_id = current_file_id
+                    self._save_state()
         except OSError:
             return
 

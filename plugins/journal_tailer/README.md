@@ -7,11 +7,13 @@ It tails `.antigravity/memory/journal.jsonl`, understands the real WAL protocol 
 ## Behavior
 
 - Reads incrementally from the last byte offset.
+- Persists cursor state and pending transactions atomically in `journal.offset.json`.
 - Buffers `intent` records by `txn_id`.
 - Emits `EventType.NODE_UPDATED` only when the matching `commit` arrives.
 - Drops buffered intents on `rollback`.
 - Retries torn or incomplete lines on the next poll without advancing the offset.
 - Resets cleanly if the journal is truncated.
+- Resets and replays from byte `0` if the journal file identity changes.
 - Warns if commit timestamps move backward, while still preserving WAL order.
 
 ## Protocol
@@ -42,6 +44,10 @@ tailer.subscribe(on_event)
 while True:
     tailer.poll()
 ```
+
+By default the tailer stores its checkpoint beside the WAL as `journal.offset.json`.
+This gives it durable resume behavior across restarts while preserving pending transactions.
+Delivery remains at-least-once across crashes because a process can still fail after emit and before the next checkpoint flush.
 
 ## Boundary
 
