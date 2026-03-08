@@ -181,3 +181,48 @@ def test_rotation_detects_new_file_identity_and_restarts_from_zero(tmp_path: Pat
 
     assert [event.txn_id for event in received] == ["txn-new"]
     assert tailer._pending == {}
+
+
+def test_subscriber_failure_retries_event_on_restart(tmp_path: Path):
+    journal_path = tmp_path / "journal.jsonl"
+    state_path = tmp_path / "journal.offset.json"
+
+    _append_record(journal_path, {"type": "intent", "txn_id": "txn-1", "ts": 1.0, "node": {"node_id": "n1"}})
+    _append_record(journal_path, {"type": "commit", "txn_id": "txn-1", "ts": 2.0, "new_hash": "h1"})
+
+    first_tailer = JournalTailer(journal_path, state_path=state_path)
+
+    def flaky_subscriber(_event):
+        raise RuntimeError("temporary subscriber failure")
+
+    first_tailer.subscribe(flaky_subscriber)
+    first_tailer.poll()
+
+    restarted_tailer = JournalTailer(journal_path, state_path=state_path)
+    received = []
+    restarted_tailer.subscribe(received.append)
+    restarted_tailer.poll()
+
+    assert [event.txn_id for event in received] == ["txn-1"]
+
+
+def test_checkpoint_persists_once_per_poll(tmp_path: Path, monkeypatch):
+    journal_path = tmp_path / "journal.jsonl"
+    state_path = tmp_path / "journal.offset.json"
+    tailer = JournalTailer(journal_path, state_path=state_path)
+
+    for i in range(3):
+        _append_record(journal_path, {"type": "intent", "txn_id": f"txn-{i}", "ts": float(i), "node": {"node_id": f"n{i}"}})
+        _append_record(journal_path, {"type": "commit", "txn_id": f"txn-{i}", "ts": float(i) + 0.5, "new_hash": f"h{i}"})
+
+    save_calls = []
+    original_save_state = tailer._save_state
+
+    def counted_save_state():
+        save_calls.append(True)
+        original_save_state()
+
+    monkeypatch.setattr(tailer, "_save_state", counted_save_state)
+    tailer.poll()
+
+    assert len(save_calls) == 1

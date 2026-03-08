@@ -15,6 +15,7 @@ It tails `.antigravity/memory/journal.jsonl`, understands the real WAL protocol 
 - Resets cleanly if the journal is truncated.
 - Resets and replays from byte `0` if the journal file identity changes.
 - Warns if commit timestamps move backward, while still preserving WAL order.
+- Halts before checkpointing a failed subscriber delivery when `strict_subscribers=True` (default).
 
 ## Protocol
 
@@ -47,7 +48,9 @@ while True:
 
 By default the tailer stores its checkpoint beside the WAL as `journal.offset.json`.
 This gives it durable resume behavior across restarts while preserving pending transactions.
+Checkpoint state is flushed once per poll after the acknowledged records in that poll, instead of once per WAL record.
 Delivery remains at-least-once across crashes because a process can still fail after emit and before the next checkpoint flush.
+With the default `strict_subscribers=True`, subscriber failures stop the poll before the failing record is checkpointed, so the record can be retried on the next poll or after restart.
 
 ## Boundary
 

@@ -42,9 +42,11 @@ class JournalTailer:
         self,
         journal_path: Union[str, Path] = ".antigravity/memory/journal.jsonl",
         state_path: Union[str, Path, None] = None,
+        strict_subscribers: bool = True,
     ):
         self.path = Path(journal_path)
         self.state_path = Path(state_path) if state_path is not None else self.path.with_suffix(".offset.json")
+        self.strict_subscribers = strict_subscribers
         self.offset = 0
         self._last_commit_ts = 0.0
         self._file_id: Tuple[int, int] | None = None
@@ -57,7 +59,7 @@ class JournalTailer:
 
         self.subscribers.append(callback)
 
-    def _emit(self, event_type: EventType, txn: Dict[str, Any]) -> None:
+    def _emit(self, event_type: EventType, txn: Dict[str, Any]) -> bool:
         """Emit semantic event to all subscribers."""
 
         event = JournalEvent(
@@ -70,7 +72,10 @@ class JournalTailer:
             try:
                 sub(event)
             except Exception as exc:
-                print(f"Subscriber error: {exc}")
+                logger.warning("Subscriber error while handling txn %s: %s", event.txn_id, exc)
+                if self.strict_subscribers:
+                    return False
+        return True
 
     def _load_state(self) -> None:
         """Load durable tailer state if it exists."""
@@ -172,7 +177,9 @@ class JournalTailer:
         try:
             with open(self.path, "r", encoding="utf-8") as handle:
                 handle.seek(self.offset)
+                should_checkpoint = False
                 while True:
+                    line_start = handle.tell()
                     line = handle.readline()
                     if not line or not line.endswith("\n"):
                         break
@@ -182,24 +189,35 @@ class JournalTailer:
                     except json.JSONDecodeError:
                         break
 
-                    self._handle_record(record)
+                    if not self._handle_record(record):
+                        logger.warning(
+                            "Halting poll at offset %s due to subscriber failure; record will be retried",
+                            line_start,
+                        )
+                        break
                     self.offset = handle.tell()
                     self._file_id = current_file_id
+                    should_checkpoint = True
+                if should_checkpoint:
                     self._save_state()
         except OSError:
             return
 
-    def _handle_record(self, rec: Dict[str, Any]) -> None:
+    def _handle_record(self, rec: Dict[str, Any]) -> bool:
         """Process a WAL record and derive semantic events on commit."""
 
         rec_type = rec.get("type")
         txn_id = rec.get("txn_id")
         if not txn_id:
-            return
+            return True
 
         if rec_type == "intent":
             self._pending[txn_id] = rec
+            return True
         elif rec_type == "commit":
+            txn = self._pending.get(txn_id)
+            if txn and not self._emit(EventType.NODE_UPDATED, txn):
+                return False
             commit_ts = rec.get("ts", 0.0)
             if commit_ts < self._last_commit_ts:
                 logger.warning(
@@ -209,8 +227,9 @@ class JournalTailer:
                     self._last_commit_ts,
                 )
             self._last_commit_ts = max(self._last_commit_ts, commit_ts)
-            txn = self._pending.pop(txn_id, None)
-            if txn:
-                self._emit(EventType.NODE_UPDATED, txn)
+            self._pending.pop(txn_id, None)
+            return True
         elif rec_type == "rollback":
             self._pending.pop(txn_id, None)
+            return True
+        return True
