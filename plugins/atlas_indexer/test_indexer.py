@@ -39,6 +39,20 @@ def test_graph_store_replaces_symbols_for_a_file(tmp_path: Path):
     assert [symbol.name for symbol in store.list_symbols(source_path)] == ["second"]
 
 
+def test_graph_store_skips_duplicate_txn_replay(tmp_path: Path):
+    db_path = tmp_path / "atlas.db"
+    source_path = tmp_path / "file.py"
+    source_path.write_text("def once():\n    pass\n", encoding="utf-8")
+
+    store = GraphStore(db_path)
+    symbols = Scanner().scan_file(source_path)
+
+    assert store.update_file(source_path, symbols, txn_id="txn-1", ts=1.0) is True
+    assert store.update_file(source_path, symbols, txn_id="txn-1", ts=1.0) is False
+    assert [symbol.name for symbol in store.list_symbols(source_path)] == ["once"]
+    assert store.list_applied_txns() == ["txn-1"]
+
+
 def test_indexer_marks_dirty_once_and_indexes_on_poll(tmp_path: Path):
     source_path = tmp_path / "tracked.py"
     source_path.write_text("def task():\n    return 1\n", encoding="utf-8")
@@ -69,3 +83,19 @@ def test_indexer_accepts_node_path_events(tmp_path: Path):
     indexer.poll()
 
     assert [symbol.name for symbol in graph.list_symbols(source_path)] == ["Item"]
+
+
+def test_indexer_skips_duplicate_replayed_txn(tmp_path: Path):
+    source_path = tmp_path / "tracked.py"
+    source_path.write_text("def task():\n    return 1\n", encoding="utf-8")
+
+    graph = GraphStore(tmp_path / "atlas.db")
+    indexer = AtlasIndexer(workspace_root=tmp_path, graph_store=graph)
+    event = FakeEvent({"txn_id": "txn-1", "ts": 1.0, "target": "tracked.py", "node": {"node_id": "task"}})
+
+    indexer.handle_event(event)
+    assert indexer.poll() == ["tracked.py"]
+
+    indexer.handle_event(event)
+    assert indexer.poll() == []
+    assert [symbol.name for symbol in graph.list_symbols(source_path)] == ["task"]

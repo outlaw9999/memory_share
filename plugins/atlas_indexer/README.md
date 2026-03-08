@@ -7,6 +7,8 @@ Pipeline:
 ```text
 JournalTailer
     ->
+AtlasTailerBridge
+    ->
 AtlasIndexer
     ->
 Dirty File Queue
@@ -21,12 +23,14 @@ Key design rule:
 - Events do not trigger immediate parsing.
 - Events only mark files as dirty.
 - Parsing happens during `AtlasIndexer.poll()` to keep UI-facing workflows light.
+- `AtlasTailerBridge.run_forever()` provides a tiny idle-sleep worker loop without adding async infrastructure.
 
 Current scope:
 
 - dirty file queue
 - Python symbol scanning stub
 - SQLite-backed symbol table
+- WAL bridge from committed journal events to the dirty queue
 
 Future scope:
 
