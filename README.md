@@ -73,3 +73,35 @@ The system uses four working layers:
 ## Privacy
 
 This repository is intentionally safe to share. It does not include any live Layer 2 memory files, private user data, stream logs, SQLite indexes, or runtime state.
+
+## Query Interface
+
+`memory_share.kit` exposes a small CLI query surface designed for agents and automation.
+
+Primary commands:
+
+```bash
+kit symbol <query> --json
+kit callers <symbol> --json
+kit snippet <path>:<line> --json
+```
+
+Design goals:
+
+- CLI-first: usable from any environment without IDE plugins
+- JSON-first: stable machine-readable outputs for agents and automation
+- filesystem-first: no daemon or server required
+
+The CLI aggregates information from two internal systems:
+
+```text
+kit
+ |
+ +- Atlas (plugins/atlas_indexer/)
+ |   code graph + symbol index
+ |
+ +- Brain (brain/)
+     cognitive memory + documentation metadata
+```
+
+All commands return a stable JSON envelope so tools and agents can treat `kit` as the official query API.

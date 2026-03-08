@@ -12,6 +12,8 @@ The following kernel capabilities are considered contract-stable for v0.1.0-phas
 - `read_node(...)` deterministic node read
 - `append_node(...)` append semantics compatible with anchor-based mutation
 
+**Kernel ABI version: 0.1**
+
 Any change that alters input/output contract, error semantics, or OCC conflict behavior is a breaking change and must not be introduced in patch/minor work on this frozen line.
 
 ## 2) Frozen Core Invariants
@@ -20,6 +22,7 @@ Any change that alters input/output contract, error semantics, or OCC conflict b
 - Journal protocol: intent/commit event stream remains authoritative for transactional recovery.
 - Node identity: anchor-based addressing (HTML comments) remains the stable node identity mechanism.
 - Crash/restart behavior: transaction state loader must support fast restart independent of journal growth.
+- Journal Compatibility: The intent/commit format remains stable for downstream CDC consumers (e.g., ATLAS Indexer).
 
 ## 3) Boundary Rules
 
@@ -55,3 +58,43 @@ Outside kernel boundary (may evolve independently):
 - This freeze is tied to Git tag: `v0.1.0-phase6`.
 - Breaking kernel changes require a new tagged release line (e.g., `v0.2.0+`) and migration notes.
 - Phase 7 (ATLAS) must be integrated as a plugin-level concern, not by mutating frozen kernel contract.
+
+## 7) Post-Freeze Architecture Context
+
+After this freeze, higher-level systems such as ATLAS (incremental code graph indexing) and memory query layers (Brain v2) are expected to integrate through the plugin boundary.
+
+These systems must treat the kernel runtime as a stable substrate and must not rely on internal implementation details outside the frozen interface described above. The `kit` CLI serves as the official orchestrator for querying unified knowledge across these subsystems.
+
+## 8) Query Interface
+
+The system exposes a stable CLI query layer via `kit`.
+
+Location:
+
+- `kit.py`
+- `kit_adapters.py`
+
+Commands:
+
+```text
+kit symbol <query>
+kit callers <symbol>
+kit snippet <path>:<line>
+```
+
+Responsibilities:
+
+| Command | Purpose |
+| ------- | ------- |
+| `symbol` | search indexed code symbols and related documentation |
+| `callers` | inspect indexed call graph relationships |
+| `snippet` | retrieve minimal code context from the filesystem |
+
+Data sources:
+
+```text
+Atlas -> code symbols + call graph
+Brain -> documentation metadata
+```
+
+This query interface is considered stable and should remain backwards compatible for higher-level tooling, agents, and automation.
