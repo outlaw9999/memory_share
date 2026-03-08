@@ -6,3 +6,4 @@ brain/layer3_index/*.db.*
 brain/ops/.sync_state.json
 __pycache__/
 *.pyc
+.antigravity/
