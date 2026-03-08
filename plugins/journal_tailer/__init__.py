@@ -9,6 +9,10 @@ where low-latency journal parsing is critical.
 __version__ = "0.1.0"
 __author__ = "Antigravity Contributors"
 
-from .tailer import JournalTailer
+from .tailer import JournalTailer, EventType, JournalEvent
 
-__all__ = ["JournalTailer"]
+__all__ = [
+    "JournalTailer",
+    "EventType",
+    "JournalEvent",
+]
