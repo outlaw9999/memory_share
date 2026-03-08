@@ -201,6 +201,57 @@ Target latencies for a local repository-sized database:
 
 These are engineering targets, not frozen guarantees.
 
+## Portable Kit Artifacts
+
+While `.kit` is the **engine**, a `.kit database` is a **portable, shareable artifact**.
+
+### What is a `.kit` Database?
+
+A `.kit` database bundles:
+
+- **Repository snapshot** — code files and metadata
+- **Semantic graph** — symbols and call edges
+- **FTS index** — full-text search for symbol discovery
+- **Identity mapping** — symbol_id → file::scope::name
+
+After Phase 10, each symbol has a stable, language-independent identity:
+
+```
+file::scope::name
+```
+
+### Instances: `memory_share.kit`
+
+`memory_share.kit` is a concrete instance of a `.kit` database:
+
+```
+memory_share.kit
+├── .antigravity/atlas/atlas.db
+│   ├── symbols (identity-based)
+│   ├── calls (identity-based edges)
+│   └── symbol_fts (full-text search)
+└── code/ (repository snapshot)
+```
+
+This makes `memory_share.kit` a **shareable semantic repository memory**:
+
+- **Portable**: can be exchanged between agents, developers, and tools
+- **Deterministic**: identity formula is stable across runs
+- **Queryable**: all `.kit` commands work on any instance
+- **Self-contained**: no external service required
+
+### Product Hierarchy
+
+```
+kit engine (CLI + adapters + graph reasoning)
+    ↓
+kit database format (.antigravity/atlas/atlas.db)
+    ↓
+portable kit artifact (memory_share.kit, or any .kit instance)
+```
+
+---
+
 ## Final State
 
 After Phase 10, `.kit` is intentionally scoped as a:
@@ -214,3 +265,5 @@ Key properties:
 - agent-compatible
 - minimal infrastructure
 - scalable to large repositories through bounded SQLite queries
+
+The primary **product** of `.kit` is portable, shareable semantic code graph artifacts that any agent or developer tool can query without external services or network dependencies.

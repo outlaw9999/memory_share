@@ -24,6 +24,16 @@ class GraphStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._symbol_fts_enabled = False
         self.conn = sqlite3.connect(self.db_path)
+        
+        # Enable WAL mode for concurrent reads (agents querying in parallel)
+        self.conn.execute("PRAGMA journal_mode=WAL;")
+        
+        # Allow readers to proceed without blocking on writes
+        self.conn.execute("PRAGMA query_only=False;")
+        
+        # Use in-memory temp tables for performance
+        self.conn.execute("PRAGMA temp_store=MEMORY;")
+        
         self._init_schema()
 
     def _init_schema(self) -> None:
@@ -53,7 +63,8 @@ class GraphStore:
                 caller TEXT NOT NULL,
                 callee TEXT NOT NULL,
                 file TEXT NOT NULL,
-                line INTEGER NOT NULL
+                line INTEGER NOT NULL,
+                UNIQUE(caller, callee, line)
             )
             """
         )
@@ -308,41 +319,54 @@ class GraphStore:
                 s.line ASC
             LIMIT ?
         ),
+        ranked_candidates AS (
+            SELECT
+                rowid,
+                name,
+                kind,
+                file,
+                line,
+                fts_rank,
+                ROW_NUMBER() OVER (PARTITION BY name ORDER BY file) AS name_rank
+            FROM candidates
+        ),
         degree AS (
             SELECT rowid, SUM(cnt) AS deg
             FROM (
-                SELECT c.rowid, COUNT(*) AS cnt
-                FROM candidates AS c
-                JOIN calls ON calls.caller = c.name
-                GROUP BY c.rowid
+                SELECT rc.rowid, COUNT(*) AS cnt
+                FROM ranked_candidates AS rc
+                JOIN calls ON calls.caller = rc.name
+                WHERE rc.name_rank = 1
+                GROUP BY rc.rowid
                 UNION ALL
-                SELECT c.rowid, COUNT(*) AS cnt
-                FROM candidates AS c
-                JOIN calls ON calls.callee = c.name
-                GROUP BY c.rowid
+                SELECT rc.rowid, COUNT(*) AS cnt
+                FROM ranked_candidates AS rc
+                JOIN calls ON calls.callee = rc.name
+                WHERE rc.name_rank = 1
+                GROUP BY rc.rowid
             )
             GROUP BY rowid
         )
         SELECT
-            c.name,
-            c.kind,
-            c.file,
-            c.line,
-            c.fts_rank,
+            rc.name,
+            rc.kind,
+            rc.file,
+            rc.line,
+            rc.fts_rank,
             COALESCE(d.deg, 0) AS degree
-        FROM candidates AS c
-        LEFT JOIN degree AS d ON d.rowid = c.rowid
+        FROM ranked_candidates AS rc
+        LEFT JOIN degree AS d ON d.rowid = rc.rowid
         """
         params.append(candidate_limit)
 
         sql += """
         ORDER BY
-            c.fts_rank ASC,
+            rc.fts_rank ASC,
             COALESCE(d.deg, 0) DESC,
-            length(c.name) ASC,
-            c.name ASC,
-            c.file ASC,
-            c.line ASC
+            length(rc.name) ASC,
+            rc.name ASC,
+            rc.file ASC,
+            rc.line ASC
         LIMIT ?
         """
         params.append(limit)

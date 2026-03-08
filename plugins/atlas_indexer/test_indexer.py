@@ -3,13 +3,28 @@ from pathlib import Path
 
 from plugins.atlas_indexer.graph_store import GraphStore
 from plugins.atlas_indexer.indexer import AtlasIndexer
-from plugins.atlas_indexer.models import CallSite, Symbol
+from plugins.atlas_indexer.models import CallSite, Symbol, build_symbol_id
 from plugins.atlas_indexer.scanner import Scanner
 
 
 class FakeEvent:
     def __init__(self, txn):
         self.txn = txn
+
+
+def test_symbol_id_generation():
+    """Phase 10: Test symbol identity generator ensures unique file-qualified IDs."""
+    # Basic module-scope identity
+    assert build_symbol_id("parser_a.py", "parse") == "parser_a.py::module::parse"
+    
+    # Same name in different files produces different IDs
+    assert build_symbol_id("parser_a.py", "parse") != build_symbol_id("parser_b.py", "parse")
+    
+    # Path normalization (backslashes → forward slashes)
+    assert build_symbol_id("pkg\\service.py", "handle") == "pkg/service.py::module::handle"
+    
+    # Explicit scope
+    assert build_symbol_id("parser.py", "parse", scope="function") == "parser.py::function::parse"
 
 
 def test_scanner_extracts_python_symbols(tmp_path: Path):

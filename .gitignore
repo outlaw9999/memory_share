@@ -1,10 +1,86 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+.egg-info/
+.installed.cfg
+
+# Virtual Environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+dist/
+build/
+
+# Memory_share local state
+.antigravity/
+.tmp_context_smoke/
+
+# Brain layer exclusions
 brain/layer1_stream/
 brain/layer2_core/
 brain/layer2_private/
 brain/layer3_index/*.db
 brain/layer3_index/*.db.*
 brain/ops/.sync_state.json
-__pycache__/
-*.pyc
-.antigravity/
-.tmp_context_smoke/
+
+# Environment files (never commit secrets)
+.env
+.env.local
+.env.prod.local
+*.pem
+*.key
+
+# Database artifacts (instance data, not engine)
+*.db
+*.db-wal
+*.db-shm
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Portable artifacts (instance data, not code)
+*.kit
+*.kit-wal
+*.kit-shm
+
+# OS-specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Misc
+*.log
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/

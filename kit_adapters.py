@@ -59,6 +59,11 @@ class AtlasAdapter:
         return results
 
     def definition(self, query: str) -> Optional[Dict[str, Any]]:
+        # Phase 10: Support file-qualified lookup syntax "file::symbol"
+        if "::" in query:
+            return self._definition_file_qualified(query)
+        
+        # Phase 9 fallback: name-based lookup
         candidates = self.store.search_symbols(query, limit=10, fuzzy=False)
         if not candidates:
             candidates = self.store.search_symbols(query, limit=10, fuzzy=True)
@@ -75,6 +80,44 @@ class AtlasAdapter:
             "line": symbol.line,
             "rank": 1.0 if symbol.name == query else 0.9,
         }
+
+    def _definition_file_qualified(self, query: str) -> Optional[Dict[str, Any]]:
+        """
+        Phase 10: Resolve file-qualified symbol reference.
+        
+        Syntax: "relative/path/file.py::symbol_name"
+        Returns: Symbol definition from that specific file
+        """
+        parts = query.split("::", 1)
+        if len(parts) != 2:
+            return None
+        
+        file_query, symbol_name = parts
+        
+        # Normalize file path to match stored paths
+        # Support both relative and absolute paths
+        file_query = file_query.replace("\\", "/")
+        
+        # Search all symbols to find file-qualified match
+        all_symbols = self.store.list_symbols()
+        
+        for symbol in all_symbols:
+            # Normalize stored path for comparison
+            stored_path = symbol.file.replace("\\", "/")
+            
+            # Match if filename matches or full path matches
+            if stored_path.endswith(file_query) or stored_path == file_query:
+                if symbol.name == symbol_name:
+                    return {
+                        "type": "code_symbol",
+                        "name": symbol.name,
+                        "kind": symbol.kind,
+                        "path": symbol.file,
+                        "line": symbol.line,
+                        "rank": 1.0,
+                    }
+        
+        return None
 
     def _rank_symbols(self, symbols: List[Any], query: str) -> List[Any]:
         return sorted(
