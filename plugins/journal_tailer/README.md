@@ -12,6 +12,7 @@ It tails `.antigravity/memory/journal.jsonl`, understands the real WAL protocol 
 - Drops buffered intents on `rollback`.
 - Retries torn or incomplete lines on the next poll without advancing the offset.
 - Resets cleanly if the journal is truncated.
+- Warns if commit timestamps move backward, while still preserving WAL order.
 
 ## Protocol
 

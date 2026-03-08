@@ -8,11 +8,15 @@ once the transaction is committed.
 """
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Union
+
+
+logger = logging.getLogger(__name__)
 
 
 class EventType(Enum):
@@ -37,6 +41,7 @@ class JournalTailer:
     def __init__(self, journal_path: Union[str, Path] = ".antigravity/memory/journal.jsonl"):
         self.path = Path(journal_path)
         self.offset = 0
+        self._last_commit_ts = 0.0
         self._pending: Dict[str, Dict[str, Any]] = {}
         self.subscribers: List[Callable[[JournalEvent], None]] = []
 
@@ -111,6 +116,15 @@ class JournalTailer:
         if rec_type == "intent":
             self._pending[txn_id] = rec
         elif rec_type == "commit":
+            commit_ts = rec.get("ts", 0.0)
+            if commit_ts < self._last_commit_ts:
+                logger.warning(
+                    "Out-of-order commit detected for txn %s: ts=%s last_commit_ts=%s",
+                    txn_id,
+                    commit_ts,
+                    self._last_commit_ts,
+                )
+            self._last_commit_ts = max(self._last_commit_ts, commit_ts)
             txn = self._pending.pop(txn_id, None)
             if txn:
                 self._emit(EventType.NODE_UPDATED, txn)

@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 
 from plugins.journal_tailer import EventType, JournalTailer
@@ -117,3 +118,21 @@ def test_commit_without_matching_intent_is_ignored(tmp_path: Path):
     tailer.poll()
 
     assert received == []
+
+
+def test_out_of_order_commit_logs_warning_and_keeps_wal_order(tmp_path: Path, caplog):
+    journal_path = tmp_path / "journal.jsonl"
+    tailer = JournalTailer(journal_path)
+    received = []
+    tailer.subscribe(received.append)
+
+    _append_record(journal_path, {"type": "intent", "txn_id": "txn-1", "ts": 1.0, "node": {"node_id": "n1"}})
+    _append_record(journal_path, {"type": "intent", "txn_id": "txn-2", "ts": 2.0, "node": {"node_id": "n2"}})
+    _append_record(journal_path, {"type": "commit", "txn_id": "txn-2", "ts": 20.0, "new_hash": "h2"})
+    _append_record(journal_path, {"type": "commit", "txn_id": "txn-1", "ts": 10.0, "new_hash": "h1"})
+
+    with caplog.at_level(logging.WARNING):
+        tailer.poll()
+
+    assert [event.txn_id for event in received] == ["txn-2", "txn-1"]
+    assert "Out-of-order commit detected" in caplog.text
