@@ -1,6 +1,12 @@
 # `.kit` — Local Semantic Code Graph for Agents
 
+[![Release: v1.0.0](https://img.shields.io/badge/release-v1.0.0-green?logo=github)](https://github.com/outlaw9999/memory_share/releases/tag/v1.0.0)
+[![Status: Stable](https://img.shields.io/badge/status-stable-green)](docs/ARCHITECTURE_FREEZE.md)
+[![Architecture: Frozen](https://img.shields.io/badge/architecture-frozen-blue)](docs/ARCHITECTURE_FREEZE.md)
+
 A lightweight, offline-first code intelligence substrate for AI agents and developer tools. Compiles any repository into a portable `.kit` artifact that answers precise code questions in **< 30ms**, all local, zero infrastructure.
+
+**Status**: v1.0.0 is PRODUCTION READY. Architecture frozen for backward compatibility. See [CHANGELOG.md](CHANGELOG.md) and [V1_RELEASE_NOTES.md](V1_RELEASE_NOTES.md) for details.
 
 ## Why `.kit`?
 
