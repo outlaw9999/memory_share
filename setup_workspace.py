@@ -15,7 +15,8 @@ import argparse
 import os
 import sqlite3
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone as _tz
+UTC = _tz.utc
 
 
 DIRS = [
