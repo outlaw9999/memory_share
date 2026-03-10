@@ -158,20 +158,65 @@ SSH authentication uses an ED25519 key persisted in the workspace `.ssh/` folder
 
 ---
 
-## Getting Started (local review)
+## Requirements
+
+- **Python >= 3.11** (required by `neural-memory`)
+- pip install dependencies from `requirements.txt`
+
+---
+
+## Setup (first-time)
 
 ```bash
-# Verify all scripts parse cleanly
-py -3 -m py_compile brain/ops/*.py
+# 1. Clone and enter the repo
+git clone https://github.com/outlaw9999/memory_share.git
+cd memory_share
 
-# Query Layer 3 (requires local SQLite db at brain/layer3_index/neural_memory.db)
-py -3 brain/ops/query_layer3.py "your search query"
+# 2. Create a virtual environment (Python 3.11+)
+python3.11 -m venv .venv
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
 
-# Run maintenance (dry run)
-py -3 brain/ops/brain_maintenance.py --dry-run
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Configure workspace root
+cp .env.example .env
+# Edit .env — set ANTIGRAVITY_WORKSPACE_ROOT to this repo's absolute path
+
+# 5. Initialize directory structure + Layer 3 SQLite schema
+py -3 setup_workspace.py
+
+# 6. Start the file watcher
+py -3 brain/ops/brain_sync_watcher.py
 ```
 
-Set `ANTIGRAVITY_WORKSPACE_ROOT` to point scripts at your local workspace root if running outside the default directory layout.
+---
+
+## Running
+
+```bash
+# Query Layer 3
+py -3 brain/ops/query_layer3.py "your search query"
+py -3 brain/ops/query_layer3.py "API bug" --project my_project --scope workspace
+py -3 brain/ops/query_layer3.py "login" --json
+
+# Run maintenance (dry run first)
+py -3 brain/ops/brain_maintenance.py --dry-run
+py -3 brain/ops/brain_maintenance.py
+
+# Backfill metadata on existing records
+py -3 brain/ops/layer3_backfill.py --dry-run
+py -3 brain/ops/layer3_backfill.py
+
+# Quick text search (Windows, no SQLite needed)
+.\brain\ops\search.ps1 -Query "your search"
+.\brain\ops\search.ps1 -Query "your search" -IncludeStream
+
+# Verify scripts parse cleanly
+py -3 -m py_compile brain/ops/*.py
+```
+
+Set `ANTIGRAVITY_WORKSPACE_ROOT` env var to override workspace root if running scripts from outside the repo layout.
 
 ---
 
