@@ -5,7 +5,7 @@ import os
 import sys
 from pathlib import Path
 
-from kit_adapters import AtlasAdapter, BrainAdapter
+from .adapters import AtlasAdapter, BrainAdapter
 
 
 def parse_args():
@@ -50,6 +50,10 @@ def parse_args():
     impact_parser.add_argument("--depth", type=int, default=3, help="Traversal depth")
     impact_parser.add_argument("--limit", type=int, default=50, help="Maximum results")
     impact_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+
+    graph_parser = subparsers.add_parser("graph", help="Symbol Graph Prompting: Compact architecture-only view")
+    graph_parser.add_argument("symbol", help="Symbol name")
+    graph_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
 
     return parser.parse_args()
 
@@ -195,7 +199,20 @@ def main():
                 print(f"  [{item['depth']}] {item['name']} [{item['path']}:{item['line']}]")
         return
 
-    print("Antigravity Memory Kit v0.1.0-phase7.5")
+    if args.command == "graph":
+        graph = atlas.get_compact_graph(args.symbol)
+        payload = {"query": args.symbol, "results": [graph]}
+        if args.json or not sys.stdout.isatty():
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        else:
+            print(f"--- Symbol Graph: '{args.symbol}' ---")
+            print(f"Architecture Context for: {graph['name']} ({graph['kind']})")
+            print(f"  └─ Callers: {', '.join(graph['dependencies']['callers'])}")
+            print(f"  └─ Callees: {', '.join(graph['dependencies']['callees'])}")
+            print(f"  └─ Symbols in same file: {', '.join(graph['dependencies']['peers'])}")
+        return
+
+    print("Antigravity Memory Kit v1.1.0")
     print("Usage: kit symbol|callers|snippet|context|related ...")
 
 

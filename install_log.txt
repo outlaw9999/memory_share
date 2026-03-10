@@ -1,0 +1,46 @@
+Processing e:\dev\opensource_contrib\memory_share
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'error'
+  error: subprocess-exited-with-error
+  
+  Getting requirements to build wheel did not run successfully.
+  exit code: 1
+  
+  [28 lines of output]
+  C:\Users\Admin\AppData\Local\Temp\pip-build-env-ugyqx1uz\overlay\Lib\site-packages\setuptools\config\_apply_pyprojecttoml.py:82: SetuptoolsDeprecationWarning: `project.license` as a TOML table is deprecated
+  !!
+  
+          ********************************************************************************
+          Please use a simple string containing a SPDX expression for `project.license`. You can also use `project.license-files`. (Both options available on setuptools>=77.0.0).
+  
+          By 2027-Feb-18, you need to update your project and remove deprecated calls
+          or your builds will no longer be supported.
+  
+          See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+          ********************************************************************************
+  
+  !!
+    corresp(dist, value, root_dir)
+  error: Multiple top-level packages discovered in a flat-layout: ['kit', 'brain', 'plugins', 'reports', 'runtime'].
+  
+  To avoid accidental inclusion of unwanted files or directories,
+  setuptools will not proceed with this build.
+  
+  If you are trying to create a single distribution with multiple packages
+  on purpose, you should not rely on automatic discovery.
+  Instead, consider the following options:
+  
+  1. set up custom discovery (`find` directive with `include` or `exclude`)
+  2. use a `src-layout`
+  3. explicitly set `py_modules` or `packages` with a list of names
+  
+  To find more information, look for "package discovery" on setuptools docs.
+  [end of output]
+  
+  note: This error originates from a subprocess, and is likely not a problem with pip.
+
+[notice] A new release of pip is available: 25.3 -> 26.0.1
+[notice] To update, run: python.exe -m pip install --upgrade pip
+ERROR: Failed to build 'file:///E:/DEV/opensource_contrib/memory_share' when getting requirements to build wheel

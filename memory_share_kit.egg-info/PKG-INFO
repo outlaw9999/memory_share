@@ -1,3 +1,17 @@
+Metadata-Version: 2.4
+Name: memory-share-kit
+Version: 1.1.0
+Summary: AI-Native Semantic Code Intelligence Engine for 50M+ LOC Monorepos
+Author: Antigravity Team
+License-Expression: MIT
+Keywords: static-analysis,llm,codebase-intelligence,graph-slice,mcp,llm-tools,graph-analysis
+Requires-Python: >=3.14
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: watchdog>=3.0.0
+Requires-Dist: pytest>=7.0.0
+Dynamic: license-file
+
 # `.kit` — Code Intelligence Engine for Large Monorepos
 
 ![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)

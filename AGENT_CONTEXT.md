@@ -23,22 +23,197 @@ kit stone graph_health
 
 ---
 
+## 🎯 NEW: MCP Server Interface (Recommended for AI Agents)
+
+**PREFERRED METHOD**: Use MCP server for ~100x token efficiency.
+
+### Quick Setup for Claude/Gemini/etc.
+
+**Client config (environment variable or client settings):**
+```
+KIT_MCP_SERVER=stdio:///path/to/kit_mcp_server.py
+```
+
+Or direct Python:
+```python
+import subprocess
+mcp_server = subprocess.Popen(
+    ["python", "kit_mcp_server.py"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    text=True
+)
+```
+
+### Available MCP Tools (6 core + 2 skill tools)
+
+| Tool | Purpose | Cost |
+|------|---------|------|
+| `kit_doctor` | Health check (5 metrics + recommendations) | ~100 tokens |
+| `kit_query_stone` | Execute diagnostic stone | varies |
+| `kit_stones_list` | Discover all stones + metadata | ~50 tokens |
+| `kit_symbol_search` | Code search (unified code + docs) | ~100 tokens |
+| `kit_impact` | Blast radius analysis (reverse call graph) | ~150 tokens |
+| `kit_context` | Symbol context (definition + callers + callees) | ~100 tokens |
+| **`kit_skills_list`** | **Discover available skills** | **~50 tokens** |
+| **`kit_skill_run`** | **Execute a high-level skill (multi-stone workflow)** | **~200-800 tokens** |
+
+### Example: MCP Call
+
+Agent calls MCP with:
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "kit_doctor",
+    "arguments": {"format": "json"}
+  }
+}
+```
+
+Response (~100 tokens total):
+```json
+{
+  "status": "success",
+  "result": {
+    "overall_status": "HEALTHY",
+    "cycles_detected": 0,
+    "critical_gravity_nodes": 0,
+    "graph_confidence": "HIGH",
+    "recommendations": "..."
+  }
+}
+```
+
+**Token cost**: ~100 tokens (vs. 50,000 if agent read codebase)
+
+---
+
+## 🎓 NEW: Skills Framework (Agent-Oriented Workflows)
+
+**What Are Skills?**
+
+Skills are **high-level diagnostic workflows** that compose multiple stones into reusable patterns. Instead of calling individual stones step-by-step, agents invoke a skill once with a intent.
+
+### Example: Run Full Architecture Investigation
+
+**Before (manual composition):**
+```
+1. kit_doctor → check overall health
+2. kit_query_stone (gravity) → check dependencies
+3. kit_query_stone (hotspots) → find risky modules
+4. kit_query_stone (cycles) → detect deadlocks
+5. Interpret results → synthesize findings
+```
+
+**After (skill):**
+```
+kit_skill_run skill_name=architecture_investigate
+```
+
+Boom. One call. Same insights. ~50% fewer tokens.
+
+### Discover Skills (50 tokens)
+
+Agent calls:
+```json
+{
+  "name": "kit_skills_list",
+  "arguments": {}
+}
+```
+
+Response:
+```json
+{
+  "skills": [
+    {
+      "name": "architecture_summary",
+      "version": "1.0",
+      "description": "Quick high-level architecture overview",
+      "tags": ["summary", "entry-point"],
+      "estimated_tokens": "100-300"
+    },
+    {
+      "name": "architecture_investigate",
+      "version": "1.0",
+      "description": "Full architecture health check with insights",
+      "tags": ["health", "agent-primary"],
+      "estimated_tokens": "300-800"
+    },
+    {
+      "name": "architecture_review",
+      "version": "1.0",
+      "description": "Pre-merge architectural impact assessment",
+      "tags": ["review", "pr"],
+      "estimated_tokens": "200-600"
+    }
+  ]
+}
+```
+
+### Run a Skill (200-800 tokens depending on skill)
+
+Agent calls:
+```json
+{
+  "name": "kit_skill_run",
+  "arguments": {
+    "skill_name": "architecture_investigate",
+    "inputs": {
+      "depth": "quick"
+    }
+  }
+}
+```
+
+Response:
+```json
+{
+  "status": "success",
+  "skill": "architecture_investigate",
+  "severity": "HEALTHY",
+  "activation_level": "cold",
+  "recommendations": [
+    "Architecture is in good shape; focus on maintenance"
+  ],
+  "results": {
+    "doctor": {...},
+    "gravity": {...},
+    "hotspots": {...},
+    "cycles": {...}
+  }
+}
+```
+
+### When to Use Skills
+
+| Situation | Tool | Reason |
+|-----------|------|--------|
+| "What's this codebase like?" | `kit_skill_run`<br/>(architecture_summary) | Quick overview, entry point |
+| "Full health check" | `kit_skill_run`<br/>(architecture_investigate) | Multi-stone analysis, actionable |
+| "PR impact?" | `kit_skill_run`<br/>(architecture_review) | Risk assessment for merge |
+| "Tell me about gravity" | `kit_query_stone`<br/>(gravity) | Single metric, detailed |
+| "Find symbol X" | `kit_symbol_search` | Code navigation |
+| "Who calls this?" | `kit_impact` or `kit_context` | Dependency exploration |
+
+**Rule of thumb**: Use skills for **workflows**, stones for **single metrics**.
+
+---
+
 ## Token Cost Comparison
 
-**Old way** (reading docs):
-```
-AGENT_CONTEXT.md
-docs/METRICS.md
-docs/ARCHITECTURE.md
-docs/LIMITATIONS.md
-Total: 10,000—30,000 tokens
-```
+| Method | Cost | When to Use |
+|--------|------|------------|
+| **MCP server** (NEW) | ~100 tokens | ✅ Preferred for all AI agents |
+| CLI subprocess calls | ~200-500 tokens | Fallback if MCP unavailable |
+| Reading docs/code | 10,000-200,000 tokens | ❌ Avoid - inefficient |
 
-**New way** (CLI):
+**Example savings:**
 ```
-kit stones          → 500 tokens (list all stones)
-kit stone gravity   → 150 tokens (specific stone)
-Total: 50—200 tokens (100x reduction)
+Without MCP:  50,000+ tokens for analysis
+With MCP:     ~100 tokens for same analysis
+Ratio:        500× reduction
 ```
 
 ---
@@ -138,7 +313,93 @@ Agents don't memorize stones. They query the CLI and parse JSON.
 
 ---
 
+## MCP Agent Patterns
+
+### Pattern: Health Check (10 tokens)
+
+```python
+# Minimal pattern - get architecture health in one call
+health = mcp_call("kit_doctor", {})
+if health.overall_status == "HEALTHY":
+    proceed_with_refactor()
+else:
+    analyze_with_stones()
+```
+
+### Pattern: Diagnostic Deep Dive (100 tokens)
+
+```python
+# Get diagnostics + discover available metrics
+health = mcp_call("kit_doctor", {})
+stones = mcp_call("kit_stones_list", {})
+
+# Pick a stone for deeper analysis
+if health.cycles_detected > 0:
+    cycles_detail = mcp_call("kit_query_stone", {
+        "stone_name": "cycles",
+        "format": "json"
+    })
+    for cycle in cycles_detail.cycles:
+        impact = mcp_call("kit_impact", {
+            "symbol": cycle["node"],
+            "depth": 3,
+            "limit": 20
+        })
+        print(f"Cycle {cycle} affects {len(impact)} symbols")
+```
+
+### Pattern: Code Safety Analysis (150 tokens)
+
+```python
+# Before refactoring a symbol, understand blast radius
+def analyze_symbol_safety(symbol_name: str):
+    context = mcp_call("kit_context", {
+        "symbol": symbol_name,
+        "callers_limit": 10,
+        "callees_limit": 10
+    })
+    
+    impact = mcp_call("kit_impact", {
+        "symbol": symbol_name,
+        "depth": 4,
+        "limit": 50
+    })
+    
+    return {
+        "definition": context.definition,
+        "affected_count": len(impact.affected),
+        "max_depth": impact.metrics.max_depth,
+        "safe_to_modify": len(impact.affected) < 10
+    }
+```
+
+---
+
 ## How Agents Should Use .kit
+
+### Recommended: Use MCP Server
+
+Replace all CLI calls with MCP tool calls:
+
+```python
+# ❌ Old (shell subprocess - inefficient)
+result = subprocess.run(["python", "bin/kit", "doctor"], capture_output=True)
+
+# ✅ New (MCP - efficient)
+result = mcp_call("kit_doctor", {})
+```
+
+**Agents that support MCP**:
+- Claude (via stdio)
+- Gemini (via tools)
+- Custom Python agents
+- Cursor / Aider
+
+---
+
+## Fallback: CLI Interface
+
+If MCP is unavailable, use CLI directly (but less efficient):
 
 ### Pattern #1: Discover, Query, Parse
 

@@ -64,7 +64,7 @@ class GraphStore:
                 callee TEXT NOT NULL,
                 file TEXT NOT NULL,
                 line INTEGER NOT NULL,
-                UNIQUE(caller, callee, line)
+                UNIQUE(caller, callee, file, line)
             )
             """
         )
@@ -170,7 +170,7 @@ class GraphStore:
             symbol_rows,
         )
         cur.executemany(
-            "INSERT INTO calls (caller, callee, file, line) VALUES (?, ?, ?, ?)",
+            "INSERT OR IGNORE INTO calls (caller, callee, file, line) VALUES (?, ?, ?, ?)",
             call_rows,
         )
         self.conn.commit()
@@ -199,7 +199,7 @@ class GraphStore:
                 symbol_rows,
             )
             cur.executemany(
-                "INSERT INTO calls (caller, callee, file, line) VALUES (?, ?, ?, ?)",
+                "INSERT OR IGNORE INTO calls (caller, callee, file, line) VALUES (?, ?, ?, ?)",
                 call_rows,
             )
             cur.execute(

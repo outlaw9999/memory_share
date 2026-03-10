@@ -2,9 +2,9 @@ import json
 from pathlib import Path
 
 from kit_adapters import AtlasAdapter
-from plugins.atlas_indexer.graph_store import GraphStore
-from plugins.atlas_indexer.indexer import AtlasIndexer
-from plugins.atlas_indexer.models import Symbol
+from kit.graph_store import GraphStore
+from kit.indexer import AtlasIndexer
+from kit.models import Symbol
 
 
 class FakeEvent:

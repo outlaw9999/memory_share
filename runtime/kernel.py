@@ -3,8 +3,10 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 from runtime.lock_manager import LockManager
-from runtime.journal_engine import JournalEngine, MemoryConflictError
+from runtime.journal_engine import JournalEngine
 from runtime.ast_parser import ASTMarkdownParser
+from runtime.paging_engine import PagingEngine
+from runtime.distiller import ContextDistiller
 
 class AntigravityKernel:
     """
@@ -13,9 +15,12 @@ class AntigravityKernel:
     for AI Agent memory operations.
     """
     def __init__(self, workspace_root: str):
-        self.root = Path(workspace_root)
-        self.lock_manager = LockManager(workspace_root)
-        self.journal = JournalEngine(workspace_root)
+        self.workspace_root = Path(workspace_root)
+        self.lock_manager = LockManager(self.workspace_root)
+        self.journal = JournalEngine(self.workspace_root)
+        self.paging = PagingEngine(self.workspace_root)
+        self.distiller = ContextDistiller(self.workspace_root)
+        self.ast_parser = ASTMarkdownParser()
         
     def write_memory(self, 
                      agent_id: str, 
@@ -63,6 +68,8 @@ class AntigravityKernel:
             # 6. Finalize Journal
             new_hash = parser.get_hash()
             self.journal.commit(txn_id, new_hash)
+            # 7. Distill (Phase 8: Cognitive Compression)
+            self.distiller.distill()
             print(f"[Kernel] SUCCESS: Transaction {txn_id} committed.")
             return True
             

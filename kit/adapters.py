@@ -4,11 +4,19 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-WORKSPACE_ROOT = Path(os.environ.get("ANTIGRAVITY_WORKSPACE_ROOT", os.path.dirname(os.path.abspath(__file__))))
+WORKSPACE_ROOT = Path(os.environ.get("ANTIGRAVITY_WORKSPACE_ROOT", os.getcwd()))
 
-sys.path.append(str(WORKSPACE_ROOT))
-from plugins.atlas_indexer.graph_store import GraphStore
+# Phase 8: Context Engine (Frozen)
+# ------------------------------
+# These adapters provide a stable interface for AI agents to interact with the code graph.
 
+try:
+    from .graph_store import GraphStore
+except ImportError:
+    # Support running as a standalone script for debugging
+    from graph_store import GraphStore
+
+# Brain Layer 3 integration (optional cognitive memory)
 sys.path.append(str(WORKSPACE_ROOT / "brain" / "ops"))
 try:
     import query_layer3
@@ -17,53 +25,30 @@ except ImportError:
 
 
 class AtlasAdapter:
-    """Adapter for searching and reading code context from ATLAS.
-    
-    PHASE 8: CONTEXT ENGINE (FROZEN)
-    ================================
-    
-    This class implements the frozen Phase 8 contract for code context retrieval.
-    
-    Stable CLI commands:
-    - kit symbol <q>        → definition() returns code_symbol JSON
-    - kit context <symbol>  → get_unified_context() returns code_context JSON
-    - kit callers <symbol>  → callers() returns list[code_caller]
-    - kit snippet <path>    → snippet() returns code_snippet
-    
-    JSON fields are locked:
-    - code_symbol: {type, name, kind, path, line, rank}
-    - code_context: {type, symbol, definition, callers, callees, snippet, metrics, docs}
-    
-    These contracts MUST NOT change. JSON structure serves Agent tool schema.
-    
-    Phase 9 (Graph Exploration) adds only new methods without modifying Phase 8 outputs.
-    """
+    """Adapter for searching and reading code context from ATLAS."""
 
     def __init__(self, workspace_root: Path):
         self.workspace_root = workspace_root
-        self.store = GraphStore(workspace_root / ".antigravity" / "atlas" / "atlas.db")
+        db_path = workspace_root / ".antigravity" / "atlas" / "atlas.db"
+        self.store = GraphStore(db_path)
 
     def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         results = []
         for symbol in self.store.search_symbols(query, limit=limit, fuzzy=True):
-            results.append(
-                {
-                    "type": "code_symbol",
-                    "name": symbol.name,
-                    "kind": symbol.kind,
-                    "path": symbol.file,
-                    "line": symbol.line,
-                    "rank": 1.0,
-                }
-            )
+            results.append({
+                "type": "code_symbol",
+                "name": symbol.name,
+                "kind": symbol.kind,
+                "path": symbol.file,
+                "line": symbol.line,
+                "rank": 1.0,
+            })
         return results
 
     def definition(self, query: str) -> Optional[Dict[str, Any]]:
-        # Phase 10: Support file-qualified lookup syntax "file::symbol"
         if "::" in query:
             return self._definition_file_qualified(query)
         
-        # Phase 9 fallback: name-based lookup
         candidates = self.store.search_symbols(query, limit=10, fuzzy=False)
         if not candidates:
             candidates = self.store.search_symbols(query, limit=10, fuzzy=True)
@@ -82,30 +67,16 @@ class AtlasAdapter:
         }
 
     def _definition_file_qualified(self, query: str) -> Optional[Dict[str, Any]]:
-        """
-        Phase 10: Resolve file-qualified symbol reference.
-        
-        Syntax: "relative/path/file.py::symbol_name"
-        Returns: Symbol definition from that specific file
-        """
         parts = query.split("::", 1)
         if len(parts) != 2:
             return None
         
         file_query, symbol_name = parts
-        
-        # Normalize file path to match stored paths
-        # Support both relative and absolute paths
         file_query = file_query.replace("\\", "/")
         
-        # Search all symbols to find file-qualified match
         all_symbols = self.store.list_symbols()
-        
         for symbol in all_symbols:
-            # Normalize stored path for comparison
             stored_path = symbol.file.replace("\\", "/")
-            
-            # Match if filename matches or full path matches
             if stored_path.endswith(file_query) or stored_path == file_query:
                 if symbol.name == symbol_name:
                     return {
@@ -116,7 +87,6 @@ class AtlasAdapter:
                         "line": symbol.line,
                         "rank": 1.0,
                     }
-        
         return None
 
     def _rank_symbols(self, symbols: List[Any], query: str) -> List[Any]:
@@ -147,31 +117,27 @@ class AtlasAdapter:
     def callers(self, symbol: str, limit: int = 50) -> List[Dict[str, Any]]:
         results = []
         for call in self.store.find_callers(symbol, limit=limit):
-            results.append(
-                {
-                    "type": "code_caller",
-                    "caller": call.caller,
-                    "callee": call.callee,
-                    "path": call.file,
-                    "line": call.line,
-                    "rank": 1.0,
-                }
-            )
+            results.append({
+                "type": "code_caller",
+                "caller": call.caller,
+                "callee": call.callee,
+                "path": call.file,
+                "line": call.line,
+                "rank": 1.0,
+            })
         return results
 
     def callees(self, symbol: str, limit: int = 50) -> List[Dict[str, Any]]:
         results = []
         for call in self.store.find_callees(symbol, limit=limit):
-            results.append(
-                {
-                    "type": "code_callee",
-                    "caller": call.caller,
-                    "callee": call.callee,
-                    "path": call.file,
-                    "line": call.line,
-                    "rank": 1.0,
-                }
-            )
+            results.append({
+                "type": "code_callee",
+                "caller": call.caller,
+                "callee": call.callee,
+                "path": call.file,
+                "line": call.line,
+                "rank": 1.0,
+            })
         return results
 
     def snippet(self, target: str, radius: int = 10) -> Dict[str, Any]:
@@ -273,18 +239,16 @@ class AtlasAdapter:
             if item["name"] in seen or self._is_test_path(str(item["file"])):
                 continue
             seen.add(str(item["name"]))
-            results.append(
-                {
-                    "type": "code_symbol",
-                    "name": item["name"],
-                    "kind": item["kind"],
-                    "path": item["file"],
-                    "line": item["line"],
-                    "rank": 1.0,
-                    "fts_rank": item["fts_rank"],
-                    "degree": item["degree"],
-                }
-            )
+            results.append({
+                "type": "code_symbol",
+                "name": item["name"],
+                "kind": item["kind"],
+                "path": item["file"],
+                "line": item["line"],
+                "rank": 1.0,
+                "fts_rank": item["fts_rank"],
+                "degree": item["degree"],
+            })
             if len(results) >= limit:
                 break
         return results
@@ -300,41 +264,39 @@ class AtlasAdapter:
         for item in self.store.list_symbols(path):
             if item.name == symbol_name:
                 continue
-            peers.append(
-                {
-                    "type": "code_symbol",
-                    "name": item.name,
-                    "kind": item.kind,
-                    "path": item.file,
-                    "line": item.line,
-                    "rank": 1.0,
-                }
-            )
+            peers.append({
+                "type": "code_symbol",
+                "name": item.name,
+                "kind": item.kind,
+                "path": item.file,
+                "line": item.line,
+                "rank": 1.0,
+            })
         peers.sort(key=lambda item: (self._is_test_path(item["path"]), item["name"], item["line"]))
         return peers[:limit]
 
-    def get_impact_info(
-        self,
-        symbol: str,
-        *,
-        depth: int = 3,
-        limit: int = 50,
-    ) -> Dict[str, Any]:
-        """
-        PHASE 9: Analyze blast radius of a symbol (reverse call graph).
+    def get_compact_graph(self, symbol: str) -> Dict[str, Any]:
+        definition = self.definition(symbol)
+        callers = [c["caller"] for c in self.callers(symbol, limit=8)]
+        callees = [c["callee"] for c in self.callees(symbol, limit=8)]
         
-        Returns symbols that would be affected if this symbol is changed.
-        
-        Args:
-            symbol: Symbol to analyze
-            depth: Traversal depth (default 3)
-            limit: Maximum results (default 50)
-        
-        Returns:
-            Dict with type="code_impact" and affected symbols list
-        """
+        peers = []
+        if definition:
+            peers = [p["name"] for p in self._module_peers(definition["path"], symbol, limit=10)]
+            
+        return {
+            "type": "symbol_graph",
+            "name": symbol,
+            "kind": definition["kind"] if definition else "unknown",
+            "dependencies": {
+                "callers": callers,
+                "callees": callees,
+                "peers": peers
+            }
+        }
+
+    def get_impact_info(self, symbol: str, *, depth: int = 3, limit: int = 50) -> Dict[str, Any]:
         affected = self.store.trace_impact(symbol, max_depth=depth, limit=limit)
-        
         return {
             "type": "code_impact",
             "symbol": symbol,
@@ -358,20 +320,17 @@ class BrainAdapter:
             return []
 
         raw_results = query_layer3.search_metadata(query, include_private=include_private, limit=limit)
-
         results = []
         for result in raw_results:
             metadata = result.get("metadata", {})
-            results.append(
-                {
-                    "type": "doc",
-                    "name": metadata.get("source_heading") or metadata.get("source_file"),
-                    "kind": metadata.get("source_kind", "markdown"),
-                    "path": metadata.get("source_path") or metadata.get("source"),
-                    "rank": result.get("score", 0.5),
-                    "snippet": result.get("content", "")[:200],
-                }
-            )
+            results.append({
+                "type": "doc",
+                "name": metadata.get("source_heading") or metadata.get("source_file"),
+                "kind": metadata.get("source_kind", "markdown"),
+                "path": metadata.get("source_path") or metadata.get("source"),
+                "rank": result.get("score", 0.5),
+                "snippet": result.get("content", "")[:200],
+            })
         return results
 
     def get_unified_context(self, query: str, include_private: bool = False, limit: int = 5) -> List[Dict[str, Any]]:
