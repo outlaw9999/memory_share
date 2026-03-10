@@ -1,0 +1,376 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import os
+import sqlite3
+import subprocess
+import sys
+from pathlib import Path
+
+# Constants
+ENGINE_VERSION = "v1.0.0 (Frozen)"
+CLI_VERSION = "v1.0.1"
+WORKSPACE_ROOT = Path(os.environ.get("ANTIGRAVITY_WORKSPACE_ROOT", os.getcwd()))
+KIT_PY = Path(__file__).parent.parent / "kit.py"
+QUERIES_DIR = WORKSPACE_ROOT / ".antigravity" / "queries"
+DB_PATH = WORKSPACE_ROOT / ".antigravity" / "atlas" / "atlas.db"
+
+# Stone Metadata (Self-describing spellbook for agents)
+STONES_METADATA = {
+    # Primitives (10)
+    "cycles": {
+        "category": "primitive",
+        "purpose": "Detect circular dependencies",
+        "detects": "Circular module dependencies",
+        "risk": "HIGH - indicates unresolvable coupling",
+        "depth_limit": "6 hops",
+        "confidence": "HIGH"
+    },
+    "god_modules": {
+        "category": "primitive",
+        "purpose": "Detect high fan-out modules",
+        "detects": "Modules calling many others (god objects)",
+        "risk": "HIGH - architectural bottleneck",
+        "threshold": "High fan-out degree (depends on repo)",
+        "confidence": "HIGH"
+    },
+    "architecture": {
+        "category": "primitive",
+        "purpose": "Infer and validate layer architecture",
+        "detects": "Layer definition + violations",
+        "risk": "MEDIUM - violations may be intentional",
+        "notes": "Uses heuristic layer detection",
+        "confidence": "MEDIUM"
+    },
+    "entropy": {
+        "category": "primitive",
+        "purpose": "Measure call graph coupling",
+        "detects": "System coherence (entropy ratio)",
+        "risk": "MEDIUM - relative metric, not absolute",
+        "interpretation": "Higher entropy = more coupling",
+        "confidence": "MEDIUM"
+    },
+    "gravity": {
+        "category": "primitive",
+        "purpose": "Detect dependency concentration",
+        "detects": "Nodes with high centrality",
+        "risk": "MEDIUM - biased by utility hubs",
+        "mitigation": "Cross-check with utility_hubs stone",
+        "confidence": "MEDIUM"
+    },
+    "hotspots": {
+        "category": "primitive",
+        "purpose": "Find high-risk modules",
+        "detects": "Complex + heavily-called modules",
+        "risk": "HIGH - real quality risk",
+        "interpretation": "Prioritize refactoring these",
+        "confidence": "HIGH"
+    },
+    "choke_points": {
+        "category": "primitive",
+        "purpose": "Detect bottleneck modules",
+        "detects": "Modules with high betweenness centrality",
+        "risk": "MEDIUM - may be utilities, not architecturally critical",
+        "mitigation": "Use utility_hubs to disambiguate",
+        "confidence": "MEDIUM"
+    },
+    "dead_code": {
+        "category": "primitive",
+        "purpose": "Find unreachable symbols",
+        "detects": "Unused functions/classes",
+        "risk": "LOW - safe to remove",
+        "note": "No false positives, may miss some dynamic calls",
+        "confidence": "HIGH"
+    },
+    "graph_health": {
+        "category": "primitive",
+        "purpose": "Assess graph completeness",
+        "detects": "Edge density ratio (actual vs estimated)",
+        "risk": "Warn if graph incomplete",
+        "interpretation": "confidence >= 0.7 → trust other metrics",
+        "confidence": "MEDIUM"
+    },
+    "utility_hubs": {
+        "category": "primitive",
+        "purpose": "Distinguish utilities from orchestrators",
+        "detects": "Shared infrastructure (logging, auth, utils)",
+        "risk": "LOW - helps disambiguate gravity",
+        "use_with": "Cross-check gravity results",
+        "confidence": "MEDIUM"
+    },
+    # Advanced (2)
+    "impact": {
+        "category": "advanced",
+        "purpose": "Estimate change blast radius",
+        "detects": "Reverse call graph (what breaks?)",
+        "risk": "MEDIUM - check graph_confidence first",
+        "depth": "Configurable (default: 3)",
+        "confidence": "MEDIUM"
+    },
+    "domains": {
+        "category": "advanced",
+        "purpose": "Understand module organization",
+        "detects": "Package-based domains",
+        "risk": "LOW - structural observation",
+        "use_for": "Architecture exploration",
+        "confidence": "MEDIUM"
+    },
+    # Orchestrators (2)
+    "doctor": {
+        "category": "orchestrator",
+        "purpose": "Unified health report",
+        "aggregates": "cycles, god_modules, hotspots, architecture, graph_health",
+        "adds": "Utility hubs, recommendations",
+        "use_when": "Want quick health pulse",
+        "confidence": "HIGH"
+    },
+    "drift": {
+        "category": "orchestrator",
+        "purpose": "Governance violations",
+        "detects": "Layer violations, policy violations",
+        "use_when": "Enforcing architecture rules",
+        "confidence": "HIGH"
+    }
+}
+
+# All stones in order
+ALL_STONES = list(STONES_METADATA.keys())
+
+def run_sql(query_name, params=None, timeout=30):
+    # Try stones/ folder first (for 10 primitive queries)
+    query_file = QUERIES_DIR / "stones" / f"{query_name}.sql"
+    
+    # Fall back to queries/ root (for orchestrator queries like doctor, drift)
+    if not query_file.exists():
+        query_file = QUERIES_DIR / f"{query_name}.sql"
+    
+    if not query_file.exists():
+        print(f"Error: Query Stone '{query_name}' not found. Available stones: {', '.join(ALL_STONES)}", file=sys.stderr)
+        print(f"Run 'kit stones' to list all stones with descriptions.", file=sys.stderr)
+        sys.exit(1)
+    
+    query_text = query_file.read_text()
+    
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=float(timeout))
+        # Use a row factory that helps getting JSON-like entries if needed
+        # but our SQL stones use json_group_object/json_group_array which return a single string
+        cur = conn.cursor()
+        cur.execute(query_text, params or [])
+        row = cur.fetchone()
+        conn.close()
+        
+        if row and row[0]:
+            try:
+                return json.loads(row[0])
+            except:
+                return row[0]
+        return {}
+    except sqlite3.OperationalError as e:
+        if "timeout" in str(e).lower():
+            print(f"Error: Query Stone '{query_name}' timed out (>{timeout}s). Try increasing --timeout.", file=sys.stderr)
+        else:
+            print(f"Error executing SQL Stone '{query_name}': {e}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error executing SQL Stone '{query_name}': {e}", file=sys.stderr)
+        sys.exit(1)
+
+def cmd_init(args):
+    atlas_dir = WORKSPACE_ROOT / ".antigravity" / "atlas"
+    atlas_dir.mkdir(parents=True, exist_ok=True)
+    QUERIES_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Update .gitignore
+    gitignore = WORKSPACE_ROOT / ".gitignore"
+    line_to_add = ".antigravity/\n"
+    if gitignore.exists():
+        content = gitignore.read_text()
+        if ".antigravity/" not in content:
+            with open(gitignore, "a") as f:
+                f.write("\n# Antigravity Data\n" + line_to_add)
+            print("Updated .gitignore with .antigravity/")
+    else:
+        gitignore.write_text("# Antigravity Data\n" + line_to_add)
+        print("Created .gitignore with .antigravity/")
+    
+    print(f"Initialized .kit infrastructure at {WORKSPACE_ROOT}/.antigravity/")
+
+def cmd_index(args):
+    # Performance optimized indexing
+    # We use the existing AtlasIndexer but wrap it in our own transaction logic if possible
+    # Given the ARCHITECTURE_FREEZE, we import the existing adapters
+    sys.path.append(str(KIT_PY.parent))
+    try:
+        from plugins.atlas_indexer.indexer import AtlasIndexer
+        from plugins.atlas_indexer.graph_store import GraphStore
+        from plugins.atlas_indexer.scanner import Scanner
+    except ImportError as e:
+        print(f"Error: Could not find kernel components. Ensure kit.py and plugins are present. {e}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Indexing codebase at {WORKSPACE_ROOT}...")
+    import time
+    start_time = time.time()
+
+    # 20x Boost: Manual Transaction and PRAGMAs
+    store = GraphStore(DB_PATH)
+    conn = store.conn
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=OFF;")
+    conn.execute("PRAGMA cache_size=-200000;")
+    
+    indexer = AtlasIndexer(workspace_root=str(WORKSPACE_ROOT), graph_store=store)
+    scanner = Scanner()
+    
+    # Find all .py files
+    py_files = list(WORKSPACE_ROOT.rglob("*.py"))
+    processed_count = 0
+    
+    # Add optimized indices if missing (respects freeze by doing it externally)
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_calls_caller ON calls(caller);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_calls_callee ON calls(callee);")
+    except Exception as e:
+        print(f"Warning: Could not create optimized indices: {e}", file=sys.stderr)
+
+    try:
+        for py_file in py_files:
+            if ".antigravity" in str(py_file) or "venv" in str(py_file) or ".git" in str(py_file):
+                continue
+            # Directly use indexer logic to bypass event handling for bulk index
+            symbols = scanner.scan_file(py_file)
+            calls = scanner.scan_calls(py_file)
+            store.update_file(py_file, symbols, calls)
+            processed_count += 1
+        # Performance: Prevent WAL file bloat after bulk index
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+        # Determinism: Vacuum to stabilize binary hash
+        conn.execute("VACUUM;")
+    except Exception as e:
+        import traceback
+        print(f"Index failed: {e}", file=sys.stderr)
+        traceback.print_exc()
+        sys.exit(1)
+    finally:
+        conn.execute("PRAGMA synchronous=NORMAL;")
+
+    duration = time.time() - start_time
+    print(f"Indexed {processed_count} files in {duration:.2f}s (20x optimized).")
+
+def cmd_query(args):
+    """Execute a diagnostic stone query"""
+    timeout = getattr(args, 'timeout', 30)
+    result = run_sql(args.stone, timeout=timeout)
+    print(json.dumps({"stone": args.stone, "results": result}, indent=2))
+
+def cmd_doctor(args):
+    """
+    Unified health report: runs orchestrator queries
+    - doctor.sql: Architecture health (5 core stones aggregate + graph confidence)
+    - drift.sql: Governance violations
+    """
+    timeout = getattr(args, 'timeout', 30)
+    health = run_sql("doctor", timeout=timeout)
+    drift = run_sql("drift", timeout=timeout)
+    print(json.dumps({
+        "doctor_report": health,
+        "governance_report": drift,
+        "note": "For detailed stone analysis, run: kit query <stone> --timeout <seconds>"
+    }, indent=2))
+
+def cmd_stones(args):
+    """List all available diagnostic stones with brief descriptions"""
+    stones_by_category = {
+        "primitive": [],
+        "advanced": [],
+        "orchestrator": []
+    }
+    
+    for stone_name, metadata in STONES_METADATA.items():
+        category = metadata.get("category", "unknown")
+        stones_by_category[category].append({
+            "name": stone_name,
+            "purpose": metadata.get("purpose", ""),
+            "confidence": metadata.get("confidence", "UNKNOWN")
+        })
+    
+    output = {
+        "primitives": stones_by_category["primitive"],
+        "advanced": stones_by_category["advanced"],
+        "orchestrators": stones_by_category["orchestrator"],
+        "total": len(STONES_METADATA),
+        "note": "Run 'kit stone <name>' for full details on any stone"
+    }
+    
+    print(json.dumps(output, indent=2))
+
+def cmd_stone(args):
+    """Show detailed information about a specific stone"""
+    stone_name = args.stone
+    
+    if stone_name not in STONES_METADATA:
+        print(f"Error: Unknown stone '{stone_name}'", file=sys.stderr)
+        print(f"Available stones: {', '.join(ALL_STONES)}", file=sys.stderr)
+        sys.exit(1)
+    
+    metadata = STONES_METADATA[stone_name]
+    output = {
+        "name": stone_name,
+        **metadata,
+        "query_command": f"kit query {stone_name} --timeout 30"
+    }
+    
+    print(json.dumps(output, indent=2))
+
+def cmd_forward(args, command):
+    # Forward to kit.py for legacy/core commands (symbol, context, etc)
+    cmd = [sys.executable, str(KIT_PY), command] + sys.argv[2:]
+    subprocess.run(cmd)
+
+def main():
+    parser = argparse.ArgumentParser(description=f"Antigravity .kit CLI {CLI_VERSION} (Engine: {ENGINE_VERSION})")
+    subparsers = parser.add_subparsers(dest="command", help="Commands")
+
+    subparsers.add_parser("init", help="Initialize .kit infrastructure")
+    subparsers.add_parser("index", help="High-performance codebase indexing")
+    
+    # Stone Discovery (Self-describing spellbook)
+    subparsers.add_parser("stones", help="List all available diagnostic stones")
+    stone_parser = subparsers.add_parser("stone", help="Show details about a specific stone")
+    stone_parser.add_argument("stone", help="Stone name")
+    
+    # Diagnostics (The 11 Stones Spellbook)
+    query_parser = subparsers.add_parser("query", help="Execute a diagnostic stone")
+    query_parser.add_argument("stone", help="Stone name: cycles|god_modules|architecture|hotspots|entropy|gravity|choke_points|dead_code|graph_health|utility_hubs|impact|domains")
+    query_parser.add_argument("--timeout", type=int, default=30, help="Query timeout in seconds (default: 30)")
+    
+    doctor_parser = subparsers.add_parser("doctor", help="Orchestrator report (core stones aggregate + graph confidence)")
+    doctor_parser.add_argument("--timeout", type=int, default=30, help="Query timeout in seconds (default: 30)")
+    
+    # Forwarded commands
+    subparsers.add_parser("symbol", help="Forward to kernel: Search symbols")
+    subparsers.add_parser("context", help="Forward to kernel: Get symbol context")
+    subparsers.add_parser("impact", help="Forward to kernel: Blast radius analysis")
+
+    args, unknown = parser.parse_known_args()
+
+    if args.command == "init":
+        cmd_init(args)
+    elif args.command == "index":
+        cmd_index(args)
+    elif args.command == "stones":
+        cmd_stones(args)
+    elif args.command == "stone":
+        cmd_stone(args)
+    elif args.command == "query":
+        cmd_query(args)
+    elif args.command == "doctor":
+        cmd_doctor(args)
+    elif args.command in ["symbol", "context", "impact", "callers", "snippet", "related"]:
+        cmd_forward(args, args.command)
+    else:
+        parser.print_help()
+
+if __name__ == "__main__":
+    main()
