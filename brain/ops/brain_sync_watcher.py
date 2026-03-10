@@ -79,8 +79,8 @@ class LogSyncHandler(FileSystemEventHandler):
         if not event.is_directory and event.src_path.endswith(".md"):
             norm_path = os.path.normpath(event.src_path)
             if MONITOR_PATTERN in norm_path:
-                self.loop.call_soon_threadsafe(
-                    asyncio.create_task, self.process_file(norm_path)
+                asyncio.run_coroutine_threadsafe(
+                    self.process_file(norm_path), self.loop
                 )
 
     async def process_file(self, file_path):
