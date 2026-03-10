@@ -18,29 +18,24 @@ Cowork mode runs Claude as an agentic desktop agent inside a lightweight Linux V
 
 ### 1. SSH Key Setup
 
-A persistent ED25519 SSH key was generated for Claude Cowork to authenticate with GitHub in future sessions.
+A persistent ED25519 SSH key was generated for Claude Cowork to authenticate with GitHub across sessions.
 
 - **Key type:** ed25519
-- **Label:** `cowork-claude-outlaw9999`
-- **Private key location:** `.ssh/id_ed25519` (in selected workspace folder)
-- **Public key:**
+- **Private key location:** `.ssh/id_ed25519` (persisted in workspace folder)
+- **Public key:** registered in GitHub account SSH settings
 
-```
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOezqyOSLmAeFd6AvsDh6nLOsVfPWEmGp1KvQBYeqhJp cowork-claude-outlaw9999
-```
-
-> Add this public key to GitHub → Settings → SSH Keys to enable future passwordless push.
+SSH config points `github.com` to this key automatically on each session.
 
 ---
 
 ### 2. Brain Update Workflow via Cowork
 
-The Cowork agent can now serve as a brain sync operator:
+The Cowork agent now serves as the brain sync operator for this repo:
 
 1. User triggers update in chat ("push brain update")
 2. Agent reads existing brain files from repo (public layer only)
 3. Agent synthesizes a session update document (no personal data)
-4. Agent commits + pushes to `memory_share` via SSH or PAT
+4. Agent commits + pushes via SSH (no token needed after initial setup)
 5. SSH key persists in workspace folder across sessions
 
 This workflow replaces manual brain sync steps and connects the live Cowork context directly to the public memory layer.
@@ -66,23 +61,24 @@ memory_share/
 └── reports/
     ├── background_consolidation_policy.md
     ├── brain_v2_update_roadmap.md
+    ├── brain_state_current.md          ← new: full system state snapshot
+    ├── cowork_integration_session.md   ← this file
     └── layer3_metadata_schema.md
 ```
 
-Brain V2 phases 1–3 are complete. No Phase 4 defined yet.
+Brain V2 phases 1–3 are complete. Phase 4 scope is under consideration.
 
 ---
 
 ## Open Questions / Next Steps
 
-- [ ] Add SSH public key to GitHub account to enable future key-based push
-- [ ] Define Phase 4 scope (e.g., cross-session memory injection into Cowork context)
-- [ ] Consider `layer2_core` update workflow: can Cowork agent write to private layer before push?
-- [ ] Evaluate whether session documents like this one belong in `reports/` or a new `sessions/` folder
+- [ ] Define Phase 4 scope (cross-session memory injection into Cowork context)
+- [ ] Consider `layer2_core` update workflow via Cowork agent
+- [ ] Evaluate moving session update docs to a dedicated `sessions/` folder
 
 ---
 
 ## Privacy Compliance
 
-This document contains no personal data, private Layer 2 notes, stream logs, or SQLite records.
+This document contains no personal data, private Layer 2 notes, stream logs, credentials, or SSH key material.
 Safe to publish in `memory_share`.
