@@ -5,7 +5,7 @@ description = "AI-Native Semantic Code Intelligence Engine for 50M+ LOC Monorepo
 readme = "README.md"
 requires-python = ">=3.14"
 license = "MIT"
-authors = [{ name = "Antigravity Team" }]
+authors = [{ name = "Kiến trúc sư trưởng - [Văn Trường]" }]
 keywords = [
     "static-analysis",
     "llm",
@@ -14,6 +14,7 @@ keywords = [
     "mcp",
     "llm-tools",
     "graph-analysis",
+    "hard-fork",
 ]
 dependencies = ["watchdog>=3.0.0", "pytest>=7.0.0"]
 

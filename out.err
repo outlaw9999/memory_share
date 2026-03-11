@@ -1,0 +1,105 @@
+{
+  "doctor_report": {
+    "timestamp": "2026-03-10 13:22:33",
+    "version": "v1.0",
+    "engine_status": "FROZEN",
+    "architecture_health": {
+      "cycles_detected": 0,
+      "hidden_god_services": 0,
+      "critical_gravity_nodes": 0,
+      "layer_violations": 0,
+      "coupling_entropy": 12.86
+    },
+    "graph_confidence": {
+      "total_calls": 4539,
+      "total_symbols": 737,
+      "edge_density": 6.16,
+      "confidence_tier": "VERY_HIGH",
+      "interpretation": "EXCELLENT - near-complete graph"
+    },
+    "overall_status": "HEALTHY",
+    "recommendations": "Architecture is healthy. Check: kit query graph_health for metric reliability",
+    "metric_reliability_warning": null,
+    "available_stones": "[cycles, god_modules, architecture, gravity, entropy, hotspots, choke_points, impact, domains, dead_code, graph_health, utility_hubs]",
+    "documentation": "See: docs/METRICS.md for detailed guides"
+  },
+  "governance_report": {
+    "total_violations": 50,
+    "violation_types": {
+      "orchestrator\u00e2\u2020\u2019core": 50
+    },
+    "sample_violations": [
+      {
+        "caller": "build_backfilled_metadata",
+        "callee": "derive_scope",
+        "file": "E:\\DEV\\opensource_contrib\\memory_share\\brain\\ops\\layer3_backfill.py",
+        "line": 118,
+        "type": "orchestrator\u00e2\u2020\u2019core"
+      },
+      {
+        "caller": "build_chunk_metadata",
+        "callee": "derive_scope",
+        "file": "E:\\DEV\\opensource_contrib\\memory_share\\brain\\ops\\layer3_metadata.py",
+        "line": 126,
+        "type": "orchestrator\u00e2\u2020\u2019core"
+      },
+      {
+        "caller": "build_store",
+        "callee": "GraphStore",
+        "file": "E:\\DEV\\opensource_contrib\\memory_share\\scripts\\bench_atlas.py",
+        "line": 27,
+        "type": "orchestrator\u00e2\u2020\u2019core"
+      },
+      {
+        "caller": "build_store",
+        "callee": "GraphStore",
+        "file": "E:\\DEV\\opensource_contrib\\memory_share\\scripts\\bench_atlas.py",
+        "line": 27,
+        "type": "orchestrator\u00e2\u2020\u2019core"
+      },
+      {
+        "caller": "build_store",
+        "callee": "GraphStore",
+        "file": "E:\\DEV\\opensource_contrib\\memory_share\\scripts\\bench_atlas.py",
+        "line": 27,
+        "type": "orchestrator\u00e2\u2020\u2019core"
+      },
+      {
+        "caller": "cmd_index",
+        "callee": "AtlasIndexer",
+        "file": "E:\\DEV\\opensource_contrib\\memory_share\\build\\lib\\kit\\main.py",
+        "line": 93,
+        "type": "orchestrator\u00e2\u2020\u2019core"
+      },
+      {
+        "caller": "cmd_index",
+        "callee": "AtlasIndexer",
+        "file": "E:\\DEV\\opensource_contrib\\memory_share\\build\\lib\\kit\\main.py",
+        "line": 93,
+        "type": "orchestrator\u00e2\u2020\u2019core"
+      },
+      {
+        "caller": "cmd_index",
+        "callee": "AtlasIndexer",
+        "file": "E:\\DEV\\opensource_contrib\\memory_share\\build\\lib\\kit\\main.py",
+        "line": 93,
+        "type": "orchestrator\u00e2\u2020\u2019core"
+      },
+      {
+        "caller": "cmd_index",
+        "callee": "AtlasIndexer",
+        "file": "E:\\DEV\\opensource_contrib\\memory_share\\build\\lib\\kit\\main.py",
+        "line": 93,
+        "type": "orchestrator\u00e2\u2020\u2019core"
+      },
+      {
+        "caller": "cmd_index",
+        "callee": "AtlasIndexer",
+        "file": "E:\\DEV\\opensource_contrib\\memory_share\\build\\lib\\kit\\main.py",
+        "line": 93,
+        "type": "orchestrator\u00e2\u2020\u2019core"
+      }
+    ],
+    "governance_status": "CRITICAL"
+  }
+}
