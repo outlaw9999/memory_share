@@ -3,7 +3,11 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-from datetime import UTC, datetime
+from datetime import datetime
+try:
+    from datetime import UTC
+except ImportError:
+    from datetime import timezone as _tz; UTC = _tz.utc
 from typing import Any
 
 
@@ -99,7 +103,7 @@ def infer_source_date(file_path: str) -> str | None:
 
 
 def infer_source_timestamp(file_path: str) -> datetime:
-    return datetime.utcfromtimestamp(os.path.getmtime(file_path))
+    return datetime.fromtimestamp(os.path.getmtime(file_path), tz=UTC)
 
 
 def extract_primary_heading(content: str) -> str | None:
