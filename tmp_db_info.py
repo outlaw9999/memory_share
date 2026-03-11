@@ -1,9 +1,13 @@
 import sqlite3
 import os
 
-db_path = ".antigravity/atlas/atlas.db"
+db_path = ".antigravity/atlas/atlas_v1.db"
 if not os.path.exists(db_path):
-    print(f"Error: {db_path} not found.")
+    # Fallback to check if I am crazy
+    db_path = ".antigravity/atlas/atlas.db"
+    
+if not os.path.exists(db_path):
+    print(f"Error: Database not found.")
     exit(1)
 
 conn = sqlite3.connect(db_path)

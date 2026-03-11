@@ -48,7 +48,8 @@ class GraphStore:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 fqn TEXT UNIQUE NOT NULL,
                 kind TEXT,
-                file_path TEXT
+                file_path TEXT,
+                importance_score REAL DEFAULT 0.0
             )
             """
         )
@@ -73,7 +74,17 @@ class GraphStore:
             )
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS file_registry (
+                file_path TEXT PRIMARY KEY,
+                last_hash TEXT NOT NULL,
+                indexed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
         cur.execute("CREATE INDEX IF NOT EXISTS idx_alias_lookup ON symbol_aliases(normalized_alias)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_symbol_file ON symbols(file_path)")
         
         self._init_symbol_search(cur)
         self.conn.commit()
@@ -151,6 +162,45 @@ class GraphStore:
 
         cur.execute("SELECT id FROM symbols WHERE fqn=?", (fqn,))
         return cur.fetchone()[0]
+
+    def delete_file_metadata(self, file_path: str):
+        """Xóa toàn bộ symbol, alias và edge liên quan đến một file để chuẩn bị re-index."""
+        cur = self.conn.cursor()
+        
+        # Lấy danh sách symbol IDs của file
+        cur.execute("SELECT id FROM symbols WHERE file_path=?", (file_path,))
+        symbol_ids = [row[0] for row in cur.fetchall()]
+        
+        if symbol_ids:
+            placeholders = ",".join(["?"] * len(symbol_ids))
+            # Xóa aliases
+            cur.execute(f"DELETE FROM symbol_aliases WHERE symbol_id IN ({placeholders})", symbol_ids)
+            # Xóa edges (source_id)
+            cur.execute(f"DELETE FROM edges WHERE source_id IN ({placeholders})", symbol_ids)
+            # Xóa chính symbols
+            cur.execute(f"DELETE FROM symbols WHERE id IN ({placeholders})", symbol_ids)
+        
+        self.conn.commit()
+
+    def update_file_registry(self, file_path: str, file_hash: str):
+        cur = self.conn.cursor()
+        cur.execute("""
+        INSERT OR REPLACE INTO file_registry(file_path, last_hash, indexed_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+        """, (file_path, file_hash))
+        self.conn.commit()
+
+    def get_registered_hash(self, file_path: str) -> Optional[str]:
+        cur = self.conn.cursor()
+        cur.execute("SELECT last_hash FROM file_registry WHERE file_path=?", (file_path,))
+        row = cur.fetchone()
+        return row[0] if row else None
+
+    def update_importance_scores(self, scores: dict):
+        cur = self.conn.cursor()
+        data = [(score, symbol_id) for symbol_id, score in scores.items()]
+        cur.executemany("UPDATE symbols SET importance_score=? WHERE id=?", data)
+        self.conn.commit()
 
     # ---------------- ALIASES ----------------
 
