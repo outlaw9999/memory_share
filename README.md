@@ -1,44 +1,65 @@
-# 🧠 .kit
+# kit 🧠
 
-**Persistent memory for your terminal. Local-first. Powered by SQLite.**
+**kit — remember things from your terminal.**
 
-Stop forgetting architecture decisions, weird bugs, and complex commands. `.kit` is a git-like memory ledger for you and your AI agents.
+A tiny CLI tool for storing and recalling useful facts. Local-first, git-like memory for humans and AI agents.
 
-### ⚡ The 10-Second Demo
+## ⚡ 5-Second Demo
 
 ```bash
 $ pip install kit-engine
 
-$ kit learn bug "Fixed memory leak in Auth by dropping JWT for RS256"
-✅ Learned (ID: 1)
+$ kit learn bug "JWT refresh fails because of clock skew"
+✅ Remembered.
 
-$ kit recall auth
-[auth] (Score: 0.1505) -> Fixed memory leak in Auth by dropping JWT for RS256
+$ kit recall bug
+JWT refresh fails because of clock skew
 ```
 
-### 🛠️ Why .kit?
+## ❓ Why?
 
-* **Zero Cloud & Zero API:** Everything lives locally in `~/.kit/brain.db`. 100% private.
-* **Deterministic:** No vector hallucinations. It's a structured graph of facts.
-* **Lineage & Evolution:** Automatically hides stale info using `supersedes_id`. Tri thức luôn tiến hóa.
-* **CLI-First Architecture:** Built for the pipe. Works perfectly with `fzf`, `grep`, and AI Agents (Cursor/Windsurf).
+Developers forget things:
+• Why a bug happened  
+• Why an architecture decision was made  
+• Which command fixed production  
 
-### 📦 Usage
+`kit` keeps these facts in your terminal workflow, not hidden in Slack or Jira.
 
-**Humans:**
+## 🎯 Pain vs. Solution
+
+| Problem | Solution |
+| --- | --- |
+| Forget why code exists | `kit learn arch` |
+| Lose track of bug fixes | `kit learn bug` |
+| Search context for AI | `kit recall` |
+| Fragmented knowledge | `kit compact` |
+
+## 🧩 Composability
+
+`kit` follows the Unix philosophy. It's built to be piped and combined.
+
 ```bash
-kit learn arch "We chose Postgres over MongoDB because of ACID compliance"
-kit recall arch
+# Search through memories with fuzzy-find
+kit recall | fzf
+
+# Search for specific tech notes
+kit recall | grep "Postgres"
+
+# View content with syntax highlighting
+kit recall | bat
 ```
 
-**Agents (Cursor / Windsurf / CLI Agents):**
-Agents prefer CLI commands over complex SDKs. Just tell your agent: *"Check my .kit memory for the last architecture decision."*
+## 📂 Storage
 
-### 🚢 Installation
-```bash
-pip install kit-engine
-```
+All data is stored locally in a single, standard SQLite file:
+`~/.kit/brain.db`
+
+No cloud. No API. No vendor lock-in.
+
+## 🏛️ Philosophy
+
+Small tools that do one thing well last longer than frameworks. `kit` is a primitive, not a platform.
 
 ---
-*Small. Fast. Reliable. Built for the era of Humans and Agents.*
+*Built for the era of Humans and Agents.*
 ⚔️🚀🛡️🧠🥂

@@ -70,7 +70,7 @@ def main():
             if not nodes:
                 print("No relevant memories found.")
             for n in nodes:
-                print(f"[{n.entity_uid}] (Score: {n.score:.4f}, Dist: {n.distance}) -> {n.content}")
+                print(n.content)
 
         elif args.command == "link":
             api.link_entities(args.src, args.dst, args.rel, args.weight)
