@@ -3,7 +3,7 @@ from pathlib import Path
 from kit.api import init_kernel, learn, recall, link_entities
 
 def run_e2e_verification():
-    print("🚀 [BOOT] Initializing .kit v1.0 engine...")
+    print("🚀 [BOOT] Initializing .kit v2.0.0 engine...")
     db_path = Path("sam_v1.db")
     
     if db_path.exists():
@@ -40,7 +40,7 @@ def run_e2e_verification():
     assert auth_found, "Latest AuthService fact not found or not ranked top"
     assert redis_expanded, "1-Hop expansion failed to pull Redis context"
     
-    print("\n✅ [SUCCESS] v1.0.0 End-to-End Verification Passed!")
+    print("\n✅ [SUCCESS] v2.0.0 End-to-End Verification Passed!")
 
 if __name__ == "__main__":
     try:
