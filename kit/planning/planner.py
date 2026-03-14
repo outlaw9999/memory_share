@@ -1,48 +1,43 @@
 import logging
-from kit.core.grounding import GroundedQuery
-from kit.schema import TraversalPlan
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
+
 
 class HeuristicPlanner:
     """
     Kế hoạch duyệt đồ thị dựa trên Intention và Context requirement.
     Điểm nối giữa Grounding Engine và Graph Engine.
     """
-    
-    def plan(self, grounded: GroundedQuery) -> TraversalPlan:
+
+    def plan(self, grounded: Dict[str, Any]) -> Dict[str, Any]:
         """
         Đưa ra kế hoạch duyệt graph dựa trên Intent và Grounded Symbols.
         """
-        intent = grounded.intents[0] if grounded.intents else "GENERAL"
+        intent = (
+            grounded.get("intents", ["GENERAL"])[0]
+            if isinstance(grounded.get("intents"), list)
+            else "GENERAL"
+        )
 
         if intent == "DEBUG":
-            return TraversalPlan(
-                entry_symbols=grounded.symbols,
-                direction="backward",
-                layers=[0, 1, 2],
-                max_depth=3
-            )
-
-        if intent == "ARCHITECTURE":
-            return TraversalPlan(
-                entry_symbols=grounded.symbols,
-                direction="forward",
-                layers=[0],
-                max_depth=2
-            )
-
-        if intent == "DECISION":
-            return TraversalPlan(
-                entry_symbols=grounded.symbols,
-                direction="none",
-                layers=[1, 3],
-                max_depth=2
-            )
-
-        return TraversalPlan(
-            entry_symbols=grounded.symbols,
-            direction="bidirectional",
-            layers=[0, 1],
-            max_depth=2
-        )
+            return {
+                "entry_symbols": grounded.get("symbols", []),
+                "layers": [0, 1, 2],
+                "direction": "backward",
+                "max_depth": 5,
+            }
+        elif intent == "ARCHITECTURE":
+            return {
+                "entry_symbols": grounded.get("symbols", []),
+                "layers": [0],
+                "direction": "bidirectional",
+                "max_depth": 3,
+            }
+        else:
+            return {
+                "entry_symbols": grounded.get("symbols", []),
+                "layers": [0, 1],
+                "direction": "forward",
+                "max_depth": 2,
+            }

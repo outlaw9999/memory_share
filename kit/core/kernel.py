@@ -8,57 +8,112 @@ from pathlib import Path
 from .adapters import AtlasAdapter, BrainAdapter
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Antigravity Memory Kit CLI (kit)")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
-    symbol_parser = subparsers.add_parser("symbol", help="Search unified symbols (Code + Docs)")
+    symbol_parser = subparsers.add_parser(
+        "symbol", help="Search unified symbols (Code + Docs)"
+    )
     symbol_parser.add_argument("query", help="Query string")
-    symbol_parser.add_argument("--limit", type=int, default=10, help="Limit results per source")
-    symbol_parser.add_argument("--include-private", action="store_true", help="Include private memory")
-    symbol_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+    symbol_parser.add_argument(
+        "--limit", type=int, default=10, help="Limit results per source"
+    )
+    symbol_parser.add_argument(
+        "--include-private", action="store_true", help="Include private memory"
+    )
+    symbol_parser.add_argument(
+        "--json", action="store_true", help="Output results in JSON format"
+    )
 
-    callers_parser = subparsers.add_parser("callers", help="Find callsites for a code symbol")
+    callers_parser = subparsers.add_parser(
+        "callers", help="Find callsites for a code symbol"
+    )
     callers_parser.add_argument("symbol", help="Callee symbol name")
     callers_parser.add_argument("--limit", type=int, default=50, help="Limit callers")
-    callers_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+    callers_parser.add_argument(
+        "--json", action="store_true", help="Output results in JSON format"
+    )
 
-    snippet_parser = subparsers.add_parser("snippet", help="Read a source snippet around PATH:LINE")
+    snippet_parser = subparsers.add_parser(
+        "snippet", help="Read a source snippet around PATH:LINE"
+    )
     snippet_parser.add_argument("target", help="Snippet target in PATH:LINE format")
-    snippet_parser.add_argument("--radius", type=int, default=10, help="Lines of context around the target line")
-    snippet_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+    snippet_parser.add_argument(
+        "--radius", type=int, default=10, help="Lines of context around the target line"
+    )
+    snippet_parser.add_argument(
+        "--json", action="store_true", help="Output results in JSON format"
+    )
 
-    context_parser = subparsers.add_parser("context", help="Read unified code context for a symbol")
+    context_parser = subparsers.add_parser(
+        "context", help="Read unified code context for a symbol"
+    )
     context_parser.add_argument("symbol", help="Symbol name")
-    context_parser.add_argument("--callers-limit", type=int, default=5, help="Limit callers")
-    context_parser.add_argument("--callees-limit", type=int, default=5, help="Limit callees")
-    context_parser.add_argument("--radius", type=int, default=8, help="Lines of source context around the definition")
-    context_parser.add_argument("--include-private", action="store_true", help="Include private memory")
-    context_parser.add_argument("--doc-limit", type=int, default=5, help="Limit related docs")
-    context_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+    context_parser.add_argument(
+        "--callers-limit", type=int, default=5, help="Limit callers"
+    )
+    context_parser.add_argument(
+        "--callees-limit", type=int, default=5, help="Limit callees"
+    )
+    context_parser.add_argument(
+        "--radius",
+        type=int,
+        default=8,
+        help="Lines of source context around the definition",
+    )
+    context_parser.add_argument(
+        "--include-private", action="store_true", help="Include private memory"
+    )
+    context_parser.add_argument(
+        "--doc-limit", type=int, default=5, help="Limit related docs"
+    )
+    context_parser.add_argument(
+        "--json", action="store_true", help="Output results in JSON format"
+    )
 
-    related_parser = subparsers.add_parser("related", help="Explore nearby code around a symbol")
+    related_parser = subparsers.add_parser(
+        "related", help="Explore nearby code around a symbol"
+    )
     related_parser.add_argument("symbol", help="Symbol name")
-    related_parser.add_argument("--similar-limit", type=int, default=5, help="Limit similar symbols")
-    related_parser.add_argument("--callers-limit", type=int, default=5, help="Limit callers")
-    related_parser.add_argument("--callees-limit", type=int, default=5, help="Limit callees")
-    related_parser.add_argument("--module-limit", type=int, default=8, help="Limit symbols from the same file")
-    related_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+    related_parser.add_argument(
+        "--similar-limit", type=int, default=5, help="Limit similar symbols"
+    )
+    related_parser.add_argument(
+        "--callers-limit", type=int, default=5, help="Limit callers"
+    )
+    related_parser.add_argument(
+        "--callees-limit", type=int, default=5, help="Limit callees"
+    )
+    related_parser.add_argument(
+        "--module-limit", type=int, default=8, help="Limit symbols from the same file"
+    )
+    related_parser.add_argument(
+        "--json", action="store_true", help="Output results in JSON format"
+    )
 
-    impact_parser = subparsers.add_parser("impact", help="Analyze blast radius of a symbol (reverse call graph)")
+    impact_parser = subparsers.add_parser(
+        "impact", help="Analyze blast radius of a symbol (reverse call graph)"
+    )
     impact_parser.add_argument("symbol", help="Symbol name")
     impact_parser.add_argument("--depth", type=int, default=3, help="Traversal depth")
     impact_parser.add_argument("--limit", type=int, default=50, help="Maximum results")
-    impact_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+    impact_parser.add_argument(
+        "--json", action="store_true", help="Output results in JSON format"
+    )
 
-    graph_parser = subparsers.add_parser("graph", help="Symbol Graph Prompting: Compact architecture-only view")
+    graph_parser = subparsers.add_parser(
+        "graph", help="Symbol Graph Prompting: Compact architecture-only view"
+    )
     graph_parser.add_argument("symbol", help="Symbol name")
-    graph_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+    graph_parser.add_argument(
+        "--json", action="store_true", help="Output results in JSON format"
+    )
 
     return parser.parse_args()
 
 
-def main():
+def main() -> None:
     args = parse_args()
     workspace_root = Path(os.environ.get("ANTIGRAVITY_WORKSPACE_ROOT", os.getcwd()))
     atlas = AtlasAdapter(workspace_root)
@@ -66,7 +121,9 @@ def main():
     if args.command == "symbol":
         brain = BrainAdapter(workspace_root)
         code_results = atlas.search(args.query, limit=args.limit)
-        doc_results = brain.search(args.query, include_private=args.include_private, limit=args.limit)
+        doc_results = brain.search(
+            args.query, include_private=args.include_private, limit=args.limit
+        )
         combined = code_results + doc_results
         payload = {"query": args.query, "results": combined}
 
@@ -189,14 +246,16 @@ def main():
             if not impact["affected"]:
                 print(f"No symbols affected by '{args.symbol}'.")
                 return
-            
+
             print(f"--- Impact: Blast Radius of '{args.symbol}' ---")
             print(f"Affected count: {impact['metrics']['affected_count']}")
             print(f"Max depth: {impact['metrics']['max_depth']}")
             print(f"Has cycles: {impact['metrics']['has_cycles']}")
             print("")
             for item in impact["affected"]:
-                print(f"  [{item['depth']}] {item['name']} [{item['path']}:{item['line']}]")
+                print(
+                    f"  [{item['depth']}] {item['name']} [{item['path']}:{item['line']}]"
+                )
         return
 
     if args.command == "graph":
@@ -209,7 +268,9 @@ def main():
             print(f"Architecture Context for: {graph['name']} ({graph['kind']})")
             print(f"  └─ Callers: {', '.join(graph['dependencies']['callers'])}")
             print(f"  └─ Callees: {', '.join(graph['dependencies']['callees'])}")
-            print(f"  └─ Symbols in same file: {', '.join(graph['dependencies']['peers'])}")
+            print(
+                f"  └─ Symbols in same file: {', '.join(graph['dependencies']['peers'])}"
+            )
         return
 
     print("Antigravity Memory Kit v1.1.0")

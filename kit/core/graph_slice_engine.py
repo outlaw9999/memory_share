@@ -27,7 +27,7 @@ import json
 class GraphSliceEngine:
     """
     Minimal semantic slice extraction from code graph.
-    
+
     Design principle: LLM doesn't need entire graph, only semantic neighborhood.
     """
 
@@ -46,7 +46,7 @@ class GraphSliceEngine:
         symbol_name: str,
         depth: int = 2,
         max_nodes: int = 50,
-        enable_boundary_penalty: bool = True
+        enable_boundary_penalty: bool = True,
     ) -> Dict[str, Any]:
         """
         Extract semantic subgraph around target symbol.
@@ -75,17 +75,13 @@ class GraphSliceEngine:
             return {"error": f"Symbol '{symbol_name}' not found"}
 
         # Step 2: Bounded BFS to collect neighbors
-        visited = self._bounded_bfs(
-            symbol_name,
-            depth=depth,
-            target_symbol_info=target
-        )
+        visited = self._bounded_bfs(symbol_name, depth=depth, target_symbol_info=target)
 
         # Step 3: Rank nodes by importance
         ranked = self._rank_nodes(
             visited,
             target_symbol_name=symbol_name,
-            enable_boundary_penalty=enable_boundary_penalty
+            enable_boundary_penalty=enable_boundary_penalty,
         )
 
         # Step 4: Select top-K
@@ -93,12 +89,8 @@ class GraphSliceEngine:
         node_names = [n[1]["name"] for n in slice_nodes]
 
         # Step 5: Build result JSON
-        result = self._build_slice_json(
-            target,
-            node_names,
-            visited
-        )
-        
+        result = self._build_slice_json(target, node_names, visited)
+
         return result
 
     def _find_symbol(self, symbol_name: str) -> Optional[Dict[str, Any]]:
@@ -111,7 +103,7 @@ class GraphSliceEngine:
             WHERE name = ?
             LIMIT 1
             """,
-            (symbol_name,)
+            (symbol_name,),
         )
         row = cur.fetchone()
         if not row:
@@ -120,18 +112,15 @@ class GraphSliceEngine:
             "name": row["name"],
             "kind": row["kind"],
             "file": row["file"],
-            "line": row["line"]
+            "line": row["line"],
         }
 
     def _bounded_bfs(
-        self,
-        start_symbol: str,
-        depth: int,
-        target_symbol_info: Dict[str, Any]
+        self, start_symbol: str, depth: int, target_symbol_info: Dict[str, Any]
     ) -> Set[str]:
         """
         Breadth-first search limited to depth.
-        
+
         Visits neighbors but stops at frontier depth.
         """
         visited = {start_symbol}
@@ -139,16 +128,16 @@ class GraphSliceEngine:
 
         for level in range(depth):
             next_frontier = []
-            
+
             for node in frontier:
                 # Find callers and callees
                 neighbors = self._get_neighbors(node)
-                
+
                 for neighbor in neighbors:
                     if neighbor not in visited:
                         visited.add(neighbor)
                         next_frontier.append(neighbor)
-            
+
             frontier = next_frontier
             if not frontier:
                 break
@@ -167,7 +156,7 @@ class GraphSliceEngine:
             FROM calls
             WHERE callee = ?
             """,
-            (symbol_name,)
+            (symbol_name,),
         )
         for row in cur.fetchall():
             neighbors.add(row["caller"])
@@ -179,7 +168,7 @@ class GraphSliceEngine:
             FROM calls
             WHERE caller = ?
             """,
-            (symbol_name,)
+            (symbol_name,),
         )
         for row in cur.fetchall():
             neighbors.add(row["callee"])
@@ -190,14 +179,14 @@ class GraphSliceEngine:
         self,
         nodes: Set[str],
         target_symbol_name: str,
-        enable_boundary_penalty: bool = True
+        enable_boundary_penalty: bool = True,
     ) -> List[Tuple[float, Dict[str, Any]]]:
         """
         Rank nodes by importance using:
         - Centrality (call frequency)
         - Distance to target
         - Boundary crossing penalty
-        
+
         Score = centrality * 0.5 + call_frequency * 0.3 - boundary_penalty * 0.2
         """
         scored = []
@@ -216,28 +205,30 @@ class GraphSliceEngine:
             # Boundary penalty: crosses package/module boundary
             boundary_penalty = 0.0
             if enable_boundary_penalty:
+                target_symbol = self._find_symbol(target_symbol_name)
                 target_module = self._extract_module(
-                    self._find_symbol(target_symbol_name)["file"]
+                    target_symbol["file"] if target_symbol else ""
                 )
                 symbol_module = self._extract_module(symbol_info["file"])
                 if target_module != symbol_module:
                     boundary_penalty = 1.0
 
             # Weighted score
-            score = (
-                centrality * 0.5 +
-                call_freq * 0.3 -
-                boundary_penalty * 0.2
-            )
+            score = centrality * 0.5 + call_freq * 0.3 - boundary_penalty * 0.2
 
-            scored.append((score, {
-                "name": node_name,
-                "kind": symbol_info["kind"],
-                "file": symbol_info["file"],
-                "line": symbol_info["line"],
-                "centrality": centrality,
-                "call_frequency": call_freq
-            }))
+            scored.append(
+                (
+                    score,
+                    {
+                        "name": node_name,
+                        "kind": symbol_info["kind"],
+                        "file": symbol_info["file"],
+                        "line": symbol_info["line"],
+                        "centrality": centrality,
+                        "call_frequency": call_freq,
+                    },
+                )
+            )
 
         # Sort by score descending
         scored.sort(reverse=True, key=lambda x: x[0])
@@ -246,20 +237,20 @@ class GraphSliceEngine:
     def _compute_centrality(self, symbol_name: str) -> float:
         """Count degree (incoming + outgoing edges)."""
         cur = self.conn.cursor()
-        
+
         # Incoming edges (callers)
         cur.execute(
-            "SELECT COUNT(*) as cnt FROM calls WHERE callee = ?",
-            (symbol_name,)
+            "SELECT COUNT(*) as cnt FROM calls WHERE callee = ?", (symbol_name,)
         )
-        incoming = cur.fetchone()["cnt"]
+        incoming_row = cur.fetchone()
+        incoming: int = incoming_row["cnt"] if incoming_row else 0
 
         # Outgoing edges (callees)
         cur.execute(
-            "SELECT COUNT(*) as cnt FROM calls WHERE caller = ?",
-            (symbol_name,)
+            "SELECT COUNT(*) as cnt FROM calls WHERE caller = ?", (symbol_name,)
         )
-        outgoing = cur.fetchone()["cnt"]
+        outgoing_row = cur.fetchone()
+        outgoing: int = outgoing_row["cnt"] if outgoing_row else 0
 
         # Normalize to [0, 1] range
         total = incoming + outgoing
@@ -268,13 +259,14 @@ class GraphSliceEngine:
     def _get_call_frequency(self, symbol_name: str) -> float:
         """How many unique call sites reference this symbol."""
         cur = self.conn.cursor()
-        
+
         cur.execute(
             "SELECT COUNT(DISTINCT caller) as cnt FROM calls WHERE callee = ?",
-            (symbol_name,)
+            (symbol_name,),
         )
-        call_count = cur.fetchone()["cnt"]
-        
+        row = cur.fetchone()
+        call_count: int = row["cnt"] if row else 0
+
         # Normalize
         return min(call_count / 50.0, 1.0)
 
@@ -282,7 +274,7 @@ class GraphSliceEngine:
         """Extract module name from file path (e.g., 'auth' from 'auth/service.py')."""
         path = Path(file_path)
         parts = path.parts
-        
+
         if len(parts) > 1:
             return parts[0]
         return path.stem
@@ -291,11 +283,11 @@ class GraphSliceEngine:
         self,
         target_symbol: Dict[str, Any],
         slice_nodes: List[str],
-        all_visited: Set[str]
+        all_visited: Set[str],
     ) -> Dict[str, Any]:
         """
         Serialize slice into LLM-friendly JSON.
-        
+
         Output example:
         {
             "symbol": "AuthService.login",
@@ -313,12 +305,10 @@ class GraphSliceEngine:
         """
         # Categorize nodes
         callers = self._get_neighbors_of_type(
-            target_symbol["name"],
-            direction="callers"
+            target_symbol["name"], direction="callers"
         )
         callees = self._get_neighbors_of_type(
-            target_symbol["name"],
-            direction="callees"
+            target_symbol["name"], direction="callees"
         )
 
         # Group by module
@@ -333,9 +323,9 @@ class GraphSliceEngine:
 
         # Estimate token cost (rough: 3 tokens per edge, 5 per symbol name)
         token_estimate = (
-            len(slice_nodes) * 5 +
-            len([c for c in callers if c in slice_nodes]) * 3 +
-            len([c for c in callees if c in slice_nodes]) * 3
+            len(slice_nodes) * 5
+            + len([c for c in callers if c in slice_nodes]) * 3
+            + len([c for c in callees if c in slice_nodes]) * 3
         )
 
         return {
@@ -348,30 +338,34 @@ class GraphSliceEngine:
             "callers": callers,
             "callees": callees,
             "related_symbols": module_symbols,
-            "boundary_violations": len([n for n in slice_nodes if self._is_boundary_violation(target_symbol["file"], n)]),
+            "boundary_violations": len(
+                [
+                    n
+                    for n in slice_nodes
+                    if self._is_boundary_violation(target_symbol["file"], n)
+                ]
+            ),
             "token_estimate": token_estimate,
-            "nodes": slice_nodes
+            "nodes": slice_nodes,
         }
 
     def _get_neighbors_of_type(
-        self,
-        symbol_name: str,
-        direction: str = "callers"
+        self, symbol_name: str, direction: str = "callers"
     ) -> List[str]:
         """Get callers or callees of symbol."""
         cur = self.conn.cursor()
-        
+
         if direction == "callers":
             cur.execute(
                 "SELECT DISTINCT caller FROM calls WHERE callee = ? LIMIT 10",
-                (symbol_name,)
+                (symbol_name,),
             )
         else:  # callees
             cur.execute(
                 "SELECT DISTINCT callee FROM calls WHERE caller = ? LIMIT 10",
-                (symbol_name,)
+                (symbol_name,),
             )
-        
+
         return [row[0] for row in cur.fetchall()]
 
     def _is_boundary_violation(self, target_file: str, symbol_name: str) -> bool:
@@ -379,13 +373,13 @@ class GraphSliceEngine:
         symbol_info = self._find_symbol(symbol_name)
         if not symbol_info:
             return False
-        
+
         target_module = self._extract_module(target_file)
         symbol_module = self._extract_module(symbol_info["file"])
-        
+
         return target_module != symbol_module
 
-    def close(self):
+    def close(self) -> None:
         """Close database connection."""
         self.conn.close()
 
@@ -393,13 +387,14 @@ class GraphSliceEngine:
 # CLI Test
 if __name__ == "__main__":
     import sys
+
     if len(sys.argv) < 2:
         print("Usage: python graph_slice_engine.py <db_path> <symbol_name>")
         sys.exit(1)
-    
+
     db_path = sys.argv[1]
     symbol = sys.argv[2] if len(sys.argv) > 2 else "main"
-    
+
     engine = GraphSliceEngine(db_path)
     result = engine.slice(symbol, depth=2, max_nodes=50)
     print(json.dumps(result, indent=2))

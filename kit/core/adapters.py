@@ -14,12 +14,12 @@ try:
     from .graph_store import GraphStore
 except ImportError:
     # Support running as a standalone script for debugging
-    from graph_store import GraphStore
+    from graph_store import GraphStore  # type: ignore[import-not-found,no-redef]
 
 # Brain Layer 3 integration (optional cognitive memory)
 sys.path.append(str(WORKSPACE_ROOT / "brain" / "ops"))
 try:
-    import query_layer3
+    import query_layer3  # type: ignore[import-not-found]
 except ImportError:
     query_layer3 = None
 
@@ -35,20 +35,22 @@ class AtlasAdapter:
     def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         results = []
         for symbol in self.store.search_symbols(query, limit=limit, fuzzy=True):
-            results.append({
-                "type": "code_symbol",
-                "name": symbol.name,
-                "kind": symbol.kind,
-                "path": symbol.file,
-                "line": symbol.line,
-                "rank": 1.0,
-            })
+            results.append(
+                {
+                    "type": "code_symbol",
+                    "name": symbol.name,
+                    "kind": symbol.kind,
+                    "path": symbol.file,
+                    "line": symbol.line,
+                    "rank": 1.0,
+                }
+            )
         return results
 
     def definition(self, query: str) -> Optional[Dict[str, Any]]:
         if "::" in query:
             return self._definition_file_qualified(query)
-        
+
         candidates = self.store.search_symbols(query, limit=10, fuzzy=False)
         if not candidates:
             candidates = self.store.search_symbols(query, limit=10, fuzzy=True)
@@ -70,10 +72,10 @@ class AtlasAdapter:
         parts = query.split("::", 1)
         if len(parts) != 2:
             return None
-        
+
         file_query, symbol_name = parts
         file_query = file_query.replace("\\", "/")
-        
+
         all_symbols = self.store.list_symbols()
         for symbol in all_symbols:
             stored_path = symbol.file.replace("\\", "/")
@@ -117,27 +119,33 @@ class AtlasAdapter:
     def callers(self, symbol: str, limit: int = 50) -> List[Dict[str, Any]]:
         results = []
         for call in self.store.find_callers(symbol, limit=limit):
-            results.append({
-                "type": "code_caller",
-                "caller": call.caller,
-                "callee": call.callee,
-                "path": call.file,
-                "line": call.line,
-                "rank": 1.0,
-            })
+            results.append(
+                {
+                    "type": "code_caller",
+                    "caller": call.caller,
+                    "callee": call.callee,
+                    "path": call.file,
+                    "line": call.line,
+                    "rank": 1.0,
+                }
+            )
         return results
 
     def callees(self, symbol: str, limit: int = 50) -> List[Dict[str, Any]]:
         results = []
-        for call in self.store.find_callees(symbol, limit=limit):
-            results.append({
-                "type": "code_callee",
-                "caller": call.caller,
-                "callee": call.callee,
-                "path": call.file,
-                "line": call.line,
-                "rank": 1.0,
-            })
+        symbol_id = self.store.find_symbol_by_alias(symbol)
+        if symbol_id is not None:
+            for call in self.store.find_callees(symbol_id, limit=limit):
+                results.append(
+                    {
+                        "type": "code_callee",
+                        "caller": call.caller,
+                        "callee": call.callee,
+                        "path": call.file,
+                        "line": call.line,
+                        "rank": 1.0,
+                    }
+                )
         return results
 
     def snippet(self, target: str, radius: int = 10) -> Dict[str, Any]:
@@ -175,7 +183,9 @@ class AtlasAdapter:
         callees = self.callees(symbol, limit=callee_limit)
         snippet = None
         if definition is not None:
-            snippet = self.snippet(f"{definition['path']}:{definition['line']}", radius=snippet_radius)
+            snippet = self.snippet(
+                f"{definition['path']}:{definition['line']}", radius=snippet_radius
+            )
 
         return {
             "type": "code_context",
@@ -206,7 +216,9 @@ class AtlasAdapter:
         similar = self._similar_symbols(symbol, limit=similar_limit)
         module_peers: List[Dict[str, Any]] = []
         if definition is not None:
-            module_peers = self._module_peers(definition["path"], definition["name"], limit=module_limit)
+            module_peers = self._module_peers(
+                definition["path"], definition["name"], limit=module_limit
+            )
 
         return {
             "type": "code_related",
@@ -239,16 +251,18 @@ class AtlasAdapter:
             if item["name"] in seen or self._is_test_path(str(item["file"])):
                 continue
             seen.add(str(item["name"]))
-            results.append({
-                "type": "code_symbol",
-                "name": item["name"],
-                "kind": item["kind"],
-                "path": item["file"],
-                "line": item["line"],
-                "rank": 1.0,
-                "fts_rank": item["fts_rank"],
-                "degree": item["degree"],
-            })
+            results.append(
+                {
+                    "type": "code_symbol",
+                    "name": item["name"],
+                    "kind": item["kind"],
+                    "path": item["file"],
+                    "line": item["line"],
+                    "rank": 1.0,
+                    "fts_rank": item["fts_rank"],
+                    "degree": item["degree"],
+                }
+            )
             if len(results) >= limit:
                 break
         return results
@@ -259,43 +273,54 @@ class AtlasAdapter:
             return max(enumerate(tokens), key=lambda item: (len(item[1]), item[0]))[1]
         return symbol
 
-    def _module_peers(self, path: str, symbol_name: str, limit: int) -> List[Dict[str, Any]]:
+    def _module_peers(
+        self, path: Path, symbol_name: str, limit: int
+    ) -> List[Dict[str, Any]]:
         peers = []
         for item in self.store.list_symbols(path):
             if item.name == symbol_name:
                 continue
-            peers.append({
-                "type": "code_symbol",
-                "name": item.name,
-                "kind": item.kind,
-                "path": item.file,
-                "line": item.line,
-                "rank": 1.0,
-            })
-        peers.sort(key=lambda item: (self._is_test_path(item["path"]), item["name"], item["line"]))
+            peers.append(
+                {
+                    "type": "code_symbol",
+                    "name": item.name,
+                    "kind": item.kind,
+                    "path": item.file,
+                    "line": item.line,
+                    "rank": 1.0,
+                }
+            )
+        peers.sort(
+            key=lambda item: (
+                self._is_test_path(str(item["path"])),
+                item["name"],
+                item["line"],
+            )
+        )
         return peers[:limit]
 
     def get_compact_graph(self, symbol: str) -> Dict[str, Any]:
         definition = self.definition(symbol)
         callers = [c["caller"] for c in self.callers(symbol, limit=8)]
         callees = [c["callee"] for c in self.callees(symbol, limit=8)]
-        
+
         peers = []
         if definition:
-            peers = [p["name"] for p in self._module_peers(definition["path"], symbol, limit=10)]
-            
+            peers = [
+                p["name"]
+                for p in self._module_peers(definition["path"], symbol, limit=10)
+            ]
+
         return {
             "type": "symbol_graph",
             "name": symbol,
             "kind": definition["kind"] if definition else "unknown",
-            "dependencies": {
-                "callers": callers,
-                "callees": callees,
-                "peers": peers
-            }
+            "dependencies": {"callers": callers, "callees": callees, "peers": peers},
         }
 
-    def get_impact_info(self, symbol: str, *, depth: int = 3, limit: int = 50) -> Dict[str, Any]:
+    def get_impact_info(
+        self, symbol: str, *, depth: int = 3, limit: int = 50
+    ) -> Dict[str, Any]:
         affected = self.store.trace_impact(symbol, max_depth=depth, limit=limit)
         return {
             "type": "code_impact",
@@ -315,23 +340,32 @@ class BrainAdapter:
     def __init__(self, workspace_root: Path):
         self.workspace_root = workspace_root
 
-    def search(self, query: str, include_private: bool = False, limit: int = 10) -> List[Dict[str, Any]]:
+    def search(
+        self, query: str, include_private: bool = False, limit: int = 10
+    ) -> List[Dict[str, Any]]:
         if not query_layer3:
             return []
 
-        raw_results = query_layer3.search_metadata(query, include_private=include_private, limit=limit)
+        raw_results = query_layer3.search_metadata(
+            query, include_private=include_private, limit=limit
+        )
         results = []
         for result in raw_results:
             metadata = result.get("metadata", {})
-            results.append({
-                "type": "doc",
-                "name": metadata.get("source_heading") or metadata.get("source_file"),
-                "kind": metadata.get("source_kind", "markdown"),
-                "path": metadata.get("source_path") or metadata.get("source"),
-                "rank": result.get("score", 0.5),
-                "snippet": result.get("content", "")[:200],
-            })
+            results.append(
+                {
+                    "type": "doc",
+                    "name": metadata.get("source_heading")
+                    or metadata.get("source_file"),
+                    "kind": metadata.get("source_kind", "markdown"),
+                    "path": metadata.get("source_path") or metadata.get("source"),
+                    "rank": result.get("score", 0.5),
+                    "snippet": result.get("content", "")[:200],
+                }
+            )
         return results
 
-    def get_unified_context(self, query: str, include_private: bool = False, limit: int = 5) -> List[Dict[str, Any]]:
+    def get_unified_context(
+        self, query: str, include_private: bool = False, limit: int = 5
+    ) -> List[Dict[str, Any]]:
         return self.search(query, include_private=include_private, limit=limit)

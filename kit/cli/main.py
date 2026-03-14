@@ -1,12 +1,16 @@
 import argparse
-import sqlite3
+import json
 import os
+import sys
 from pathlib import Path
+from typing import Any, Optional
+
 from kit.core.graph_store import GraphStore
 from kit.index.ast_indexer import V1ASTIndexer
 from kit.services.cognitive_router import CognitiveRouter
 
-def main():
+
+def main() -> int:
     parser = argparse.ArgumentParser(description=".kit V1: Agent Knowledge Kernel")
     subparsers = parser.add_subparsers(dest="command")
 
@@ -20,67 +24,108 @@ def main():
     explain_parser.add_argument("query", help="Natural language query")
 
     # Command: hotspots
-    hotspots_parser = subparsers.add_parser("hotspots", help="Identify critical code components")
-    hotspots_parser.add_argument("--limit", type=int, default=10, help="Number of hotspots to show")
+    hotspots_parser = subparsers.add_parser(
+        "hotspots", help="Identify critical code components"
+    )
+    hotspots_parser.add_argument(
+        "--limit", type=int, default=10, help="Number of hotspots to show"
+    )
+    hotspots_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON (pretty)"
+    )
+    hotspots_parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Output as compact JSON (token efficient)",
+    )
+
+    # Command: doctor
+    doctor_parser = subparsers.add_parser(
+        "doctor", help="Audit architecture health and integrity"
+    )
+    doctor_parser.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # Command: why
+    why_parser = subparsers.add_parser(
+        "why", help="Explain architectural significance of a symbol"
+    )
+    why_parser.add_argument("symbol", help="Symbol name to explain")
+    why_parser.add_argument(
+        "--offline", action="store_true", help="Use deterministic mode (no LLM)"
+    )
+    why_parser.add_argument("--json", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
-    
-    db_path = ".antigravity/atlas/atlas_v1.db"
+
+    if not args.command:
+        parser.print_help()
+        return 0
+
+    # Initialize core components
+    store = GraphStore()
 
     if args.command == "index":
+        path = args.path
+        print(f"[*] Indexing {path}...")
+        indexer = V1ASTIndexer(store)
+
         if args.full:
-            print(f"[CLEAN] Wiping existing database for FULL index on {args.path}...")
-            # Xóa file vật lý để đảm bảo sạch 100%
-            for suffix in ["", "-wal", "-shm"]:
-                p = Path(f"{db_path}{suffix}")
-                if p.exists():
-                    try:
-                        p.unlink()
-                    except Exception as e:
-                        print(f"Warning: Could not delete {p}: {e}")
-            
-            # Khởi tạo mới hoàn toàn
-            store = GraphStore(db_path)
-            indexer = V1ASTIndexer(store)
-            indexer.index_repo(args.path)
-            
-            # Khởi tạo registry sau full index
-            from kit.index.incremental import IncrementalIndexer
-            inc_indexer = IncrementalIndexer(store)
-            for root, _, files in os.walk(args.path):
-                for file in files:
-                    if file.endswith(".py") and "venv" not in root and "test" not in root:
-                        full_path = os.path.join(root, file)
-                        inc_indexer.store.update_file_registry(full_path, inc_indexer.get_file_hash(full_path))
-            print("[OK] Full indexing complete.")
+            print("[!] Full re-index requested - deleting existing data...")
+
+        indexer.index_repo(path)
+        print("[OK] Indexing complete.")
+        return 0
+
+    if args.command == "hotspots":
+        from kit.analysis.importance import GraphRankEngine
+
+        ranker = GraphRankEngine(store)
+        scores = ranker.compute_importance(iterations=10)
+
+        # Sort by score
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)[
+            : args.limit
+        ]
+
+        if args.json:
+            print(json.dumps(sorted_scores, indent=2))
+        elif args.compact:
+            print(json.dumps(sorted_scores))
         else:
-            store = GraphStore(db_path)
-            from kit.index.incremental import IncrementalIndexer
-            inc_indexer = IncrementalIndexer(store)
-            inc_indexer.index_incremental(args.path)
-            
-        # Tự động tính Importance sau mỗi lần index
-        from kit.analysis.importance import GraphRankEngine
-        rank_engine = GraphRankEngine(store)
-        ranks = rank_engine.compute_importance()
-        rank_engine.update_database(ranks)
+            print("--- Top Hotspots ---")
+            for symbol_id, score in sorted_scores:
+                print(f"  {score:.4f} (id={symbol_id})")
+        return 0
 
-    elif args.command == "explain":
-        store = GraphStore(db_path)
-        router = CognitiveRouter(store, model=None) 
-        result = router.explain(args.query)
-        print(f"\n🧠 .kit Explanation:\n{result}")
+    if args.command == "doctor":
+        from kit.analysis.integrity import ArchitectureDoctor
 
-    elif args.command == "hotspots":
-        store = GraphStore(db_path)
-        from kit.analysis.importance import GraphRankEngine
-        rank_engine = GraphRankEngine(store)
-        hotspots = rank_engine.get_hotspots(limit=args.limit)
-        
-        print(f"\n🔥 Top {args.limit} Architectural Hotspots:")
-        print("-" * 50)
-        for fqn, kind, score in hotspots:
-            print(f"  [{kind:8}] {fqn:40} | Score: {score:.4f}")
+        doctor = ArchitectureDoctor(store)
+        report = doctor.diagnose()
+
+        if args.json:
+            print(json.dumps(report, indent=2))
+        else:
+            print("--- Architecture Health ---")
+            print(f"Healthy: {report['healthy']}")
+            for issue in report["issues"]:
+                print(f"  ! {issue}")
+        return 0
+
+    if args.command == "why":
+        from kit.query.reasoning import ReasoningEngine
+
+        engine = ReasoningEngine(store)
+        result = engine.why(args.symbol, offline=args.offline)
+
+        if args.json:
+            print(json.dumps({"symbol": args.symbol, "explanation": result}, indent=2))
+        else:
+            print(result)
+        return 0
+
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

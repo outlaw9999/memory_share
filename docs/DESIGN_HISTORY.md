@@ -1220,3 +1220,39 @@ Request they implement:
 5. Provenance explanation in output
 
 Then you'd have something genuinely "robust."
+
+---
+
+## Appendix: Anomaly Log 001 - Operation Flash Lockdown
+
+### 🛡️ Post-Mortem: Model Lockdown Incident
+
+**1. Anomaly Analysis**
+- **Symptom:** Rapid credit depletion (-12, -8 per request) and system freezes.
+- **Root Cause:**
+    - **Implicit Snapshots:** The IDE automatically sends change data to the cloud for summarization.
+    - **Trigger Effect:** The local indexer (`.kit`) was inadvertently changing files continuously, triggering the IDE to capture "silent" snapshots.
+    - **Deadlock:** The daemon became blocked in a "Quota Error -> Log Writing -> I/O Saturation -> Freeze" loop.
+
+**2. The "Flash Lockdown" Decree**
+To protect resources, all Routing Agents must strictly adhere to the **Model-First-Cost-Zero** rule:
+> [!IMPORTANT]
+> - ALWAYS use model: `gemini-3-flash`
+> - DISABLE `background_indexing`
+> - DISABLE `implicit_snapshots`
+> - FORBID any model EXCEPT `gemini-3-flash`
+
+**3. Technical Isolation (Hardening)**
+Prevent IDE interference in `.kit` internals by updating `.antigravity_ignore` or `.gitignore`:
+- `*.db` / `*.db-journal` / `*.lock`
+- `.antigravity/atlas/`
+- `.antigravity/implicit/` (Delete massive legacy snapshots).
+
+**4. Emergency Recovery Workflow**
+When the system shows "white screen" or I/O freezes:
+1. **Kill Task:** Terminate all `antigravity-daemon.exe` and `node.exe` processes.
+2. **Break Locks:** Delete all files with `.lock` or `-journal` suffixes.
+3. **Cold Boot:** Start IDE with **Administrator** privileges.
+4. **Settings Patch:** Ensure `user_settings.pb` is in an inert state to remove expensive model overrides.
+
+This incident proved that local indexing must be strictly isolated from cloud-summation snapshots to prevent a "resource death spiral."

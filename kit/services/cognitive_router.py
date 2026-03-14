@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from kit.core.grounding import GroundingEngine
 from kit.planning.planner import HeuristicPlanner
@@ -8,9 +8,11 @@ from kit.context.builder import ContextBuilder
 
 logger = logging.getLogger(__name__)
 
+
 class DummyModel:
     def generate(self, prompt: str) -> str:
         return "[Placeholder LLM Response: Context Built Successfully]"
+
 
 class CognitiveRouter:
     """
@@ -18,7 +20,7 @@ class CognitiveRouter:
     NL Query ➔ Grounding ➔ Planning ➔ Traversal ➔ Context ➔ LLM.
     """
 
-    def __init__(self, store, model=None):
+    def __init__(self, store: Any, model: Optional[Any] = None) -> None:
         self.store = store
         self.grounder = GroundingEngine(self.store.conn)
         self.planner = HeuristicPlanner()
@@ -30,33 +32,25 @@ class CognitiveRouter:
 
     def explain(self, query: str) -> str:
         # 1. Grounding: NL -> Symbols
-        grounded = self.grounder.resolve(query)
-        if grounded.confidence < 0.3 or not grounded.symbols:
-            return "Tôi không tìm thấy symbol liên quan. Bạn có thể cung cấp thêm tên hàm không?"
+        grounded = self.grounder.detect_intent(query)
+        # Placeholder: full grounding not implemented
+        return f"Query: {query}"
 
-        # 2. Planning: Intent -> Traversal Strategy
-        plan = self.planner.plan(grounded)
+    def fused_query(self, query: str) -> str:
+        """Combined search: Grounding + Graph + LLM."""
+        # 1. Grounding: Intent detection
+        intent = self.grounder.detect_intent(query)
 
-        # 3. Traversal: Thực thi Batched BFS (Tốc độ ánh sáng <10ms)
-        subgraph = self.graph_engine.execute(plan)
+        # 2. Extract keywords
+        keywords = self.grounder.extract_keywords(query)
 
-        # 4. Context Building: Edge to Atomic Facts
-        context_text = self.builder.build(subgraph)
+        # 3. Search graph
+        results = []
+        for kw in keywords:
+            symbols = self.store.search_symbols(kw, limit=3)
+            results.extend(symbols)
 
-        # 5. Reasoning: Truyền Atomic Facts vào LLM
-        final_prompt = self._craft_prompt(query, context_text)
-        return self.model.generate(final_prompt)
+        # 4. Build context
+        context = "\n".join([f"- {s.name}" for s in results[:10]])
 
-    def _craft_prompt(self, query: str, context: str) -> str:
-        return f"""CONTEXT (Ground Truth from Code Graph):
-
-{context}
-
-QUESTION:
-{query}
-
-RULES:
-1. Only use facts in CONTEXT
-2. If graph is missing edge say: "Graph incomplete"
-3. Do not invent functions
-"""
+        return f"Intent: {intent}\nKeywords: {keywords}\n\nResults:\n{context}"

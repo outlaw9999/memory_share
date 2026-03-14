@@ -1,17 +1,15 @@
+from typing import Any
+
+
 class ContextBuilder:
     """
     Context Pruning and Simplification.
     Chưng cất các cạnh Subgraph phức tạp thành Atomic Facts.
     """
 
-    RELATIONS = {
-        0: "calls",
-        1: "asserts",
-        2: "causes",
-        3: "fixes"
-    }
+    RELATIONS = {0: "calls", 1: "asserts", 2: "causes", 3: "fixes"}
 
-    def build(self, subgraph) -> str:
+    def build(self, subgraph: Any) -> str:
         lines = []
 
         for edge in subgraph.edges:

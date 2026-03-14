@@ -1,20 +1,18 @@
 [project]
-name = "memory-share-kit"
-version = "1.1.0"
-description = "AI-Native Semantic Code Intelligence Engine for 50M+ LOC Monorepos"
+name = "memory_share_kit"
+version = "1.3.1"
+description = "The Architecture Memory Protocol (AMP) Kernel - Deterministic Logic for AI Agents"
 readme = "README.md"
 requires-python = ">=3.14"
 license = "MIT"
 authors = [{ name = "Kiến trúc sư trưởng - [Văn Trường]" }]
 keywords = [
-    "static-analysis",
-    "llm",
-    "codebase-intelligence",
-    "graph-slice",
-    "mcp",
-    "llm-tools",
+    "architecture-memory",
+    "amp-protocol",
+    "ai-native",
     "graph-analysis",
-    "hard-fork",
+    "deterministic-reasoning",
+    "elite-py-314",
 ]
 dependencies = ["watchdog>=3.0.0", "pytest>=7.0.0"]
 

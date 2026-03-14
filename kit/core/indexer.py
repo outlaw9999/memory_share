@@ -11,22 +11,33 @@ from .incremental_updater import IncrementalUpdater, SymbolHasher
 class AtlasIndexer:
     """Incremental bridge from WAL-driven events to the graph store."""
 
-    def __init__(self, workspace_root: str = ".", scanner: Optional[Scanner] = None, graph_store: Optional[GraphStore] = None):
+    def __init__(
+        self,
+        workspace_root: str = ".",
+        scanner: Optional[Scanner] = None,
+        graph_store: Optional[GraphStore] = None,
+    ):
         self.workspace_root = Path(workspace_root)
         self.scanner = scanner or Scanner()
-        self.graph = graph_store or GraphStore(self.workspace_root / ".antigravity" / "atlas" / "atlas.db")
+        self.graph = graph_store or GraphStore(
+            self.workspace_root / ".antigravity" / "atlas" / "atlas.db"
+        )
         self.incremental_updater = IncrementalUpdater(self.graph.db_path)
         self.dirty_files: Set[str] = set()
         self._dirty_txns: dict[str, tuple[Optional[str], Optional[float]]] = {}
         self._dirty_seen_at: dict[str, float] = {}
-        self._file_hashes: dict[str, str] = {}  # Track file content hashes for change detection
+        self._file_hashes: dict[
+            str, str
+        ] = {}  # Track file content hashes for change detection
         self.coalesce_window_seconds = 0.2
         self.use_incremental = True  # Enable incremental indexing by default
         self.txn_retention_seconds = 7 * 24 * 60 * 60
         self.cleanup_interval_seconds = 60 * 60
         self._last_cleanup_at = 0.0
 
-    def mark_dirty(self, path: str, txn_id: Optional[str] = None, ts: Optional[float] = None) -> None:
+    def mark_dirty(
+        self, path: str, txn_id: Optional[str] = None, ts: Optional[float] = None
+    ) -> None:
         self.dirty_files.add(path)
         self._dirty_seen_at[path] = time.time()
         if txn_id is not None:
@@ -35,7 +46,9 @@ class AtlasIndexer:
     def handle_event(self, event: Any) -> None:
         path = self._extract_path(event)
         if path:
-            self.mark_dirty(path, txn_id=self._extract_txn_id(event), ts=self._extract_ts(event))
+            self.mark_dirty(
+                path, txn_id=self._extract_txn_id(event), ts=self._extract_ts(event)
+            )
 
     def poll(self, max_files: Optional[int] = None) -> list[str]:
         processed: list[str] = []
@@ -61,29 +74,29 @@ class AtlasIndexer:
     def _index_file(self, path: str) -> str:
         """
         Index a single file using incremental update strategy.
-        
+
         Returns:
             "applied" - index was updated
             "duplicate" - no actual changes
             "retry" - file is changing, try again later
         """
         resolved = self._resolve_path(path)
-        
+
         # Step 1: Content stability check (file not changing during scan)
         before = self._snapshot_token(resolved)
         symbols = self.scanner.scan_file(resolved)
         scan_calls = getattr(self.scanner, "scan_calls", None)
         calls = scan_calls(resolved) if callable(scan_calls) else []
         after = self._snapshot_token(resolved)
-        
+
         if before != after:
             # File changed during scan - retry later
             txn_id, ts = self._dirty_txns.get(path, (None, None))
             self.mark_dirty(path, txn_id=txn_id, ts=ts)
             return "retry"
-        
+
         txn_id, ts = self._dirty_txns.get(path, (None, None))
-        
+
         # Step 2: Use incremental updater if enabled
         if self.use_incremental:
             success = self.incremental_updater.update_file_delta(
@@ -91,9 +104,9 @@ class AtlasIndexer:
                 new_symbols=self._normalize_symbols(symbols),
                 new_edges=self._normalize_edges(calls),
                 txn_id=txn_id,
-                ts=ts
+                ts=ts,
             )
-            
+
             if success:
                 return "applied"
             else:
@@ -104,40 +117,44 @@ class AtlasIndexer:
                 return "applied"
             return "duplicate"
 
-    def _normalize_symbols(self, symbols: list) -> list[dict]:
+    def _normalize_symbols(self, symbols: list[Any]) -> list[dict[str, Any]]:
         """
         Convert scanner output to format expected by incremental updater.
-        
+
         Expected format: {name, kind, line, [signature, body]}
         """
         normalized = []
         for sym in symbols:
             # Handle different symbol format
             if isinstance(sym, dict):
-                normalized.append({
-                    "name": sym.get("name", ""),
-                    "kind": sym.get("kind", ""),
-                    "line": sym.get("line", 0),
-                    "signature": sym.get("signature", ""),
-                    "body": sym.get("body", "")
-                })
+                normalized.append(
+                    {
+                        "name": sym.get("name", ""),
+                        "kind": sym.get("kind", ""),
+                        "line": sym.get("line", 0),
+                        "signature": sym.get("signature", ""),
+                        "body": sym.get("body", ""),
+                    }
+                )
         return normalized
 
-    def _normalize_edges(self, calls: list) -> list[dict]:
+    def _normalize_edges(self, calls: list[Any]) -> list[dict[str, Any]]:
         """
         Convert scanner call output to format expected by incremental updater.
-        
+
         Expected format: {caller, callee, file, line}
         """
         normalized = []
         for call in calls:
             if isinstance(call, dict):
-                normalized.append({
-                    "caller": call.get("caller", ""),
-                    "callee": call.get("callee", ""),
-                    "file": call.get("file", ""),
-                    "line": call.get("line", 0)
-                })
+                normalized.append(
+                    {
+                        "caller": call.get("caller", ""),
+                        "callee": call.get("callee", ""),
+                        "file": call.get("file", ""),
+                        "line": call.get("line", 0),
+                    }
+                )
         return normalized
 
     def _resolve_path(self, path: str) -> Path:
@@ -212,7 +229,9 @@ class AtlasIndexer:
         self._last_cleanup_at = now
 
     def _prune_missing_dirty_paths(self) -> None:
-        missing_paths = [path for path in self.dirty_files if not self._resolve_path(path).exists()]
+        missing_paths = [
+            path for path in self.dirty_files if not self._resolve_path(path).exists()
+        ]
         for path in missing_paths:
             self.dirty_files.discard(path)
             self._dirty_seen_at.pop(path, None)

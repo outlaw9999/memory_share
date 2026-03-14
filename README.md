@@ -1,11 +1,12 @@
-# `.kit` — Code Intelligence Engine for Large Monorepos
+# `memory_share.kit` — The Architecture Memory Protocol (AMP)
 
 ![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Protocol](https://img.shields.io/badge/protocol-AMP--0001-red.svg)
 
-**Analyze 50M+ LOC codebases with sub-100ms latency and 1600x context compression.**
+**The "SQLite of AI Coding". A deterministic architecture memory kernel for AI Agents.**
 
-`.kit` is a production-grade semantic code graph engine designed for AI agents and high-performance CI/CD pipelines. It transforms your repository into a deterministic knowledge graph, enabling agents to reason about complex architectures without loading massive context.
+`memory_share.kit` is a production-grade implementation of the **Architecture Memory Protocol (AMP)**. It transforms your repository into a deterministic knowledge graph, allowing AI agents to reason about complex architectures with **97% token savings** and absolute structural precision.
 
 ## 🏁 Requirements
 
@@ -69,6 +70,7 @@ kit doctor
 ## 📖 Documentation
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)**: Technical design & maturity scorecard.
+- **[AMP-0001.md](AMP-0001.md)**: Architecture Memory Protocol (Standardization).
 - **[docs/engines/graph-and-indexing.md](docs/engines/graph-and-indexing.md)**: Slicing & Incrementalism deep-dive.
 - **[docs/guides/deployment.md](docs/guides/deployment.md)**: Setup, Staging, & Verification.
 - **[docs/guides/developer-guide.md](docs/guides/developer-guide.md)**: API usage & customization.
