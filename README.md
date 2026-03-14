@@ -4,7 +4,7 @@
 
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![Status: v1.0 Core Engine](https://img.shields.io/badge/Status-v1.0_Engine_Frozen-red.svg)]()
+[![Status: v2.0 Core Engine](https://img.shields.io/badge/Status-v2.0_SAM_Epoch-red.svg)]()
 
 ### ⚡ Why .kit?
 Vector DBs are for probabilistic search. `.kit` is for **absolute ground truth**.
@@ -31,7 +31,13 @@ for m in memories:
 ```
 
 ### 📖 Documentation
-Read the [ARCHITECTURE.md](ARCHITECTURE.md) to understand the Engine-First philosophy, the Immutable Fact Ledger, and the Stable API Boundary.
+- [ARCHITECTURE.md](ARCHITECTURE.md): The Engine-First philosophy & SAM Schema.
+- [examples/minimal_example.py](examples/minimal_example.py): A ready-to-run verification script.
+
+### 🔄 Migration from v1.3.1
+`.kit v2.0` introduces the **Structured Agent Memory (SAM)** architecture, transitioning from a code-analysis engine to a universal agent memory kernel.
+- **Historical Code:** The legacy AST/Git analysis logic is preserved in the `plugin/kit-ext-git` branch and tagged as `v1.3.1`.
+- **Core Pivot:** v2.0 focuses on deterministic fact retrieval, ranking, and graph expansion for AI assistants.
 
 ---
 *Built for IDEs, Agents, and the Open-Source Community to fork.*

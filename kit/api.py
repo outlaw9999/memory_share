@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional
 
-from kit.core.kit_cognitive_core import SAMBrain, MemoryNode, SAMBrainError
+from kit.core.kit_cognitive_core import SAMBrain, Memory, SAMBrainError
 
 # --- Stable API Boundary Definitions ---
 # This file is the primary entry point for community forks and IDE integrations.
@@ -43,7 +43,7 @@ def learn(
         supersedes_id=replaces_id
     )
 
-def recall(query_entities: List[str], limit: int = 15) -> List[MemoryNode]:
+def recall(query_entities: List[str], limit: int = 15) -> List[Memory]:
     """
     Primary API to retrieve ranked context, including 1-hop graph expansion.
     """

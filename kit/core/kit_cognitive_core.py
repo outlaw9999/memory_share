@@ -14,7 +14,7 @@ class SAMBrainError(Exception):
 
 
 @dataclass(frozen=True)
-class MemoryNode:
+class Memory:
     """Immutable representation of a retrieved memory fact."""
     id: int
     entity_uid: str
@@ -98,6 +98,7 @@ class SAMBrain:
             """)
             # Indexes for faster joins and ranking
             conn.execute("CREATE INDEX IF NOT EXISTS idx_facts_entity ON facts(entity_id) WHERE is_active=1")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_facts_created ON facts(created_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_rel_source ON relations(source_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_rel_target ON relations(target_id)")
 
@@ -156,7 +157,7 @@ class SAMBrain:
         except sqlite3.Error as e:
             raise SAMBrainError(f"Failed to link entities: {e}")
 
-    def recall_context(self, query_entities: List[str], limit: int = 15) -> List[MemoryNode]:
+    def recall_context(self, query_entities: List[str], limit: int = 15) -> List[Memory]:
         """
         Recall ranked context with 1-hop neighbor expansion using SQL-native ranking.
         Only retrieves ACTIVE facts (Immutable Ledger Logic).
@@ -218,7 +219,7 @@ class SAMBrain:
                 # Track IDs for access update
                 fact_ids = []
                 for row in rows:
-                    node = MemoryNode(
+                    node = Memory(
                         id=row['id'],
                         entity_uid=row['entity_uid'],
                         content=row['content'],

@@ -1,4 +1,4 @@
-# 🏛️ .kit Architecture (v1.0 Core Engine)
+# 🏛️ .kit Architecture (v2.0 SAM Epoch)
 
 ## 1. Philosophy (Triết lý)
 `.kit` là một **Agent Memory Engine**, không phải một framework. Thiết kế dựa trên 3 nguyên tắc bất di bất dịch:
@@ -67,8 +67,8 @@ Recall không chỉ truy vấn Entity chính mà tự động mở rộng sang *
 Tất cả các tích hợp bắt buộc phải thông qua lớp API này:
 - `init_kernel(db_path)`: Khởi tạo engine.
 - `learn(uid, kind, content, replaces_id=None)`: Nạp trí nhớ.
-- `recall(entities)`: Truy xuất ngữ cảnh đã ranked.
-- `export_context(entities)`: Kết xuất prompt (XML/Markdown).
+- `recall(entities, limit)`: Truy xuất ngữ cảnh đã ranked.
+- `export_prompt(entities, limit, budget)`: Kết xuất prompt (XML/Markdown).
 
 ---
 
@@ -84,7 +84,7 @@ init_kernel(Path("memory.db"))
 learn("auth_system", "component", "JWT uses HS256 algorithm")
 
 # 3. Truy xuất (Ranked & 1-Hop Expanded)
-memories = recall(["auth_system"])
+memories = recall(["auth_system"], limit=5)
 
 for m in memories:
     print(f"[{m.entity_uid}] -> {m.content}")
@@ -106,8 +106,8 @@ CLI của `.kit` chỉ là một lớp vỏ (thin wrapper) gọi trực tiếp v
 
 ---
 
-## 10. Long-Term Stability
-Sau v1.0, dự án cam kết:
+## 11. Long-Term Stability
+Sau v2.0 (SAM Epoch), dự án cam kết:
 - **Facts Schema**: Đóng băng (Frozen).
 - **API Signatures**: Ổn định (Stable).
 - **Engine**: Chỉ thêm tính năng, không phá vỡ cấu trúc cũ.
