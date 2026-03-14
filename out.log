@@ -1,0 +1,20 @@
+Indexing codebase at E:\DEV\opensource_contrib\memory_share...
+Traceback (most recent call last):
+  File "E:\DEV\opensource_contrib\memory_share\bin\kit", line 98, in cmd_index
+    conn.execute("COMMIT;")
+    ~~~~~~~~~~~~^^^^^^^^^^^
+sqlite3.OperationalError: cannot commit - no transaction is active
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\DEV\opensource_contrib\memory_share\bin\kit", line 161, in <module>
+    main()
+    ~~~~^^
+  File "E:\DEV\opensource_contrib\memory_share\bin\kit", line 150, in main
+    cmd_index(args)
+    ~~~~~~~~~^^^^^^
+  File "E:\DEV\opensource_contrib\memory_share\bin\kit", line 103, in cmd_index
+    conn.execute("ROLLBACK;")
+    ~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: cannot rollback - no transaction is active

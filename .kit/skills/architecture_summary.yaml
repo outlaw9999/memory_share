@@ -1,0 +1,70 @@
+name: architecture_summary
+version: 1
+schema_version: 1
+description: "Quick high-level architecture overview (executive summary)"
+author: ".kit"
+tags: [summary, overview, agent-entry-point]
+cost: low
+depends_on: []
+
+inputs:
+  - name: include_metrics
+    type: suggest[essential, detailed]
+    default: essential
+    description: "Which metrics to include (essential=5 key, detailed=all)"
+
+uses:
+  - stone: doctor
+    required: true
+  - stone: domains
+  - stone: entropy
+
+interpretation:
+  rules:
+    - if: "all metrics == HEALTHY"
+      then: summary_tone = "Architecture is in good shape"
+      recommendation: "Focus on feature velocity and maintenance"
+    
+    - if: "doctor.gravity_warning OR doctor.cycles_warning"
+      then: summary_tone = "Architecture needs attention"
+      recommendation: "Schedule refactoring before major features"
+    
+    - if: "domains.fragmentation_high == true"
+      then: summary_tone = "Package organization is scattered"
+      recommendation: "Consolidate related modules into coherent packages"
+
+  activation_level:
+    hot:
+      - "any critical metrics"
+      - "high coupling"
+    warm:
+      - "warning-level findings"
+    cold:
+      - "all healthy"
+      - "no immediate action needed"
+
+output:
+  type: object
+  schema:
+    skill: string
+    version: integer
+    severity: enum[CRITICAL, WARNING, HEALTHY]
+    summary: string
+    findings: list[string]
+    recommendations: list[string]
+    activation_level: enum[hot, warm, cold]
+    confidence: number
+    execution_time_ms: number
+
+agent_context:
+  when_to_invoke: "First question: 'What's the architecture like?'"
+  input_prompt: "Give me a quick overview of this codebase's architecture"
+  output_instructions: |
+    This is the entry-point skill.
+    If activation_level is hot: Recommend running architecture_investigate next.
+    If activation_level is warm: Suggest monitoring + gentle refactoring.
+    If activation_level is cold: Suggest maintaining current practices.
+    
+    Top 3 insights should be actionable and understandable to non-experts.
+  estimated_tokens: "100-300"
+  timeout_seconds: 15

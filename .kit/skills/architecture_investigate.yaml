@@ -1,0 +1,83 @@
+name: architecture_investigate
+version: 1
+schema_version: 1
+description: "Full architecture health check with actionable insights"
+author: ".kit"
+tags: [health, architecture, agent-primary]
+cost: medium
+depends_on: []
+
+inputs:
+  - name: depth
+    type: suggest[quick, thorough]
+    default: quick
+    description: "Analysis depth (quick=essential metrics, thorough=all diagnostics)"
+
+uses:
+  - stone: doctor
+    required: true
+  - stone: gravity
+  - stone: hotspots
+  - stone: cycles
+
+interpretation:
+  rules:
+    - if: cycles_detected > 0
+      then: severity = CRITICAL
+      reason: "Circular dependencies create deadlock risk and block refactoring"
+      recommendation: "Break cycles immediately before other improvements"
+    
+    - if: gravity_top_modules >= 5
+      then: severity = WARNING
+      reason: "High architectural complexity concentrates risk"
+      recommendation: "Consider extracting utilities or splitting modules"
+    
+    - if: hotspots_risky_count > 0
+      then: severity = WARNING
+      recommendation: "Schedule code review and testing for high-risk modules"
+    
+    - if: "all metrics == HEALTHY"
+      then: severity = HEALTHY
+      recommendation: "Architecture is in good shape; focus on maintenance"
+
+  activation_level:
+    hot: 
+      - "cycles detected"
+      - "critical hotspots"
+      - "layer violations"
+      - "high gravity (>0.8)"
+    warm:
+      - "warning hotspots"
+      - "multiple God modules"
+      - "architectural drift"
+    cold:
+      - "healthy metrics"
+      - "low churn modules"
+      - "dead code (if unused)"
+
+output:
+  type: object
+  schema:
+    skill: string
+    version: integer
+    severity: enum[CRITICAL, WARNING, HEALTHY]
+    summary: string
+    findings: list[string]
+    recommendations: list[string]
+    activation_level: enum[hot, warm, cold]
+    confidence: number
+    execution_time_ms: number
+
+agent_context:
+  when_to_invoke: "Initial codebase health assessment or periodic re-checks"
+  input_prompt: "Investigate this codebase's architecture and identify issues"
+  output_instructions: |
+    If severity is CRITICAL:
+      1. Explain what cycles exist and why they're dangerous
+      2. Recommend which files should be decoupled first
+    If severity is WARNING:
+      1. Explain high-risk areas
+      2. Prioritize hotspots by impact
+    Use activation_level to filter noise from signal.
+  estimated_tokens: "300-800"
+  timeout_seconds: 30

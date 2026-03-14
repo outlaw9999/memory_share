@@ -1,75 +1,37 @@
-# Memory Share
+# 🧠 .kit (memory_share)
 
-This repository is a public-safe, shareable version of the Antigravity memory system after Phase 1 to Phase 3 of the `brain v2` upgrade.
+**The SQLite for AI Agent Memory.** `.kit` is a deterministic, zero-dependency, and LLM-agnostic memory engine. It is not an agent framework. It is the core infrastructure that gives your AI agents a persistent, deterministic *Hippocampus*.
 
-See [SHARE_NOTES.md](SHARE_NOTES.md) for a short collaborator-oriented note on what this repo is, what is intentionally missing, and how to review it.
+[![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Status: v1.0 Core Engine](https://img.shields.io/badge/Status-v1.0_Engine_Frozen-red.svg)]()
 
-It includes:
+### ⚡ Why .kit?
+Vector DBs are for probabilistic search. `.kit` is for **absolute ground truth**.
+- **Deterministic:** Backed by an immutable SQLite Graph. No hallucinated memories.
+- **LLM-Agnostic:** Stores raw facts, not model-specific embeddings. Survive the LLM wars.
+- **Cognitive Decay:** Built-in heuristic ranking (Spaced Repetition) to prevent context bloat.
+- **Local-First:** 100% private. Runs entirely on your machine.
 
-- a high-level explanation of how `brain` and `memory` work
-- the watcher that indexes Markdown memory into Layer 3
-- metadata-aware Layer 3 query and backfill tools
-- a background consolidation job for duplicate, stale, and promotion review
-- architecture and rollout reports
+### 📦 Minimal Example
+```python
+from pathlib import Path
+from kit.api import init_kernel, learn, recall
 
-It excludes:
+init_kernel(Path("memory.db"))
 
-- personal notes
-- private Layer 2 memory
-- daily live logs
-- local SQLite databases and backups
-- runtime state
-- unrelated project history
+# 1. Ingest an immutable fact
+learn("auth_system", "architecture", "JWT uses HS256 algorithm")
 
-## Memory Model
+# 2. Recall with 1-hop graph expansion & heuristic ranking
+memories = recall(["auth_system"], limit=5)
 
-The system uses four working layers:
+for m in memories:
+    print(f"[{m.entity_uid}] -> {m.content}")
+```
 
-| Layer | Purpose |
-|------|---------|
-| `layer1_stream` | recent working notes and short-term logs |
-| `layer2_core` | shareable operational memory |
-| `layer2_private` | local-only personal memory |
-| `layer3_index` | semantic retrieval index stored locally in SQLite |
+### 📖 Documentation
+Read the [ARCHITECTURE.md](ARCHITECTURE.md) to understand the Engine-First philosophy, the Immutable Fact Ledger, and the Stable API Boundary.
 
-## What This Version Demonstrates
-
-### Phase 1
-
-- shareable vs private memory split
-- block-based Layer 2 organization
-
-### Phase 2
-
-- metadata-aware Layer 3 indexing
-- query by `project`, `scope`, `privacy`, and provenance
-- backfill for existing SQLite records
-
-### Phase 3
-
-- background consolidation
-- duplicate and stale classification
-- promotion candidate surfacing
-- maintenance digest generation
-
-## Included Files
-
-### Operations
-
-- `brain/ops/brain_sync_watcher.py`
-- `brain/ops/brain_maintenance.py`
-- `brain/ops/search.ps1`
-- `brain/ops/layer3_metadata.py`
-- `brain/ops/layer3_backfill.py`
-- `brain/ops/query_layer3.py`
-
-### References
-
-- `brain/exports/neural_memory_architecture.md`
-- `reports/brain_v2_update_roadmap.md`
-- `reports/layer3_metadata_schema.md`
-- `reports/background_consolidation_policy.md`
-
-## Privacy
-
-This repository is intentionally safe to share. It does not include any live Layer 2 memory files, private user data, stream logs, SQLite indexes, or runtime state.
+---
+*Built for IDEs, Agents, and the Open-Source Community to fork.*
