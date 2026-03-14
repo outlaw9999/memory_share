@@ -11,9 +11,29 @@ from kit.core.kit_cognitive_core import SAMBrain, Memory, SAMBrainError
 _brain_instance: SAMBrain | None = None
 
 
-def init_kernel(db_path: Path) -> None:
-    """Initialize the global SAMBrain instance."""
+def init_kernel(db_path: Path | None = None) -> None:
+    """
+    Initialize the global SAMBrain instance with automatic path resolution.
+    1. If db_path provided, use it.
+    2. Check ./.kit/brain.db
+    3. Fallback to ~/.kit/brain.db (Global Brain)
+    """
     global _brain_instance
+
+    if db_path is None:
+        # Resolve default paths
+        local_kit = Path("./.kit/brain.db")
+        if local_kit.exists():
+            db_path = local_kit
+        else:
+            # Fallback to Global Brain (~/.kit/brain.db)
+            global_dir = Path.home() / ".kit"
+            db_path = global_dir / "brain.db"
+            
+            # Zero-Init Policy: Ensure global directory exists
+            if not global_dir.exists():
+                global_dir.mkdir(parents=True, exist_ok=True)
+
     _brain_instance = SAMBrain(db_path)
 
 

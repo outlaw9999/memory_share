@@ -8,7 +8,7 @@ def main():
         description="SAMBrain CLI - The Elite Agent Memory Engine",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--db", default="memory.db", help="Path to the memory database (default: memory.db)")
+    parser.add_argument("--db", help="Path to the memory database (default: auto-resolve)")
     
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -18,7 +18,7 @@ def main():
     learn_p.add_argument("--kind", default="Concept", help="Entity kind (Component, Logic, etc.)")
     learn_p.add_argument("--content", required=True, help="Semantic content of the fact")
     learn_p.add_argument("--weight", type=float, default=0.5, help="Importance weight [0.1 - 1.0]")
-    learn_p.add_argument("--replaces", type=int, help="ID of a fact to supersede (Immutable Ledger logic)")
+    learn_p.add_argument("--replaces", type=int, help="ID of a fact to supersede")
 
     # Command: recall
     recall_p = subparsers.add_parser("recall", help="Recall ranked context (includes 1-hop expansion)")
@@ -31,12 +31,18 @@ def main():
     link_p.add_argument("--dst", required=True, help="Target entity UID")
     link_p.add_argument("--rel", required=True, help="Relation type (e.g., USES, DEPENDS_ON)")
     link_p.add_argument("--weight", type=float, default=1.0)
-
+    
     # Command: export
     export_p = subparsers.add_parser("export", help="Export context as XML/Markdown for LLM prompts")
     export_p.add_argument("--entities", nargs="+", required=True, help="Entity UIDs")
     export_p.add_argument("--limit", type=int, default=10)
     export_p.add_argument("--budget", type=int, default=1000, help="Token budget approximation")
+    
+    # Command: doctor
+    subparsers.add_parser("doctor", help="System diagnostics & health check")
+    
+    # Command: stats
+    subparsers.add_parser("stats", help="Show brain statistics")
 
     args = parser.parse_args()
 
@@ -44,8 +50,8 @@ def main():
         parser.print_help()
         sys.exit(0)
 
-    # Initialize Kernel
-    db_path = Path(args.db).absolute()
+    # Initialize Kernel with auto-resolution
+    db_path = Path(args.db).absolute() if args.db else None
     api.init_kernel(db_path)
 
     try:
@@ -55,7 +61,7 @@ def main():
                 kind=args.kind,
                 content=args.content,
                 importance=args.weight,
-                replaces_id=args.replaces
+                replaces_id=args.replaces,
             )
             print(f"✅ Learned: Fact ID {fact_id} credited to [{args.uid}]")
 
@@ -73,6 +79,22 @@ def main():
         elif args.command == "export":
             prompt = api.export_prompt(args.entities, limit=args.limit, budget=args.budget)
             print(prompt)
+            
+        elif args.command == "doctor":
+            brain = api.get_brain()
+            print("🏥 SAMBrain Health Check")
+            print(f"Location: {brain.db_path}")
+            print(f"Size: {brain.db_path.stat().st_size / 1024:.2f} KB")
+            print("Status: OK")
+            
+        elif args.command == "stats":
+            brain = api.get_brain()
+            stats = brain.get_stats()
+            print("📊 SAMBrain Statistics")
+            print(f"Entities: {stats['entities']}")
+            print(f"Facts: {stats['facts']} (Active: {stats['active_facts']})")
+            print(f"Relations: {stats['relations']}")
+            print(f"Lineage Links: {stats['lineage_links']}")
 
     except Exception as e:
         print(f"❌ Error: {e}")
