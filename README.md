@@ -67,6 +67,16 @@ kit index
 kit doctor
 ```
 
+## 🌍 Elite Installation (Distribution)
+
+For friends and colleagues who want to use the **Architecture Memory Kernel** without cloning the full repository, they can install it directly via `pip`:
+
+```bash
+pip install git+https://github.com/vantruong-dang/memory_share.kit.git
+```
+
+> **Requirement:** Python 3.14+ must be installed on the target machine. Once installed, the `kit` command becomes available globally.
+
 ## 📖 Documentation
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)**: Technical design & maturity scorecard.
