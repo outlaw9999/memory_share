@@ -4,15 +4,16 @@
 
 A tiny CLI tool for storing and recalling useful facts. Local-first, git-like memory for humans and AI agents.
 
-## ⚡ 5-Second Demo
+### ⚡ 5-Second Demo
 
 ```bash
 $ pip install kit-engine
 
-$ kit learn bug "JWT refresh fails because of clock skew"
-✅ Remembered.
+# kit automatically knows you're in your current project
+$ kit learn --content "JWT refresh fails because of clock skew"
+✅ Remembered (Context: project_name)
 
-$ kit recall bug
+$ kit recall
 JWT refresh fails because of clock skew
 ```
 
@@ -48,6 +49,21 @@ kit recall | grep "Postgres"
 # View content with syntax highlighting
 kit recall | bat
 ```
+
+## 🧠 The Habit: "Muscle Memory"
+
+The best way to use `kit` is to make it a reflex. Add these to your `.zshrc` or `.bashrc`:
+
+```bash
+# Quick learn: "k learn <fact>"
+alias kl='kit learn --content'
+
+# Quick recall: "k recall"
+alias kr='kit recall'
+```
+
+Now, whenever you fix a bug or make a decision:  
+`kl "Used Redis for rate limiting to handle spike"`
 
 ## 📂 Storage
 

@@ -13,16 +13,16 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Command: learn
-    learn_p = subparsers.add_parser("learn", help="Ingest a new fact into memory")
-    learn_p.add_argument("--uid", required=True, help="Entity UID (e.g., AuthService)")
-    learn_p.add_argument("--kind", default="Concept", help="Entity kind (Component, Logic, etc.)")
+    learn_p = subparsers.add_parser("learn", help="Ingest a new fact")
+    learn_p.add_argument("--uid", help="Entity UID (defaults to current directory name)")
+    learn_p.add_argument("--kind", default="concept", help="Entity kind (e.g., bug, arch, task)")
     learn_p.add_argument("--content", required=True, help="Semantic content of the fact")
     learn_p.add_argument("--weight", type=float, default=0.5, help="Importance weight [0.1 - 1.0]")
     learn_p.add_argument("--replaces", type=int, help="ID of a fact to supersede")
 
     # Command: recall
     recall_p = subparsers.add_parser("recall", help="Recall ranked context (includes 1-hop expansion)")
-    recall_p.add_argument("--entities", nargs="+", required=True, help="List of entity UIDs to recall")
+    recall_p.add_argument("--entities", nargs="+", help="Entity UIDs (defaults to current directory name)")
     recall_p.add_argument("--limit", type=int, default=15, help="Max number of items to return")
 
     # Command: link
@@ -54,21 +54,26 @@ def main():
     db_path = Path(args.db).absolute() if args.db else None
     api.init_kernel(db_path)
 
+    # Habit Loop: Contextual Auto-Discovery
+    current_context = Path.cwd().name
+    
     try:
         if args.command == "learn":
+            uid = args.uid or current_context
             fact_id = api.learn(
-                entity_uid=args.uid,
+                entity_uid=uid,
                 kind=args.kind,
                 content=args.content,
                 importance=args.weight,
                 replaces_id=args.replaces,
             )
-            print(f"✅ Learned: Fact ID {fact_id} credited to [{args.uid}]")
+            print(f"✅ Learned: Fact ID {fact_id} credited to [{uid}]")
 
         elif args.command == "recall":
-            nodes = api.recall(args.entities, limit=args.limit)
+            entities = args.entities or [current_context]
+            nodes = api.recall(entities, limit=args.limit)
             if not nodes:
-                print("No relevant memories found.")
+                print(f"No relevant memories found for [{', '.join(entities)}].")
             for n in nodes:
                 print(n.content)
 
