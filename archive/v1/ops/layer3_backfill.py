@@ -7,10 +7,6 @@ import os
 import shutil
 import sqlite3
 from datetime import datetime
-try:
-    from datetime import UTC
-except ImportError:
-    from datetime import timezone as _tz; UTC = _tz.utc
 
 from layer3_metadata import (
     build_chunk_metadata,
@@ -30,9 +26,15 @@ DB_PATH = os.path.join(WORKSPACE_ROOT, "brain", "layer3_index", "neural_memory.d
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Backfill Phase 2 metadata into Layer 3.")
-    parser.add_argument("--dry-run", action="store_true", help="Inspect changes without writing")
-    parser.add_argument("--no-backup", action="store_true", help="Skip creating a DB backup")
+    parser = argparse.ArgumentParser(
+        description="Backfill Phase 2 metadata into Layer 3."
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Inspect changes without writing"
+    )
+    parser.add_argument(
+        "--no-backup", action="store_true", help="Skip creating a DB backup"
+    )
     return parser.parse_args()
 
 
@@ -58,7 +60,9 @@ def load_anchor_rows(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(query).fetchall()
 
 
-def build_backfilled_metadata(row: sqlite3.Row) -> tuple[dict[str, object], dict[str, object], list[str]]:
+def build_backfilled_metadata(
+    row: sqlite3.Row,
+) -> tuple[dict[str, object], dict[str, object], list[str]]:
     neuron_meta = json.loads(row["neuron_metadata"] or "{}")
     fiber_meta = json.loads(row["fiber_metadata"] or "{}")
 
@@ -71,18 +75,30 @@ def build_backfilled_metadata(row: sqlite3.Row) -> tuple[dict[str, object], dict
 
     if source_path:
         normalized_source = str(source_path).replace("\\", "/").lower()
-        if normalized_source in {"unknown", "unknown/legacy_import.md", "legacy_import.md"}:
+        if normalized_source in {
+            "unknown",
+            "unknown/legacy_import.md",
+            "legacy_import.md",
+        }:
             source_path = None
-        elif normalized_source.endswith("/unknown") or normalized_source.endswith("/legacy_import.md"):
+        elif normalized_source.endswith("/unknown") or normalized_source.endswith(
+            "/legacy_import.md"
+        ):
             source_path = None
 
     if source_path and not os.path.isabs(str(source_path)):
-        source_path = os.path.join(WORKSPACE_ROOT, str(source_path).replace("/", os.sep))
+        source_path = os.path.join(
+            WORKSPACE_ROOT, str(source_path).replace("/", os.sep)
+        )
 
     project_name = (
         neuron_meta.get("project")
         or fiber_meta.get("project")
-        or (derive_project_name(str(source_path), WORKSPACE_ROOT) if source_path else None)
+        or (
+            derive_project_name(str(source_path), WORKSPACE_ROOT)
+            if source_path
+            else None
+        )
         or derive_project_name_from_brain(str(row["brain_name"]))
     )
 
@@ -145,7 +161,13 @@ def build_backfilled_metadata(row: sqlite3.Row) -> tuple[dict[str, object], dict
         merged_neuron["timestamp"] = neuron_meta["timestamp"]
 
     merged_fiber = dict(fiber_meta)
-    merged_fiber.update({k: v for k, v in base_metadata.items() if k not in {"chunk_index", "chunk_count", "chunk_chars"}})
+    merged_fiber.update(
+        {
+            k: v
+            for k, v in base_metadata.items()
+            if k not in {"chunk_index", "chunk_count", "chunk_chars"}
+        }
+    )
 
     return merged_neuron, merged_fiber, sorted(build_tags(merged_neuron))
 
@@ -177,7 +199,11 @@ def main() -> int:
 
         conn.execute(
             "UPDATE neurons SET metadata = ? WHERE brain_id = ? AND id = ?",
-            (json.dumps(neuron_metadata, ensure_ascii=False), row["brain_id"], row["neuron_id"]),
+            (
+                json.dumps(neuron_metadata, ensure_ascii=False),
+                row["brain_id"],
+                row["neuron_id"],
+            ),
         )
 
         if row["fiber_id"]:
@@ -192,7 +218,9 @@ def main() -> int:
             )
 
     if args.dry_run:
-        print(f"Dry run: {updated_neurons} anchor neurons and {updated_fibers} fibers would be updated.")
+        print(
+            f"Dry run: {updated_neurons} anchor neurons and {updated_fibers} fibers would be updated."
+        )
         return 0
 
     conn.commit()

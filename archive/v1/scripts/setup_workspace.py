@@ -15,8 +15,7 @@ import argparse
 import os
 import sqlite3
 import sys
-from datetime import datetime, timezone as _tz
-UTC = _tz.utc
+from datetime import datetime, UTC
 
 
 DIRS = [
@@ -103,13 +102,19 @@ CREATE INDEX IF NOT EXISTS idx_neuron_states ON neuron_states(brain_id, neuron_i
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Initialize Antigravity brain v2 workspace.")
+    parser = argparse.ArgumentParser(
+        description="Initialize Antigravity brain v2 workspace."
+    )
     parser.add_argument(
         "--workspace",
         default=os.environ.get("ANTIGRAVITY_WORKSPACE_ROOT", os.getcwd()),
         help="Workspace root path (default: $ANTIGRAVITY_WORKSPACE_ROOT or current directory)",
     )
-    parser.add_argument("--dry-run", action="store_true", help="Show what would be created without writing")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be created without writing",
+    )
     return parser.parse_args()
 
 

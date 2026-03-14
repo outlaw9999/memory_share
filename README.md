@@ -30,14 +30,18 @@ for m in memories:
     print(f"[{m.entity_uid}] -> {m.content}")
 ```
 
-### 📖 Documentation
-- [ARCHITECTURE.md](ARCHITECTURE.md): The Engine-First philosophy & SAM Schema.
-- [examples/minimal_example.py](examples/minimal_example.py): A ready-to-run verification script.
+### 📂 Project Structure
+- **`kit/`**: Core API & Cognitive Logic.
+- **`runtime/`**: Kernel, Transaction Locking & Persistence Engine.
+- **`plugins/`**: Domain-specific extensions (e.g., `ast_scanner`).
+- **`archive/v1/`**: Legacy logic and historical artifacts from v1.3.1.
+- **`examples/`**: Minimal implementations & verification scripts.
+- **`STABILITY.md`**: The project's stability contract.
 
 ### 🔄 Migration from v1.3.1
 `.kit v2.0` introduces the **Structured Agent Memory (SAM)** architecture, transitioning from a code-analysis engine to a universal agent memory kernel.
-- **Historical Code:** The legacy AST/Git analysis logic is preserved in the `plugin/kit-ext-git` branch and tagged as `v1.3.1`.
-- **Core Pivot:** v2.0 focuses on deterministic fact retrieval, ranking, and graph expansion for AI assistants.
+- **Historical Context:** Legacy AST/Git analysis logic and documentation are preserved in `archive/v1/`.
+- **Modern Standards:** v2.0 is a zero-dependency kernel compatible with Python 3.14+ and follows `pyproject.toml` standards.
 
 ---
 *Built for IDEs, Agents, and the Open-Source Community to fork.*

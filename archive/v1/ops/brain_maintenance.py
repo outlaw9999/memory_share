@@ -6,11 +6,7 @@ import os
 import sqlite3
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-try:
-    from datetime import UTC
-except ImportError:
-    from datetime import timezone as _tz; UTC = _tz.utc
+from datetime import datetime
 from typing import Any
 
 from layer3_metadata import resolve_workspace_root
@@ -18,7 +14,9 @@ from layer3_metadata import resolve_workspace_root
 
 WORKSPACE_ROOT = resolve_workspace_root(__file__)
 DB_PATH = os.path.join(WORKSPACE_ROOT, "brain", "layer3_index", "neural_memory.db")
-DIGEST_PATH = os.path.join(WORKSPACE_ROOT, "brain", "layer2_core", "maintenance_digest.md")
+DIGEST_PATH = os.path.join(
+    WORKSPACE_ROOT, "brain", "layer2_core", "maintenance_digest.md"
+)
 STALE_DAYS = 30
 WEAK_ACTIVATION = 0.1
 WEAK_ACCESS_FREQUENCY = 1
@@ -41,8 +39,12 @@ class AnchorRecord:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Phase 3 background consolidation for Layer 3.")
-    parser.add_argument("--dry-run", action="store_true", help="Report changes without writing them")
+    parser = argparse.ArgumentParser(
+        description="Phase 3 background consolidation for Layer 3."
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Report changes without writing them"
+    )
     parser.add_argument("--stale-days", type=int, default=STALE_DAYS)
     parser.add_argument("--weak-activation", type=float, default=WEAK_ACTIVATION)
     parser.add_argument("--weak-access", type=int, default=WEAK_ACCESS_FREQUENCY)
@@ -133,7 +135,11 @@ def anchor_score(record: AnchorRecord, now: datetime) -> float:
     score += freshness_bonus(record.created_at, now)
     if record.neuron_metadata.get("source_heading"):
         score += 0.1
-    if record.neuron_metadata.get("source_kind") in {"daily_log", "project_stream", "core_memory"}:
+    if record.neuron_metadata.get("source_kind") in {
+        "daily_log",
+        "project_stream",
+        "core_memory",
+    }:
         score += 0.05
     return round(score, 4)
 
@@ -187,7 +193,9 @@ def determine_status(
             result[record.neuron_id] = {
                 "score": score,
                 "age_days": round(age_days, 2),
-                "duplicate_status": "duplicate" if duplicate else ("canonical" if len(group) > 1 else "unique"),
+                "duplicate_status": "duplicate"
+                if duplicate
+                else ("canonical" if len(group) > 1 else "unique"),
                 "duplicate_of": canonical.neuron_id if duplicate else None,
                 "duplicate_group_size": len(group),
                 "stale_candidate": stale_candidate,
@@ -198,11 +206,15 @@ def determine_status(
             if promotable:
                 promotion_candidates.append(record)
 
-    promotion_candidates.sort(key=lambda record: result[record.neuron_id]["score"], reverse=True)
+    promotion_candidates.sort(
+        key=lambda record: result[record.neuron_id]["score"], reverse=True
+    )
     return result, promotion_candidates[:promotion_limit]
 
 
-def merge_maintenance_metadata(metadata: dict[str, Any], status: dict[str, Any], now: datetime) -> dict[str, Any]:
+def merge_maintenance_metadata(
+    metadata: dict[str, Any], status: dict[str, Any], now: datetime
+) -> dict[str, Any]:
     merged = dict(metadata)
     merged["maintenance"] = {
         "version": 1,
@@ -237,7 +249,9 @@ def write_updates(
 
     for record in records:
         status = status_map[record.neuron_id]
-        neuron_metadata = merge_maintenance_metadata(record.neuron_metadata, status, now)
+        neuron_metadata = merge_maintenance_metadata(
+            record.neuron_metadata, status, now
+        )
         fiber_metadata = merge_maintenance_metadata(record.fiber_metadata, status, now)
         fiber_tags = merge_fiber_tags(record.fiber_tags, status)
 
@@ -250,7 +264,11 @@ def write_updates(
 
         conn.execute(
             "UPDATE neurons SET metadata = ? WHERE brain_id = ? AND id = ?",
-            (json.dumps(neuron_metadata, ensure_ascii=False), record.brain_id, record.neuron_id),
+            (
+                json.dumps(neuron_metadata, ensure_ascii=False),
+                record.brain_id,
+                record.neuron_id,
+            ),
         )
 
         if record.fiber_id:
@@ -280,9 +298,13 @@ def render_digest(
     weak_activation: float,
     weak_access: int,
 ) -> str:
-    duplicate_count = sum(1 for status in status_map.values() if status["duplicate_status"] == "duplicate")
+    duplicate_count = sum(
+        1 for status in status_map.values() if status["duplicate_status"] == "duplicate"
+    )
     stale_count = sum(1 for status in status_map.values() if status["stale_candidate"])
-    promotion_count = sum(1 for status in status_map.values() if status["promotion_candidate"])
+    promotion_count = sum(
+        1 for status in status_map.values() if status["promotion_candidate"]
+    )
 
     lines = [
         "---",
@@ -312,7 +334,11 @@ def render_digest(
             status = status_map[record.neuron_id]
             metadata = record.neuron_metadata
             heading = metadata.get("source_heading") or "(no heading)"
-            source = metadata.get("source_path") or metadata.get("source") or "(unknown source)"
+            source = (
+                metadata.get("source_path")
+                or metadata.get("source")
+                or "(unknown source)"
+            )
             snippet = record.content.replace("\ufeff", "").replace("\n", " ")[:180]
             lines.extend(
                 [
@@ -328,7 +354,11 @@ def render_digest(
         lines.extend(["No promotion candidates found.", ""])
 
     lines.extend(["## Duplicate Candidates", ""])
-    duplicate_records = [record for record in records if status_map[record.neuron_id]["duplicate_status"] == "duplicate"]
+    duplicate_records = [
+        record
+        for record in records
+        if status_map[record.neuron_id]["duplicate_status"] == "duplicate"
+    ]
     if duplicate_records:
         for record in duplicate_records:
             status = status_map[record.neuron_id]
@@ -344,7 +374,9 @@ def render_digest(
         lines.extend(["No duplicate candidates found.", ""])
 
     lines.extend(["## Stale Candidates", ""])
-    stale_records = [record for record in records if status_map[record.neuron_id]["stale_candidate"]]
+    stale_records = [
+        record for record in records if status_map[record.neuron_id]["stale_candidate"]
+    ]
     if stale_records:
         for record in stale_records:
             status = status_map[record.neuron_id]
@@ -420,9 +452,15 @@ def main() -> int:
     print(f"Anchors scanned: {len(records)}")
     print(f"Neurons updated: {updated_neurons}")
     print(f"Fibers updated: {updated_fibers}")
-    print(f"Promotion candidates: {sum(1 for status in status_map.values() if status['promotion_candidate'])}")
-    print(f"Duplicate candidates: {sum(1 for status in status_map.values() if status['duplicate_status'] == 'duplicate')}")
-    print(f"Stale candidates: {sum(1 for status in status_map.values() if status['stale_candidate'])}")
+    print(
+        f"Promotion candidates: {sum(1 for status in status_map.values() if status['promotion_candidate'])}"
+    )
+    print(
+        f"Duplicate candidates: {sum(1 for status in status_map.values() if status['duplicate_status'] == 'duplicate')}"
+    )
+    print(
+        f"Stale candidates: {sum(1 for status in status_map.values() if status['stale_candidate'])}"
+    )
     if args.dry_run:
         print("Dry run only. No DB or digest changes written.")
     else:

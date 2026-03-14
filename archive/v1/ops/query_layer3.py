@@ -6,7 +6,7 @@ import os
 import re
 import sqlite3
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 from layer3_metadata import resolve_workspace_root, slugify
 
@@ -89,14 +89,18 @@ def build_sql(args: argparse.Namespace) -> tuple[str, list[object]]:
 
 def rank_row(row: sqlite3.Row) -> dict[str, object]:
     metadata = json.loads(row["metadata"] or "{}")
-    created_at = metadata.get("indexed_at") or metadata.get("source_timestamp") or row["created_at"]
+    created_at = (
+        metadata.get("indexed_at")
+        or metadata.get("source_timestamp")
+        or row["created_at"]
+    )
 
     freshness_bonus = 0.0
     try:
         dt = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        age_days = max(0.0, (datetime.now(timezone.utc) - dt).total_seconds() / 86400.0)
+            dt = dt.replace(tzinfo=UTC)
+        age_days = max(0.0, (datetime.now(UTC) - dt).total_seconds() / 86400.0)
         freshness_bonus = max(0.0, 30.0 - age_days) * 0.01
     except Exception:
         pass
@@ -143,7 +147,9 @@ def main() -> int:
     for index, item in enumerate(results, 1):
         metadata = item["metadata"]
         heading = metadata.get("source_heading") or "(no heading)"
-        source = metadata.get("source_path") or metadata.get("source") or "(unknown source)"
+        source = (
+            metadata.get("source_path") or metadata.get("source") or "(unknown source)"
+        )
         snippet = str(item["content"]).replace("\ufeff", "").replace("\n", " ")
         print(f"[{index}] score={item['score']} brain={item['brain_name']}")
         print(

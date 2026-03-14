@@ -1,7 +1,6 @@
 import os
 import json
 import time
-from typing import Optional
 from pathlib import Path
 
 class CognitiveMemoryDriver:
@@ -32,7 +31,7 @@ class CognitiveMemoryDriver:
         
         if lock_path.exists():
             try:
-                with open(lock_path, "r") as f:
+                with open(lock_path) as f:
                     lock_data = json.load(f)
                 
                 # Check for stale lock (Deadlock detection)
@@ -65,7 +64,7 @@ class CognitiveMemoryDriver:
         lock_path = self._get_lock_path(target_file)
         if lock_path.exists():
             try:
-                with open(lock_path, "r") as f:
+                with open(lock_path) as f:
                     lock_data = json.load(f)
                 if lock_data["agent"] == agent_id:
                     lock_path.unlink()

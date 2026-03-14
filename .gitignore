@@ -1,9 +1,25 @@
-brain/layer1_stream/
-brain/layer2_core/
-brain/layer2_private/
-brain/layer3_index/*.db
-brain/layer3_index/*.db.*
-brain/ops/.sync_state.json
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Databases & Logs
+*.db
+*.db-journal
+*.sqlite
+*.log
+atlas_v1.db
+
+# IDEs & System
 .antigravity/
+.memory_share_kit/
+.env
+.DS_Store
+
+# Temporary
+.tmp*/
+_tmp*/

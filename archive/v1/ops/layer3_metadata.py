@@ -4,10 +4,6 @@ import hashlib
 import os
 import re
 from datetime import datetime
-try:
-    from datetime import UTC
-except ImportError:
-    from datetime import timezone as _tz; UTC = _tz.utc
 from typing import Any
 
 
@@ -39,7 +35,9 @@ def relative_path(file_path: str, workspace_root: str) -> str:
 
 
 def split_parts(file_path: str, workspace_root: str) -> list[str]:
-    return [part for part in relative_path(file_path, workspace_root).split("/") if part]
+    return [
+        part for part in relative_path(file_path, workspace_root).split("/") if part
+    ]
 
 
 def derive_project_name(file_path: str, workspace_root: str) -> str:

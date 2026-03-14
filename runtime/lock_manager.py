@@ -33,7 +33,7 @@ class LockManager:
         # 1. Check existing lock and detect stale locks (Deadlocks)
         if lock_path.exists():
             try:
-                with open(lock_path, "r") as f:
+                with open(lock_path) as f:
                     lock_data = json.load(f)
                 
                 # If TTL expired, Governor force-releases the lock
@@ -82,7 +82,7 @@ class LockManager:
         lock_path = self._get_lock_path(target_resource)
         if lock_path.exists():
             try:
-                with open(lock_path, "r") as f:
+                with open(lock_path) as f:
                     lock_data = json.load(f)
                 
                 if lock_data.get("agent") == agent_id and lock_data.get("lock_id") == lock_id:

@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "memory-share-kit"
+version = "2.0.0"
+description = "SQLite for Agent Memory: A deterministic, immutable memory engine."
+readme = "README.md"
+requires-python = ">=3.14"
+license = {text = "MIT"}
+authors = [
+    {name = "Chief Architect", email = "architect@memory-share.kit"}
+]
+keywords = ["ai", "agents", "memory", "sqlite", "graph", "deterministic"]
+dependencies = [] # Zero-dependency core logic
+
+[project.scripts]
+kit = "kit.cli.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["kit", "runtime"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+lint.select = ["E", "F", "B", "UP"]
+exclude = [
+    ".git",
+    "archive",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[tool.pyright]
+include = ["kit", "runtime", "examples", "plugins"]
+exclude = ["archive", "**/__pycache__"]
+strict = ["kit", "runtime"]

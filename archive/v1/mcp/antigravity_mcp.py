@@ -21,12 +21,7 @@ import re
 import sqlite3
 import sys
 import subprocess
-from datetime import datetime
-try:
-    from datetime import UTC
-except ImportError:
-    from datetime import timezone as _tz
-    UTC = _tz.utc
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Optional
 
@@ -42,6 +37,7 @@ mcp = FastMCP("antigravity_mcp")
 # ---------------------------------------------------------------------------
 # Workspace resolution
 # ---------------------------------------------------------------------------
+
 
 def _workspace() -> Path:
     root = os.environ.get("ANTIGRAVITY_WORKSPACE_ROOT")
@@ -73,6 +69,7 @@ def _core_dir() -> Path:
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+
 def _slugify(value: str) -> str:
     clean = re.sub(r"[^a-zA-Z0-9]+", "_", value.lower())
     return re.sub(r"_+", "_", clean).strip("_") or "unknown"
@@ -103,14 +100,17 @@ def _db_stats(conn: sqlite3.Connection) -> dict:
 # Pydantic input models
 # ---------------------------------------------------------------------------
 
+
 class QueryInput(BaseModel):
     """Input for brain_query."""
+
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     query: str = Field(
         ...,
         description="Free-text search query (e.g. 'API login bug', 'deployment steps')",
-        min_length=2, max_length=300,
+        min_length=2,
+        max_length=300,
     )
     project: Optional[str] = Field(
         default=None,
@@ -129,7 +129,8 @@ class QueryInput(BaseModel):
     limit: int = Field(
         default=5,
         description="Maximum number of results to return (1–20)",
-        ge=1, le=20,
+        ge=1,
+        le=20,
     )
     response_format: str = Field(
         default="markdown",
@@ -147,17 +148,20 @@ class QueryInput(BaseModel):
 
 class RememberInput(BaseModel):
     """Input for brain_remember."""
+
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     content: str = Field(
         ...,
         description="Memory content in Markdown. Use headers (##) to add structure.",
-        min_length=10, max_length=10000,
+        min_length=10,
+        max_length=10000,
     )
     heading: str = Field(
         ...,
         description="Short heading for this memory (e.g. 'API Login Fix')",
-        min_length=2, max_length=120,
+        min_length=2,
+        max_length=120,
     )
     project: str = Field(
         default="Root",
@@ -173,12 +177,14 @@ class RememberInput(BaseModel):
 
 class SearchTextInput(BaseModel):
     """Input for brain_search_text."""
+
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     query: str = Field(
         ...,
         description="Text to search for across layer2_core Markdown files",
-        min_length=2, max_length=200,
+        min_length=2,
+        max_length=200,
     )
     include_stream: bool = Field(
         default=False,
@@ -187,12 +193,14 @@ class SearchTextInput(BaseModel):
     limit: int = Field(
         default=10,
         description="Maximum number of matching lines to return",
-        ge=1, le=50,
+        ge=1,
+        le=50,
     )
 
 
 class MaintainInput(BaseModel):
     """Input for brain_maintain."""
+
     model_config = ConfigDict(extra="forbid")
 
     dry_run: bool = Field(
@@ -202,13 +210,15 @@ class MaintainInput(BaseModel):
     stale_days: int = Field(
         default=30,
         description="Age threshold in days for stale memory classification",
-        ge=1, le=365,
+        ge=1,
+        le=365,
     )
 
 
 # ---------------------------------------------------------------------------
 # Tool: brain_query
 # ---------------------------------------------------------------------------
+
 
 @mcp.tool(
     name="brain_query",
@@ -308,7 +318,11 @@ async def brain_query(params: QueryInput) -> str:
         now = datetime.now(UTC)
         for row in rows:
             meta = json.loads(row["metadata"] or "{}")
-            ts_str = meta.get("indexed_at") or meta.get("source_timestamp") or row["created_at"]
+            ts_str = (
+                meta.get("indexed_at")
+                or meta.get("source_timestamp")
+                or row["created_at"]
+            )
             freshness = 0.0
             try:
                 dt = datetime.fromisoformat(str(ts_str).replace("Z", "+00:00"))
@@ -320,7 +334,14 @@ async def brain_query(params: QueryInput) -> str:
                 pass
             score = float(row["text_score"]) + float(row["access_frequency"]) * 0.1
             score += float(row["activation_level"]) * 0.5 + freshness
-            results.append({"score": round(score, 4), "content": row["content"], "metadata": meta, "brain": row["brain_name"]})
+            results.append(
+                {
+                    "score": round(score, 4),
+                    "content": row["content"],
+                    "metadata": meta,
+                    "brain": row["brain_name"],
+                }
+            )
 
         results.sort(key=lambda x: x["score"], reverse=True)
         results = results[: params.limit]
@@ -329,18 +350,27 @@ async def brain_query(params: QueryInput) -> str:
             return json.dumps(results, indent=2, ensure_ascii=False)
 
         # Markdown output
-        lines = [f"## Brain Memory: '{params.query}'\n", f"*{len(results)} result(s) found*\n"]
+        lines = [
+            f"## Brain Memory: '{params.query}'\n",
+            f"*{len(results)} result(s) found*\n",
+        ]
         for i, item in enumerate(results, 1):
             meta = item["metadata"]
             heading = meta.get("source_heading") or "(no heading)"
             source = meta.get("source_path") or meta.get("source") or "unknown"
             project = meta.get("project", "unknown")
             privacy = meta.get("privacy", "unknown")
-            snippet = str(item["content"]).replace("\ufeff", "").replace("\n", " ").strip()
+            snippet = (
+                str(item["content"]).replace("\ufeff", "").replace("\n", " ").strip()
+            )
             lines.append(f"### [{i}] {heading}")
-            lines.append(f"- **Project**: {project} | **Privacy**: {privacy} | **Score**: {item['score']}")
+            lines.append(
+                f"- **Project**: {project} | **Privacy**: {privacy} | **Score**: {item['score']}"
+            )
             lines.append(f"- **Source**: `{source}`")
-            lines.append(f"- **Content**: {snippet[:300]}{'...' if len(snippet) > 300 else ''}")
+            lines.append(
+                f"- **Content**: {snippet[:300]}{'...' if len(snippet) > 300 else ''}"
+            )
             lines.append("")
         return "\n".join(lines)
 
@@ -353,6 +383,7 @@ async def brain_query(params: QueryInput) -> str:
 # ---------------------------------------------------------------------------
 # Tool: brain_remember
 # ---------------------------------------------------------------------------
+
 
 @mcp.tool(
     name="brain_remember",
@@ -422,6 +453,7 @@ async def brain_remember(params: RememberInput) -> str:
 # Tool: brain_search_text
 # ---------------------------------------------------------------------------
 
+
 @mcp.tool(
     name="brain_search_text",
     annotations={
@@ -457,16 +489,22 @@ async def brain_search_text(params: SearchTextInput) -> str:
         results: list[str] = []
         pattern = re.compile(re.escape(params.query), re.IGNORECASE)
 
-        def _scan_dir(directory: Path, label: str, file_limit: Optional[int] = None) -> None:
+        def _scan_dir(
+            directory: Path, label: str, file_limit: Optional[int] = None
+        ) -> None:
             if not directory.exists():
                 return
-            md_files = sorted(directory.rglob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+            md_files = sorted(
+                directory.rglob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True
+            )
             if file_limit:
                 md_files = md_files[:file_limit]
             for fp in md_files:
                 try:
                     rel = fp.relative_to(_workspace())
-                    for lineno, line in enumerate(fp.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+                    for lineno, line in enumerate(
+                        fp.read_text(encoding="utf-8", errors="ignore").splitlines(), 1
+                    ):
                         if pattern.search(line):
                             results.append(f"`{rel}:{lineno}` — {line.strip()[:150]}")
                             if len(results) >= params.limit:
@@ -492,6 +530,7 @@ async def brain_search_text(params: SearchTextInput) -> str:
 # ---------------------------------------------------------------------------
 # Tool: brain_status
 # ---------------------------------------------------------------------------
+
 
 @mcp.tool(
     name="brain_status",
@@ -535,11 +574,15 @@ async def brain_status() -> str:
     for name, path in layers.items():
         exists = "✅" if path.exists() else "❌ missing"
         md_count = len(list(path.rglob("*.md"))) if path.exists() else 0
-        lines.append(f"- `{name}`: {exists}{f' — {md_count} .md files' if path.exists() else ''}")
+        lines.append(
+            f"- `{name}`: {exists}{f' — {md_count} .md files' if path.exists() else ''}"
+        )
 
     lines.append("\n### Layer 3 Database")
     if not db.exists():
-        lines.append("❌ Database not found. Run `python setup_workspace.py` to initialize.")
+        lines.append(
+            "❌ Database not found. Run `python setup_workspace.py` to initialize."
+        )
     else:
         try:
             conn = sqlite3.connect(str(db))
@@ -557,7 +600,9 @@ async def brain_status() -> str:
     lines.append(f"- DB initialized: {'✅' if db_ok else '❌'}")
     lines.append(f"- layer1_stream ready: {'✅' if stream_ok else '❌'}")
     if db_ok and stream_ok:
-        lines.append("\n✅ Brain is ready. Start `brain_sync_watcher.py` to enable live indexing.")
+        lines.append(
+            "\n✅ Brain is ready. Start `brain_sync_watcher.py` to enable live indexing."
+        )
     else:
         lines.append("\n❌ Run `python setup_workspace.py` to complete setup.")
 
@@ -567,6 +612,7 @@ async def brain_status() -> str:
 # ---------------------------------------------------------------------------
 # Tool: brain_maintain
 # ---------------------------------------------------------------------------
+
 
 @mcp.tool(
     name="brain_maintain",
@@ -612,7 +658,9 @@ async def brain_maintain(params: MaintainInput) -> str:
     env = {**os.environ, "ANTIGRAVITY_WORKSPACE_ROOT": str(_workspace())}
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=60)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, env=env, timeout=60
+        )
         output = result.stdout.strip() or result.stderr.strip()
         mode = "DRY RUN" if params.dry_run else "APPLIED"
         return f"## Brain Maintenance ({mode})\n\n```\n{output}\n```"

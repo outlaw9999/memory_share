@@ -22,11 +22,12 @@ BRAIN_PREFIX = "antigravity_"
 STATE_FILE = os.path.join(WORKSPACE_ROOT, "brain", "ops", ".sync_state.json")
 DB_PATH = os.path.join(WORKSPACE_ROOT, "brain", "layer3_index", "neural_memory.db")
 
+
 class LogSyncHandler(FileSystemEventHandler):
     def __init__(self, loop):
         self.loop = loop
         self.offsets = self._load_state()
-        self.brains = {} # project_name -> brain_obj
+        self.brains = {}  # project_name -> brain_obj
         self.storage = SQLiteStorage(DB_PATH)
         self._init_done = False
 
@@ -38,15 +39,15 @@ class LogSyncHandler(FileSystemEventHandler):
     def _load_state(self):
         if os.path.exists(STATE_FILE):
             try:
-                with open(STATE_FILE, 'r') as f:
+                with open(STATE_FILE, "r") as f:
                     return json.load(f)
-            except:
+            except (json.JSONDecodeError, OSError):
                 return {}
         return {}
 
     def _save_state(self):
         try:
-            with open(STATE_FILE, 'w') as f:
+            with open(STATE_FILE, "w") as f:
                 json.dump(self.offsets, f)
         except Exception as e:
             print(f"Failed to save state: {e}")
@@ -56,17 +57,17 @@ class LogSyncHandler(FileSystemEventHandler):
             return self.brains[project_name]
 
         # Normalized name: SEO - EDF -> seo_edf
-        clean_name = re.sub(r'[^a-zA-Z0-9]', '_', project_name.lower())
-        clean_name = re.sub(r'_+', '_', clean_name).strip('_')
+        clean_name = re.sub(r"[^a-zA-Z0-9]", "_", project_name.lower())
+        clean_name = re.sub(r"_+", "_", clean_name).strip("_")
         safe_name = BRAIN_PREFIX + clean_name
-        
+
         brain_obj = await self.storage.find_brain_by_name(safe_name)
-        
+
         if not brain_obj:
             print(f"Creating new brain for project: {project_name} -> {safe_name}")
             brain_obj = Brain.create(safe_name)
             await self.storage.save_brain(brain_obj)
-        
+
         self.brains[project_name] = brain_obj
         return brain_obj
 
@@ -87,31 +88,31 @@ class LogSyncHandler(FileSystemEventHandler):
         try:
             if not self._init_done:
                 return
-            
+
             norm_path = os.path.normpath(file_path)
             project_name = derive_project_name(norm_path, WORKSPACE_ROOT)
             source_timestamp = infer_source_timestamp(norm_path)
 
             await asyncio.sleep(0.5)
-            
-            with open(norm_path, 'r', encoding='utf-8') as f:
+
+            with open(norm_path, "r", encoding="utf-8") as f:
                 last_offset = self.offsets.get(norm_path, 0)
                 f.seek(0, os.SEEK_END)
                 current_size = f.tell()
-                
+
                 if current_size <= last_offset == 0:
                     pass
                 elif current_size < last_offset:
                     last_offset = 0
-                
+
                 f.seek(last_offset)
                 new_content = f.read()
-                
+
                 if not new_content.strip():
                     return
 
                 print(f"[{project_name}] New content in {os.path.basename(norm_path)}")
-                
+
                 brain = await self._get_brain_for_project(project_name)
                 encoder = await self._get_encoder(project_name)
                 chunks = self._chunk_content(new_content)
@@ -150,11 +151,11 @@ class LogSyncHandler(FileSystemEventHandler):
         - Implements Overlap
         - Filters noisy short text
         """
-        lines = text.split('\n')
+        lines = text.split("\n")
         chunks = []
         current_chunk = []
         current_header = ""
-        
+
         def flush_chunk():
             content = "\n".join(current_chunk).strip()
             if len(content) > 15:
@@ -164,29 +165,35 @@ class LogSyncHandler(FileSystemEventHandler):
                         "heading": current_header or None,
                     }
                 )
-        
+
         for line in lines:
             line = line.strip().lstrip("\ufeff")
             if not line:
                 continue
-            
+
             # If it's a header, start a new chunk but include context
-            if line.startswith('#'):
+            if line.startswith("#"):
                 if current_chunk:
                     flush_chunk()
                     # Overlap: keep the last 2 lines for context
-                    current_chunk = current_chunk[-2:] if len(current_chunk) > 2 else current_chunk
-                
+                    current_chunk = (
+                        current_chunk[-2:] if len(current_chunk) > 2 else current_chunk
+                    )
+
                 current_header = line
                 current_chunk.append(line)
             else:
                 current_chunk.append(line)
-                
+
                 # Max chunk size ~500 chars
                 if len("\n".join(current_chunk)) > 500:
                     flush_chunk()
                     # Overlap
-                    current_chunk = [current_header] + current_chunk[-2:] if current_header else current_chunk[-3:]
+                    current_chunk = (
+                        [current_header] + current_chunk[-2:]
+                        if current_header
+                        else current_chunk[-3:]
+                    )
 
         if current_chunk:
             flush_chunk()
@@ -198,20 +205,21 @@ class LogSyncHandler(FileSystemEventHandler):
 
         return chunks
 
+
 async def main():
     print("NeuralMemory Multi-Project Watcher Started...")
-    
+
     loop = asyncio.get_running_loop()
     handler = LogSyncHandler(loop)
     await handler.initialize()
-    
+
     print(f"Initial scan in {WORKSPACE_ROOT}...")
-    EXCLUDE_DIRS = {'.git', 'node_modules', '.gemini', 'venv', '__pycache__'}
-    
+    EXCLUDE_DIRS = {".git", "node_modules", ".gemini", "venv", "__pycache__"}
+
     for root, dirs, files in os.walk(WORKSPACE_ROOT):
         # Skip excluded dirs in-place to speed up walk
         dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
-        
+
         norm_root = os.path.normpath(root)
         if MONITOR_PATTERN in norm_root:
             print(f"Found log directory: {norm_root}")
@@ -222,7 +230,7 @@ async def main():
     observer = Observer()
     observer.schedule(handler, WORKSPACE_ROOT, recursive=True)
     observer.start()
-    
+
     print("Watcher is active and monitoring all projects.")
     try:
         while True:
@@ -230,6 +238,7 @@ async def main():
     except KeyboardInterrupt:
         observer.stop()
     observer.join()
+
 
 if __name__ == "__main__":
     try:
