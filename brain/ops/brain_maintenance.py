@@ -6,7 +6,11 @@ import os
 import sqlite3
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
+try:
+    from datetime import UTC
+except ImportError:
+    from datetime import timezone as _tz; UTC = _tz.utc
 from typing import Any
 
 from layer3_metadata import resolve_workspace_root

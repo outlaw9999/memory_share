@@ -28,6 +28,13 @@ It is meant for architecture review and discussion, not as a full production run
 - Phase 2: added Layer 3 metadata, filters, and backfill tooling
 - Phase 3: added background consolidation for duplicate, stale, and promotion review
 
+## Cowork Integration (2026-03-10)
+
+- Claude Cowork mode established as the brain sync operator for this repo
+- SSH key generated and registered for passwordless future pushes
+- Session update workflow: Cowork reads public brain layer → synthesizes update → commits and pushes
+- See `reports/cowork_integration_session.md` for full session record
+
 ## Safe Ways To Review
 
 - Read the architecture and policy docs in `reports/`

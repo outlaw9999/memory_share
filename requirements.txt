@@ -1,0 +1,11 @@
+# Antigravity brain v2 — Python dependencies
+#
+# Python >= 3.10 required for all stdlib-only scripts
+# Python >= 3.11 required for brain_sync_watcher.py (neural-memory constraint)
+
+# MCP server (Python 3.10+)
+mcp[cli]>=1.0.0
+
+# Live file watcher + semantic indexing (Python 3.11+ required)
+neural-memory>=2.28.0
+watchdog>=4.0.0

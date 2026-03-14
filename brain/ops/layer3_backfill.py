@@ -6,7 +6,11 @@ import json
 import os
 import shutil
 import sqlite3
-from datetime import UTC, datetime
+from datetime import datetime
+try:
+    from datetime import UTC
+except ImportError:
+    from datetime import timezone as _tz; UTC = _tz.utc
 
 from layer3_metadata import (
     build_chunk_metadata,
