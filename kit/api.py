@@ -70,6 +70,8 @@ def learn(
     importance: float = 0.5,
     metadata: dict[str, Any] | None = None,
     layer: str = "episodic",
+    namespace: str = "shared",
+    agent_id: str | None = None,
 ) -> int:
     """
     Primary API for an Agent to 'learn' a new observation.
@@ -92,21 +94,23 @@ def learn(
         importance=importance,
         layer=layer,
         metadata=meta,
+        namespace=namespace,
+        agent_id=agent_id or meta.get("agent"),
     )
 
 
-def search(query: str, limit: int = 15, at: str | None = None) -> list[Any]:
+def search(query: str, limit: int = 15, at: str | None = None, agent_id: str | None = None) -> list[Any]:
     """
     Hybrid FTS Search across Project and Global brains.
     """
-    return get_brain().search(query, limit, at_timestamp=at)
+    return get_brain().search(query, limit, at_timestamp=at, agent_id=agent_id)
 
 
-def recall(entities: list[str], limit: int = 15, at: str | None = None) -> list[Any]:
+def recall(entities: list[str], limit: int = 15, at: str | None = None, agent_id: str | None = None) -> list[Any]:
     """
     Recall ranked context including structural graph expansion.
     """
-    return get_brain().recall(entities, limit, at_timestamp=at)
+    return get_brain().recall(entities, limit, at_timestamp=at, agent_id=agent_id)
 
 
 def export_prompt(

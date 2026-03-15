@@ -32,18 +32,22 @@ def main():
         help="Cognitive layer"
     )
     learn_p.add_argument("--global", action="store_true", dest="to_global", help="Learn into Global Brain")
+    learn_p.add_argument("--namespace", default="shared", help="Namespace (e.g., project, agent:name)")
+    learn_p.add_argument("--agent-id", help="Explicit Agent ID for attribution")
 
     # Command: search
     search_p = subparsers.add_parser("search", help="Hybrid FTS5 keyword search")
     search_p.add_argument("query", help="Keyword or phrase to search for")
     search_p.add_argument("--limit", type=int, default=15)
     search_p.add_argument("--at", help="Temporal snapshot (YYYY-MM-DD HH:MM:SS)")
+    search_p.add_argument("--agent-id", help="Agent ID for recall boost")
 
     # Command: recall
     recall_p = subparsers.add_parser("recall", help="Recall ranked context (Project + Global)")
     recall_p.add_argument("entities", nargs="*", help="Entity UIDs")
     recall_p.add_argument("--limit", type=int, default=15)
     recall_p.add_argument("--at", help="Temporal snapshot")
+    recall_p.add_argument("--agent-id", help="Agent ID for recall boost")
 
     # Command: link
     link_p = subparsers.add_parser("link", help="Create a semantic edge between two nodes")
@@ -94,13 +98,15 @@ def main():
                 importance=args.importance,
                 layer=args.layer,
                 to_global=args.to_global,
-                supersede_id=args.supersede
+                supersede_id=args.supersede,
+                namespace=args.namespace,
+                agent_id=args.agent_id
             )
             target = "Global" if args.to_global else "Project"
             print_diagnostic(f"✅ Learned: [{uid}] -> {target} Brain (ID: {fact_id})")
 
         elif args.command == "search":
-            memories = api.search(args.query, limit=args.limit, at=args.at)
+            memories = api.search(args.query, limit=args.limit, at=args.at, agent_id=args.agent_id)
             if is_tty:
                 print_diagnostic(f"🔍 Hybrid Search results for '{args.query}':\n")
             
@@ -112,7 +118,7 @@ def main():
 
         elif args.command == "recall":
             entities = args.entities or [current_context]
-            memories = api.recall(entities, limit=args.limit, at=args.at)
+            memories = api.recall(entities, limit=args.limit, at=args.at, agent_id=args.agent_id)
             
             if is_tty:
                 print_diagnostic(f"🧠 Recalled context for {entities}:\n")

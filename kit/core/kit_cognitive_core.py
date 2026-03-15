@@ -68,6 +68,8 @@ class SAMBrain:
         metadata: dict[str, Any] | None = None,
         to_global: bool = False,
         supersede_id: int | None = None,
+        namespace: str = "shared",
+        agent_id: str | None = None,
     ) -> int:
         """Learn a new observation at a specific node."""
         target_db = self.global_db_path if (to_global and self.global_db_path) else self.db_path
@@ -95,10 +97,10 @@ class SAMBrain:
                 meta_json = json.dumps(metadata or {})
                 cur = conn.execute(
                     """
-                    INSERT INTO observations (node_id, content, layer, importance, metadata)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO observations (node_id, content, layer, importance, metadata, namespace, agent_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (node_id, content, layer, importance, meta_json)
+                    (node_id, content, layer, importance, meta_json, namespace, agent_id)
                 )
                 return cur.lastrowid
         except sqlite3.Error as e:
@@ -129,8 +131,8 @@ class SAMBrain:
         except sqlite3.Error as e:
             raise SAMBrainError(f"Failed to link nodes: {e}") from e
 
-    def search(self, query: str, limit: int = 15, at_timestamp: str | None = None) -> list[Memory]:
-        """Hybrid FTS Search across both brains."""
+    def search(self, query: str, limit: int = 15, at_timestamp: str | None = None, agent_id: str | None = None) -> list[Memory]:
+        """Hybrid FTS Search across both brains (Namespace-aware)."""
         ts = at_timestamp or "now"
         
         results = []
@@ -150,6 +152,11 @@ class SAMBrain:
                     WHEN 'semantic' THEN 1.5
                     ELSE 1.0
                 END
+                * CASE
+                    WHEN o.namespace = ? THEN 1.2
+                    WHEN o.namespace IN ('shared', 'project') THEN 1.0
+                    ELSE 0.8
+                END
             ) AS score
             FROM {p}observations o
             JOIN {p}nodes n ON o.node_id = n.id
@@ -159,7 +166,7 @@ class SAMBrain:
             ORDER BY score DESC
             LIMIT {limit}
             """
-            cur = conn.execute(sql, (ts, query, ts, ts))
+            cur = conn.execute(sql, (ts, agent_id, query, ts, ts))
             for row in cur.fetchall():
                 results.append(Memory(
                     id=row["id"],
@@ -183,8 +190,8 @@ class SAMBrain:
         results.sort(key=lambda x: x.score, reverse=True)
         return results[:limit]
 
-    def recall(self, entities: list[str], limit: int = 15, at_timestamp: str | None = None) -> list[Memory]:
-        """Recall context for nodes by UID across both brains."""
+    def recall(self, entities: list[str], limit: int = 15, at_timestamp: str | None = None, agent_id: str | None = None) -> list[Memory]:
+        """Recall context for nodes by UID across both brains (Namespace-aware)."""
         if not entities:
             return []
         
@@ -209,6 +216,11 @@ class SAMBrain:
                     WHEN 'semantic' THEN 1.5
                     ELSE 1.0
                 END
+                * CASE
+                    WHEN o.namespace = ? THEN 1.2
+                    WHEN o.namespace IN ('shared', 'project') THEN 1.0
+                    ELSE 0.8
+                END
             ) AS score
             FROM {p}observations o
             JOIN {p}nodes n ON o.node_id = n.id
@@ -218,7 +230,7 @@ class SAMBrain:
             ORDER BY score DESC
             LIMIT {limit}
             """
-            params = [ts] + uids + [ts, ts]
+            params = [ts, agent_id] + uids + [ts, ts]
             cur = conn.execute(sql, params)
             for row in cur.fetchall():
                 results.append(Memory(

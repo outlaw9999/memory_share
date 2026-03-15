@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS observations (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     superseded_at DATETIME,
     last_accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    namespace TEXT DEFAULT 'shared',
+    agent_id TEXT,
     metadata TEXT DEFAULT '{}',
     FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE
 );
@@ -68,7 +70,18 @@ def init_db(conn: sqlite3.Connection):
         conn.execute("ALTER TABLE observations ADD COLUMN superseded_at DATETIME")
         logger.info("Migrated: Added superseded_at to observations")
     except sqlite3.OperationalError:
-        # Column already exists
+        pass
+
+    try:
+        conn.execute("ALTER TABLE observations ADD COLUMN namespace TEXT DEFAULT 'shared'")
+        logger.info("Migrated: Added namespace to observations")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE observations ADD COLUMN agent_id TEXT")
+        logger.info("Migrated: Added agent_id to observations")
+    except sqlite3.OperationalError:
         pass
 
 def enable_wal(conn: sqlite3.Connection):
