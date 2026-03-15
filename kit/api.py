@@ -148,6 +148,11 @@ def touch(fact_id: int) -> bool:
         return False
 
 
+def promote(threshold: int = 5) -> int:
+    """Promote memories based on activity."""
+    return get_brain().promote_memories(threshold)
+
+
 if __name__ == "__main__":
     from kit.cli.main import main
 

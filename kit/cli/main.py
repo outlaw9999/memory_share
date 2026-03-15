@@ -59,6 +59,14 @@ def main():
     # Command: stats
     subparsers.add_parser("stats", help="Show AI Kernel statistics (Hybrid)")
 
+    # Command: bump
+    bump_p = subparsers.add_parser("bump", help="Reinforce a memory (increment access count)")
+    bump_p.add_argument("id", type=int, help="Observation ID")
+
+    # Command: promote
+    promote_p = subparsers.add_parser("promote", help="Promote episodic memories to semantic")
+    promote_p.add_argument("--threshold", type=int, default=5, help="Access count threshold")
+
     # Command: doctor
     subparsers.add_parser("doctor", help="System diagnostics")
 
@@ -127,7 +135,17 @@ def main():
                 print_diagnostic("No relevant memories found.")
             else:
                 for m in memories:
-                    print(f"• [ID:{m.id}][{m.brain_source}:{m.node_uid}] {m.content}")
+                    print(f"• [ID:{m.id}][{m.brain_source}:{m.node_uid}][{m.layer}:{m.namespace}][{m.created_at}][{m.importance:.1f}] {m.content}")
+
+        elif args.command == "bump":
+            if api.touch(args.id):
+                print_diagnostic(f"✅ Memory {args.id} reinforced.")
+            else:
+                print_diagnostic(f"❌ Failed to reinforce memory {args.id}.")
+
+        elif args.command == "promote":
+            count = api.promote(args.threshold)
+            print_diagnostic(f"🚀 Promoted {count} memories to Semantic layer (Threshold: {args.threshold}).")
 
         elif args.command == "link":
             api.link(args.src, args.dst, args.rel, args.weight)

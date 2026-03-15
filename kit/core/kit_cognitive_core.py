@@ -21,6 +21,10 @@ class Memory:
     content: str
     score: float
     brain_source: str
+    layer: str = "episodic"
+    namespace: str = "shared"
+    created_at: str = ""
+    importance: float = 1.0
 
 
 class SAMBrain:
@@ -173,7 +177,11 @@ class SAMBrain:
                     node_uid=row["node_uid"],
                     content=row["content"],
                     score=row["score"],
-                    brain_source=source
+                    brain_source=source,
+                    layer=row["layer"],
+                    namespace=row["namespace"],
+                    created_at=row["created_at"],
+                    importance=row["importance"]
                 ))
 
         # 1. Project Brain
@@ -238,7 +246,11 @@ class SAMBrain:
                     node_uid=row["node_uid"],
                     content=row["content"],
                     score=row["score"],
-                    brain_source=source
+                    brain_source=source,
+                    layer=row["layer"],
+                    namespace=row["namespace"],
+                    created_at=row["created_at"],
+                    importance=row["importance"]
                 ))
 
         with self._get_connection() as conn:
@@ -269,6 +281,29 @@ class SAMBrain:
                 conn.execute(f"ATTACH DATABASE '{self.global_db_path}' AS g")
                 stats["global"] = get_db_stats(conn, "g")
         return stats
+
+    def touch_fact(self, fact_id: int) -> None:
+        """Increment access count and refresh recency (v3.14 compliant)."""
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    "UPDATE observations SET access_count = access_count + 1, last_accessed_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (fact_id,)
+                )
+        except sqlite3.Error as e:
+            raise SAMBrainError(f"Failed to touch fact: {e}") from e
+
+    def promote_memories(self, threshold: int = 5) -> int:
+        """Promote Episodic facts to Semantic based on access frequency."""
+        try:
+            with self._get_connection() as conn:
+                cur = conn.execute(
+                    "UPDATE observations SET layer = 'semantic' WHERE layer = 'episodic' AND access_count >= ?",
+                    (threshold,)
+                )
+                return cur.rowcount
+        except sqlite3.Error as e:
+            raise SAMBrainError(f"Failed to promote memories: {e}") from e
 
     def process_gc(self) -> None:
         """Memory lifecycle maintenance (WIP - Phase 3 focus)."""
