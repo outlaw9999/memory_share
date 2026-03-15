@@ -1,357 +1,265 @@
-from __future__ import annotations
-
-import math
+import json
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+
+from kit.core import schema_factory
+from kit.core.schema_factory import enable_wal, init_db
 
 
 class SAMBrainError(Exception):
     """Domain exception for the Cognitive Core."""
-
     pass
 
 
 @dataclass(frozen=True)
 class Memory:
     """Immutable representation of a retrieved memory fact."""
-
     id: int
-    entity_uid: str
+    node_uid: str
     content: str
     score: float
-    distance: int  # 0 for direct match, 1 for neighbor expansion
+    brain_source: str
 
 
 class SAMBrain:
     """
-    Elite Cognitive CRUD API for Structured Agent Memory (.kit).
-    Optimized for Python 3.14+ (nogil-ready) and SQL-native ranking.
+    Elite Cognitive Quad-Store AI Kernel (.kit).
+    Hybrid Brain support (Local + Global) with Temporal Graph logic.
     """
 
     def __init__(self, db_path: Path) -> None:
-        """Initialize SAMBrain with a pathlib Path to the database."""
-        if not isinstance(db_path, Path):
-            raise SAMBrainError(
-                "db_path must be a pathlib.Path instance (code-py-314 doctrine)."
-            )
-
         self.db_path = db_path
+        self.global_db_path: Path | None = None
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
-        """Create a thread-safe connection with deterministic SQL functions."""
         try:
             conn = sqlite3.connect(
                 str(self.db_path),
                 check_same_thread=False,
-                isolation_level=None,  # Use manual transactions/WAL
+                isolation_level=None,
             )
             conn.row_factory = sqlite3.Row
-
-            # Register deterministic functions for SQL-level ranking
-            conn.create_function("py_log10", 1, math.log10, deterministic=True)
-            conn.create_function("py_sqrt", 1, math.sqrt, deterministic=True)
-
-            # Enable WAL mode for high concurrency
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA synchronous=NORMAL")
-            conn.execute("PRAGMA foreign_keys=ON")
-
+            enable_wal(conn)
             return conn
         except sqlite3.Error as e:
             raise SAMBrainError(f"Database connection failed: {e}")
 
+    def attach_global(self, global_db_path: Path) -> None:
+        """Attach the global brain for unified queries."""
+        self.global_db_path = global_db_path
+        # Initialize the global DB schema if it doesn't exist
+        with sqlite3.connect(str(global_db_path)) as gconn:
+            init_db(gconn)
+
     def _init_db(self) -> None:
-        """Initialize schema and indexes."""
         with self._get_connection() as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS entities (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    uid TEXT UNIQUE NOT NULL COLLATE NOCASE,
-                    kind TEXT NOT NULL,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS facts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    entity_id INTEGER NOT NULL,
-                    content TEXT NOT NULL,
-                    source TEXT NOT NULL,
-                    importance REAL DEFAULT 0.5,
-                    access_count INTEGER DEFAULT 0,
-                    supersedes_id INTEGER,
-                    is_active BOOLEAN DEFAULT 1,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE,
-                    FOREIGN KEY (supersedes_id) REFERENCES facts(id) ON DELETE SET NULL
-                )
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS relations (
-                    source_id INTEGER NOT NULL,
-                    target_id INTEGER NOT NULL,
-                    type TEXT NOT NULL,
-                    weight REAL DEFAULT 1.0,
-                    PRIMARY KEY (source_id, target_id, type),
-                    FOREIGN KEY (source_id) REFERENCES entities(id) ON DELETE CASCADE,
-                    FOREIGN KEY (target_id) REFERENCES entities(id) ON DELETE CASCADE
-                )
-            """)
-            # Indexes for faster joins and ranking
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_facts_entity ON facts(entity_id) WHERE is_active=1"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_facts_supersedes ON facts(supersedes_id)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_facts_created ON facts(created_at)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_rel_source ON relations(source_id)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_rel_target ON relations(target_id)"
-            )
+            init_db(conn)
 
-    def learn_fact(
+    def learn(
         self,
-        entity_uid: str,
-        kind: str,
+        uid: str,
         content: str,
-        importance: float = 0.5,
-        source: str = "agent_session",
-        supersedes_id: int | None = None,
+        kind: str = "observation",
+        importance: float = 1.0,
+        layer: str = "episodic",
+        metadata: dict[str, Any] | None = None,
+        to_global: bool = False,
     ) -> int:
-        """
-        Learn a new Fact (Append-only).
-        If supersedes_id is provided, the previous fact is linked via lineage.
-        """
+        """Learn a new observation at a specific node."""
+        target_db = self.global_db_path if (to_global and self.global_db_path) else self.db_path
+        
         try:
-            with self._get_connection() as conn:
-                # 1. Upsert Entity
+            with sqlite3.connect(str(target_db)) as conn:
+                conn.row_factory = sqlite3.Row
+                # 1. Upsert Node
                 conn.execute(
-                    """
-                    INSERT INTO entities (uid, kind) VALUES (?, ?)
-                    ON CONFLICT(uid) DO UPDATE SET updated_at = CURRENT_TIMESTAMP
-                """,
-                    (entity_uid.lower(), kind),
+                    "INSERT INTO nodes (uid, kind) VALUES (?, ?) ON CONFLICT(uid) DO UPDATE SET uid=uid",
+                    (uid.lower(), kind)
                 )
+                node_row = conn.execute("SELECT id FROM nodes WHERE uid = ?", (uid.lower(),)).fetchone()
+                node_id = node_row["id"]
 
-                # 2. Get Entity ID
-                row = conn.execute(
-                    "SELECT id FROM entities WHERE uid = ?", (entity_uid.lower(),)
-                ).fetchone()
-                entity_id = row["id"]
-
-                # 3. Insert New Fact (Always Append)
+                # 2. Insert Observation
+                meta_json = json.dumps(metadata or {})
                 cur = conn.execute(
                     """
-                    INSERT INTO facts (entity_id, content, source, importance, supersedes_id, is_active)
-                    VALUES (?, ?, ?, ?, ?, 1)
-                """,
-                    (entity_id, content, source, importance, supersedes_id),
+                    INSERT INTO observations (node_id, content, layer, importance, metadata)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (node_id, content, layer, importance, meta_json)
                 )
-
-                rowid = cur.lastrowid
-                assert rowid is not None
-                return rowid
+                return cur.lastrowid
         except sqlite3.Error as e:
-            raise SAMBrainError(f"Failed to learn fact: {e}")
+            raise SAMBrainError(f"Failed to learn observation: {e}")
 
     def link(
-        self, source_uid: str, target_uid: str, rel_type: str, weight: float = 1.0
+        self,
+        src_uid: str,
+        dst_uid: str,
+        rel: str,
+        weight: float = 1.0,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
-        """Create an Edge between two Nodes."""
+        """Create a directed edge between two nodes."""
         try:
             with self._get_connection() as conn:
+                src_row = conn.execute("SELECT id FROM nodes WHERE uid = ?", (src_uid.lower(),)).fetchone()
+                dst_row = conn.execute("SELECT id FROM nodes WHERE uid = ?", (dst_uid.lower(),)).fetchone()
+                
+                if not src_row or not dst_row:
+                    raise SAMBrainError(f"Node not found: {src_uid if not src_row else dst_uid}")
+
+                meta_json = json.dumps(metadata or {"weight": weight})
                 conn.execute(
-                    """
-                    INSERT OR IGNORE INTO relations (source_id, target_id, type, weight)
-                    SELECT e1.id, e2.id, ?, ?
-                    FROM entities e1, entities e2
-                    WHERE e1.uid = ? AND e2.uid = ?
-                """,
-                    (rel_type, weight, source_uid.lower(), target_uid.lower()),
+                    "INSERT INTO edges (subject_id, predicate, object_id, metadata) VALUES (?, ?, ?, ?)",
+                    (src_row["id"], rel, dst_row["id"], meta_json)
                 )
         except sqlite3.Error as e:
-            raise SAMBrainError(f"Failed to link entities: {e}")
+            raise SAMBrainError(f"Failed to link nodes: {e}")
 
-    def recall_context(
-        self, query_entities: list[str], limit: int = 15
-    ) -> list[Memory]:
-        """
-        Recall ranked context with 1-hop neighbor expansion using SQL-native ranking.
-        Only retrieves ACTIVE facts and filters out superseded facts (Leaf nodes only).
-        """
-        if not query_entities:
-            return []
+    def search(self, query: str, limit: int = 15, at_timestamp: str | None = None) -> list[Memory]:
+        """Hybrid FTS Search across both brains."""
+        ts = at_timestamp or "now"
+        
+        results = []
 
-        # Normalize UIDs
-        query_entities = [uid.lower() for uid in query_entities]
-        placeholders = ",".join(["?"] * len(query_entities))
-
-        # Comprehensive query: Expansion + Ranking + Lineage Filtering (NOT EXISTS)
-        sql = f"""
-        WITH ExpandedEntities AS (
-            -- Direct query entities
-            SELECT uid, 0 as distance FROM entities WHERE uid IN ({placeholders})
-            UNION
-            -- Forward neighbors
-            SELECT e2.uid, 1 as distance
-            FROM relations r
-            JOIN entities e1 ON r.source_id = e1.id
-            JOIN entities e2 ON r.target_id = e2.id
-            WHERE e1.uid IN ({placeholders})
-            UNION
-            -- Backward neighbors
-            SELECT e1.uid, 1 as distance
-            FROM relations r
-            JOIN entities e1 ON r.source_id = e1.id
-            JOIN entities e2 ON r.target_id = e2.id
-            WHERE e2.uid IN ({placeholders})
-        )
-        SELECT 
-            f.id, 
-            e.uid as entity_uid, 
-            f.content, 
-            e_exp.distance,
+        def run_query(conn, prefix="", priority=1.0, source="project"):
+            p = f"{prefix}." if prefix else ""
+            sql = f"""
+            SELECT o.*, n.uid as node_uid,
             (
-                f.importance * 
-                py_log10(f.access_count + 2) * 
-                (1.0 / py_sqrt(MAX(1, julianday('now') - julianday(f.created_at))))
-            ) as score
-        FROM facts f
-        JOIN entities e ON f.entity_id = e.id
-        JOIN ExpandedEntities e_exp ON e.uid = e_exp.uid
-        WHERE f.is_active = 1 
-          AND NOT EXISTS (SELECT 1 FROM facts x WHERE x.supersedes_id = f.id)
-        ORDER BY score DESC
-        LIMIT ?
-        """
+                o.importance
+                * ((o.access_count + 1) / (o.access_count + 5.0))
+                * EXP(-0.0231 * (JULIANDAY('{ts}') - JULIANDAY(o.created_at)))
+                * {priority}
+                * CASE o.layer
+                    WHEN 'working' THEN 3.0
+                    WHEN 'episodic' THEN 2.0
+                    WHEN 'semantic' THEN 1.5
+                    ELSE 1.0
+                END
+            ) AS score
+            FROM {p}observations o
+            JOIN {p}nodes n ON o.node_id = n.id
+            WHERE o.id IN (SELECT rowid FROM {p}observations_fts WHERE {p}observations_fts MATCH ?)
+              AND julianday(o.created_at) <= julianday('{ts}')
+              AND ({p}observations.superseded_at IS NULL OR julianday({p}observations.superseded_at) > julianday('{ts}'))
+            ORDER BY score DESC
+            LIMIT {limit}
+            """
+            cur = conn.execute(sql, (query,))
+            for row in cur.fetchall():
+                results.append(Memory(
+                    id=row["id"],
+                    node_uid=row["node_uid"],
+                    content=row["content"],
+                    score=row["score"],
+                    brain_source=source
+                ))
 
-        try:
-            nodes = []
-            params = query_entities + query_entities + query_entities + [limit]
+        # 1. Project Brain
+        with self._get_connection() as conn:
+            run_query(conn, priority=1.5, source="project")
 
-            with self._get_connection() as conn:
-                cur = conn.execute(sql, params)
-                rows = cur.fetchall()
+        # 2. Global Brain
+        if self.global_db_path:
+            with sqlite3.connect(str(self.global_db_path)) as gconn:
+                gconn.row_factory = sqlite3.Row
+                run_query(gconn, priority=1.0, source="global")
 
-                if not rows:
-                    return []
+        # Sort combined results
+        results.sort(key=lambda x: x.score, reverse=True)
+        return results[:limit]
 
-                # Track IDs for access update
-                fact_ids = []
-                for row in rows:
-                    node = Memory(
-                        id=row["id"],
-                        entity_uid=row["entity_uid"],
-                        content=row["content"],
-                        score=row["score"],
-                        distance=row["distance"],
-                    )
-                    nodes.append(node)
-                    fact_ids.append(row["id"])
+    def recall(self, entities: list[str], limit: int = 15, at_timestamp: str | None = None) -> list[Memory]:
+        """Recall context for nodes by UID across both brains."""
+        if not entities:
+            return []
+        
+        ts = at_timestamp or "now"
+        results = []
+        uids = [e.lower() for e in entities]
 
-                # Increment access count for recalled facts
-                id_placeholders = ",".join(["?"] * len(fact_ids))
-                conn.execute(
-                    f"UPDATE facts SET access_count = access_count + 1 WHERE id IN ({id_placeholders})",
-                    fact_ids,
-                )
+        # Internal helper for querying a single brain
+        def _recall_from(conn, prefix="", priority=1.0, source="project"):
+            p = f"{prefix}." if prefix else ""
+            placeholders = ",".join(["?"] * len(uids))
+            sql = f"""
+            SELECT o.*, n.uid as node_uid,
+            (
+                o.importance
+                * ((o.access_count + 1) / (o.access_count + 5.0))
+                * EXP(-0.0231 * (JULIANDAY('{ts}') - JULIANDAY(o.created_at)))
+                * {priority}
+                * CASE o.layer
+                    WHEN 'working' THEN 3.0
+                    WHEN 'episodic' THEN 2.0
+                    WHEN 'semantic' THEN 1.5
+                    ELSE 1.0
+                END
+            ) AS score
+            FROM {p}observations o
+            JOIN {p}nodes n ON o.node_id = n.id
+            WHERE n.uid IN ({placeholders})
+              AND julianday(o.created_at) <= julianday('{ts}')
+              AND (o.superseded_at IS NULL OR julianday(o.superseded_at) > julianday('{ts}'))
+            ORDER BY score DESC
+            LIMIT {limit}
+            """
+            cur = conn.execute(sql, uids)
+            for row in cur.fetchall():
+                results.append(Memory(
+                    id=row["id"],
+                    node_uid=row["node_uid"],
+                    content=row["content"],
+                    score=row["score"],
+                    brain_source=source
+                ))
 
-            return nodes
-        except sqlite3.Error as e:
-            raise SAMBrainError(f"Recall failed: {e}")
+        with self._get_connection() as conn:
+            _recall_from(conn, priority=1.5, source="project")
+            if self.global_db_path:
+                with sqlite3.connect(str(self.global_db_path)) as gconn:
+                    gconn.row_factory = sqlite3.Row
+                    _recall_from(gconn, priority=1.0, source="global")
 
-    def export_for_prompt(
-        self, query_entities: list[str], limit: int = 10, token_budget: int = 1000
-    ) -> str:
-        """Render Memory into a highly-compressed format for Agent Prompts."""
-        nodes = self.recall_context(query_entities, limit)
-        if not nodes:
-            return "<sam_memory>\nNo relevant facts found.\n</sam_memory>"
+        results.sort(key=lambda x: x.score, reverse=True)
+        return results[:limit]
 
-        lines = ["<sam_memory>", "### RELEVANT FACTS:"]
-        current_len = sum(len(line) for line in lines)
+    def get_stats(self) -> dict[str, Any]:
+        """Retrieve dual-brain metrics."""
+        stats = {"project": {}, "global": {}}
+        
+        def get_db_stats(conn, prefix=""):
+            p = f"{prefix}." if prefix else ""
+            return {
+                "nodes": conn.execute(f"SELECT COUNT(*) FROM {p}nodes").fetchone()[0],
+                "edges": conn.execute(f"SELECT COUNT(*) FROM {p}edges").fetchone()[0],
+                "observations": conn.execute(f"SELECT COUNT(*) FROM {p}observations").fetchone()[0],
+            }
 
-        for n in nodes:
-            line = f"- [{n.entity_uid}]: {n.content}"
-            if current_len + len(line) > token_budget:
-                break
-            lines.append(line)
-            current_len += len(line)
+        with self._get_connection() as conn:
+            stats["project"] = get_db_stats(conn)
+            if self.global_db_path:
+                conn.execute(f"ATTACH DATABASE '{self.global_db_path}' AS g")
+                stats["global"] = get_db_stats(conn, "g")
+        return stats
 
-        # Include relations if budget allows
-        if current_len < token_budget:
-            with self._get_connection() as conn:
-                placeholders = ",".join(["?"] * len(query_entities))
-                rel_sql = f"""
-                    SELECT e1.uid as src, r.type, e2.uid as tgt
-                    FROM relations r
-                    JOIN entities e1 ON r.source_id = e1.id
-                    JOIN entities e2 ON r.target_id = e2.id
-                    WHERE e1.uid IN ({placeholders}) OR e2.uid IN ({placeholders})
-                    LIMIT 5
-                """
-                rels = conn.execute(rel_sql, query_entities + query_entities).fetchall()
-                if rels:
-                    lines.append("\n### GRAPH RELATIONS:")
-                    for r in rels:
-                        lines.append(f"- {r['src']} --({r['type']})--> {r['tgt']}")
+    def process_gc(self) -> None:
+        """Memory lifecycle maintenance (WIP - Phase 3 focus)."""
+        pass
 
-        lines.append("</sam_memory>")
-        return "\n".join(lines)
-
-    def process_decay(self, decay_factor: float = 0.99) -> None:
-        """Maintenance task: Simulate forgetting by scaling down raw importance."""
-        try:
-            with self._get_connection() as conn:
-                conn.execute(
-                    "UPDATE facts SET importance = importance * ?", (decay_factor,)
-                )
-        except sqlite3.Error as e:
-            raise SAMBrainError(f"Decay process failed: {e}")
-
-    def get_stats(self) -> dict[str, int]:
-        """Retrieve cognitive metrics for the brain."""
-        try:
-            with self._get_connection() as conn:
-                entities = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
-                facts = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
-                active_facts = conn.execute(
-                    "SELECT COUNT(*) FROM facts WHERE is_active = 1"
-                ).fetchone()[0]
-                relations = conn.execute("SELECT COUNT(*) FROM relations").fetchone()[0]
-                lineage = conn.execute(
-                    "SELECT COUNT(*) FROM facts WHERE supersedes_id IS NOT NULL"
-                ).fetchone()[0]
-
-                return {
-                    "entities": entities,
-                    "facts": facts,
-                    "active_facts": active_facts,
-                    "relations": relations,
-                    "lineage_links": lineage,
-                }
-        except sqlite3.Error as e:
-            raise SAMBrainError(f"Failed to get stats: {e}")
-
-    def process_compaction(self) -> None:
-        """
-        Anti-Entropy maintenance: 
-        1. Collapse deep lineage chains.
-        2. Merge duplicates (WIP - Semantic logic required).
-        """
-        try:
-            with self._get_connection() as conn:
-                # Chain collapsing: If A -> B -> C, we can practically jump A -> C
-                # for historical audit but keep context clean.
-                # Implementation of full collapse logic pending semantic validation.
-                pass
-        except sqlite3.Error as e:
-            raise SAMBrainError(f"Compaction failed: {e}")
+    def export_for_prompt(self, entities: list[str], limit: int = 10, budget: int = 1000) -> str:
+        """Compact memory export for LLM prompts."""
+        memories = self.recall(entities, limit)
+        if not memories:
+            return "<kit_memory>\nNo relevant memories found.\n</kit_memory>"
+            
+        output = ["<kit_memory>"]
+        for m in memories:
+            output.append(f"[{m.brain_source}:{m.node_uid}] {m.content}")
+        output.append("</kit_memory>")
+        return "\n".join(output)

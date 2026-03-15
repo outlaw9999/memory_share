@@ -8,19 +8,50 @@
 
 Mục tiêu của `.kit` là trở thành **SQLite cho Agent Memory** — một hạ tầng lưu trữ trí nhớ tất định cho AI Agents.
 
-## 2. Core Architecture (Kiến trúc lõi)
-```text
-memory_share/
-├── runtime/        # Transactional Kernel (ACID cho trí nhớ)
-├── kit/
-│   ├── api.py      # Public API Boundary (Bản giao kèo ổn định)
-│   └── core/       # SAMBrain Cognitive Engine (Ranking & Reasoning)
-├── brain/ops/      # Ingestion & Maintenance (Lớp xử lý Layer 1-3)
-└── reports/        # Design Documents & Specifications
-```
+## 2. Elite Architecture (The 6-Layer Map)
 
-**Workflow:**
-`Agent/IDE` ➔ `kit/api.py` ➔ `SAMBrain (Ranking + Reasoning)` ➔ `SQLite Kernel`
+Để đạt được đẳng cấp "Infra-grade", `.kit` được thiết kế theo cấu trúc 6 tầng hội tụ:
+
+```mermaid
+graph TD
+    subgraph L1 ["1. Interface Layer"]
+        CLI["CLI Entrypoint (kit)"]
+        Aliases["Shell Aliases (kl, kr)"]
+    end
+
+    subgraph L2 ["2. I/O Stream Layer"]
+        TTY["TTY Detection"]
+        Output["Adaptive Output (Human v Machine)"]
+    end
+
+    subgraph L3 ["3. Command Logic Layer"]
+        Learn["Lazy Logic: learn"]
+        Recall["Lazy Logic: recall"]
+        Search["Lazy Logic: search (FTS5)"]
+    end
+
+    subgraph L4 ["4. Indexing Layer"]
+        FTS5["FTS5 + BM25"]
+        Porter["Porter Stemmer Tokenizer"]
+        Triggers["Auto-Sync Triggers"]
+    end
+
+    subgraph L5 ["5. Persistence Layer"]
+        SQLite["SQLite (brain.db)"]
+        WAL["WAL Mode (Concurrency)"]
+    end
+
+    subgraph L6 ["6. Governance Layer"]
+        Directives[".ai_directive"]
+        Stability["STABILITY.md"]
+    end
+
+    CLI --> TTY
+    TTY --> Learn & Recall & Search
+    Learn & Recall & Search --> FTS5
+    FTS5 --> SQLite
+    SQLite -.-> Directives
+```
 
 ---
 
@@ -30,36 +61,60 @@ memory_share/
 facts (
     id INTEGER PRIMARY KEY,
     entity_id INTEGER,
-    content TEXT,
-    importance REAL,
-    access_count INTEGER,
-    created_at TEXT,
-    is_active BOOLEAN DEFAULT 1
+    content TEXT NOT NULL,
+    importance REAL DEFAULT 0.5,
+    access_count INTEGER DEFAULT 0,
+    supersedes_id INTEGER, -- Lineage link
+    is_active BOOLEAN DEFAULT 1,
+    metadata TEXT DEFAULT '{}', -- JSON Escape Hatch
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 )
 ```
 Khi kiến thức thay đổi:
-1. **INSERT** fact mới.
-2. **SET** `old_fact.is_active = 0`.
+1. **INSERT** fact mới với `replaces_id`.
+2. **SET** `old_fact.is_active = 0` (Logical deletion).
 Điều này hỗ trợ: **Audit trail**, **Rollback**, và **Time-travel debugging**.
 
 ---
 
-## 4. Cognitive Ranking Algorithm
-Chúng tôi không sử dụng Vector Search. Ranking dựa trên thuật toán Heuristic tất định:
+## 4. SQLite Search Engine (The FTS5 Core)
+Thay vì sử dụng Vector Search nặng nề, `.kit` sử dụng **FTS5 External Content** làm nền tảng tìm kiếm từ khóa.
 
-$$Score = Importance \times \log_{10}(AccessCount + 2) \times \frac{1}{\sqrt{DaysSinceCreated + 1}}$$
-
-| Yếu tố | Vai trò | Chức năng |
-| --- | --- | --- |
-| **Importance** | Semantic Weight | Trọng số bản thể do Agent/Người dùng gán. |
-| **Frequency** | Reinforcement | Càng dùng nhiều điểm càng cao (Log-scale). |
-| **Recency** | Forgetting Curve | Phân rã dựa trên thời gian tạo (Square-root). |
+- **Porter Tokenizer**: Tự động đưa từ về dạng gốc (ví dụ: `connecting` -> `connect`), giúp tìm kiếm chính xác và linh hoạt.
+- **Zero Duplication**: FTS index chỉ lưu trữ pointer tới nội dung gốc, tiết kiệm dung lượng DB.
+- **Sub-50ms Latency**: Đảm bảo tốc độ "tức thì" ngay cả với tập dữ liệu lớn.
 
 ---
 
-## 5. Graph Expansion
-Recall không chỉ truy vấn Entity chính mà tự động mở rộng sang **1-hop neighbors**.
-- *Ví dụ*: Truy vấn `AuthService` sẽ tự động kéo theo các Fact từ `Redis` hoặc `JWT` nếu chúng có liên kết `USES` hoặc `REQUIRES`.
+## 4. Cognitive Ranking Algorithm (Half-life Decay)
+`.kit` sử dụng thuật toán phân rã tự nhiên để bảo tồn tri thức dài hạn mà không bị "xóa sổ" bởi thời gian.
+
+$$Score = Importance \times \log_{10}(AccessCount + 2) \times \frac{1}{1 + (DaysOld / 30)}$$
+
+| Yếu tố | Vai trò | Chức năng |
+| --- | --- | --- |
+| **Importance** | Semantic Weight | Trọng số bản thể (0.1 - 1.0). |
+| **Frequency** | Reinforcement | Càng dùng nhiều điểm càng cao (Log-scale). |
+| **Recency** | Half-life Decay | Phân rã theo chu kỳ bán rã (Mặc định: 30 ngày). |
+
+---
+
+## 6. Temporal Graph Memory (Chronos Layer)
+`.kit` không chỉ lưu trữ tri thức hiện tại mà còn bảo tồn toàn bộ lịch sử tiến hóa của tri thức.
+
+- **Snapshot Query**: Cho phép truy xuất trạng thái tri thức tại bất kỳ thời điểm nào trong quá khứ thông qua tham số `--at`.
+- **Relationship Lineage**: Các liên kết (`relations`) mang dấu mốc `created_at` và `superseded_at`, cho phép lật lại các quyết định kiến trúc cũ.
+
+*Ví dụ*: `kit recall --entities auth --at "2024-01-01"` sẽ trả về các Fact và quan hệ có hiệu lực tại ngày đó.
+
+---
+
+## 7. Unified Knowledge Quad (Quad-Store)
+Hệ thống vận hành trên 4 trụ cột logic ("4 Bảng Chân lý"):
+1. **Nodes (`entities`)**: Định danh & Phân loại thực thể.
+2. **Observations (`facts`)**: Tri thức nguyên tử & Episodic Records.
+3. **Edges (`relations`)**: Cấu trúc liên kết temporal.
+4. **Keyword Index (`facts_fts`)**: Search engine tốc độ cao.
 
 ---
 

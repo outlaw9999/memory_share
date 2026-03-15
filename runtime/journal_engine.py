@@ -98,14 +98,14 @@ class JournalEngine:
         print("[Journal] Khởi động tiến trình phục hồi (Crash Recovery)...")
 
         # Build State Machine từ Log
-        transactions = {}
+        transactions: dict[str, dict[str, object]] = {}
         with open(self.journal_path, encoding="utf-8") as f:
             for line in f:
                 if not line.strip():
                     continue
                 entry = json.loads(line)
 
-                txn_id = entry["txn_id"]
+                txn_id: str = entry["txn_id"]
                 tx = transactions.setdefault(txn_id, {"status": None})
 
                 if entry["type"] == "intent":
@@ -119,31 +119,27 @@ class JournalEngine:
                     tx["status"] = "rolled_back"
 
         recovered_count = 0
-        active_state = {}
+        active_state: dict[str, str] = {}
 
         for txn_id, tx in transactions.items():
-            active_state[txn_id] = tx["status"]
+            active_state[txn_id] = str(tx["status"])
 
             if tx["status"] == "pending":
-                print(
-                    f"[Journal] Phát hiện giao dịch dở dang: {txn_id}. Đang Replay..."
-                )
+                print(f"[Journal] Phát hiện giao dịch dở dang: {txn_id}. Đang Replay...")
                 try:
-                    driver_replay_callback(tx["intent"])
-                    self.commit(
-                        txn_id
-                    )  # Đánh dấu lại là commit sau khi replay thành công
+                    driver_replay_callback(tx["intent"])  # type: ignore[arg-type]
+                    self.commit(txn_id)
                     active_state[txn_id] = "committed"
                     recovered_count += 1
                 except MemoryConflictError:
                     print(
                         f"[Journal] Replay thất bại cho {txn_id} do Memory Conflict (old_hash mismatch). Rolling back."
                     )
-                    self.rollback(txn_id, "replay_conflict")
+                    self.rollback(txn_id, "replay_conflict")  # type: ignore[arg-type]
                     active_state[txn_id] = "rolled_back"
 
         # Cache trạng thái để boot nhanh hơn lần sau
-        self._write_txn_state(active_state)
+        self._write_txn_state(active_state)  # type: ignore[arg-type]
 
         if recovered_count == 0:
             print("[Journal] Trạng thái Memory an toàn. Không cần phục hồi.")
