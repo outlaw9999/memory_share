@@ -72,6 +72,7 @@ def learn(
     layer: str = "episodic",
     namespace: str = "shared",
     agent_id: str | None = None,
+    supersede_id: int | None = None,
 ) -> int:
     """
     Primary API for an Agent to 'learn' a new observation.
@@ -96,6 +97,7 @@ def learn(
         metadata=meta,
         namespace=namespace,
         agent_id=agent_id or meta.get("agent"),
+        supersede_id=supersede_id,
     )
 
 
