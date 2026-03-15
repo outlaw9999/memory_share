@@ -13,9 +13,9 @@ class SAMBrainError(Exception):
     pass
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Memory:
-    """Immutable representation of a retrieved memory fact."""
+    """Immutable representation of a retrieved memory fact (v3.14 compliant)."""
     id: int
     node_uid: str
     content: str
@@ -67,6 +67,7 @@ class SAMBrain:
         layer: str = "episodic",
         metadata: dict[str, Any] | None = None,
         to_global: bool = False,
+        supersede_id: int | None = None,
     ) -> int:
         """Learn a new observation at a specific node."""
         target_db = self.global_db_path if (to_global and self.global_db_path) else self.db_path
@@ -74,6 +75,14 @@ class SAMBrain:
         try:
             with sqlite3.connect(str(target_db)) as conn:
                 conn.row_factory = sqlite3.Row
+                
+                # 0. Handle Supersede
+                if supersede_id:
+                    conn.execute(
+                        "UPDATE observations SET superseded_at = CURRENT_TIMESTAMP WHERE id = ?",
+                        (supersede_id,)
+                    )
+
                 # 1. Upsert Node
                 conn.execute(
                     "INSERT INTO nodes (uid, kind) VALUES (?, ?) ON CONFLICT(uid) DO UPDATE SET uid=uid",
@@ -118,7 +127,7 @@ class SAMBrain:
                     (src_row["id"], rel, dst_row["id"], meta_json)
                 )
         except sqlite3.Error as e:
-            raise SAMBrainError(f"Failed to link nodes: {e}")
+            raise SAMBrainError(f"Failed to link nodes: {e}") from e
 
     def search(self, query: str, limit: int = 15, at_timestamp: str | None = None) -> list[Memory]:
         """Hybrid FTS Search across both brains."""
@@ -133,7 +142,7 @@ class SAMBrain:
             (
                 o.importance
                 * ((o.access_count + 1) / (o.access_count + 5.0))
-                * EXP(-0.0231 * (JULIANDAY('{ts}') - JULIANDAY(o.created_at)))
+                * EXP(-0.0231 * (JULIANDAY(?) - JULIANDAY(o.created_at)))
                 * {priority}
                 * CASE o.layer
                     WHEN 'working' THEN 3.0
@@ -145,12 +154,12 @@ class SAMBrain:
             FROM {p}observations o
             JOIN {p}nodes n ON o.node_id = n.id
             WHERE o.id IN (SELECT rowid FROM {p}observations_fts WHERE {p}observations_fts MATCH ?)
-              AND julianday(o.created_at) <= julianday('{ts}')
-              AND ({p}observations.superseded_at IS NULL OR julianday({p}observations.superseded_at) > julianday('{ts}'))
+              AND julianday(o.created_at) <= julianday(?)
+              AND ({p}observations.superseded_at IS NULL OR julianday({p}observations.superseded_at) > julianday(?))
             ORDER BY score DESC
             LIMIT {limit}
             """
-            cur = conn.execute(sql, (query,))
+            cur = conn.execute(sql, (ts, query, ts, ts))
             for row in cur.fetchall():
                 results.append(Memory(
                     id=row["id"],
@@ -192,7 +201,7 @@ class SAMBrain:
             (
                 o.importance
                 * ((o.access_count + 1) / (o.access_count + 5.0))
-                * EXP(-0.0231 * (JULIANDAY('{ts}') - JULIANDAY(o.created_at)))
+                * EXP(-0.0231 * (JULIANDAY(?) - JULIANDAY(o.created_at)))
                 * {priority}
                 * CASE o.layer
                     WHEN 'working' THEN 3.0
@@ -204,12 +213,13 @@ class SAMBrain:
             FROM {p}observations o
             JOIN {p}nodes n ON o.node_id = n.id
             WHERE n.uid IN ({placeholders})
-              AND julianday(o.created_at) <= julianday('{ts}')
-              AND (o.superseded_at IS NULL OR julianday(o.superseded_at) > julianday('{ts}'))
+              AND julianday(o.created_at) <= julianday(?)
+              AND (o.superseded_at IS NULL OR julianday(o.superseded_at) > julianday(?))
             ORDER BY score DESC
             LIMIT {limit}
             """
-            cur = conn.execute(sql, uids)
+            params = [ts] + uids + [ts, ts]
+            cur = conn.execute(sql, params)
             for row in cur.fetchall():
                 results.append(Memory(
                     id=row["id"],

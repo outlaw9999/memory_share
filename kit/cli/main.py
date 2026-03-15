@@ -23,6 +23,7 @@ def main():
     learn_p.add_argument("--kind", default="observation", help="Node kind (e.g., concept, bug, arch)")
     learn_p.add_argument("--content", help="The observation to remember")
     learn_p.add_argument("--importance", type=float, default=1.0, help="Importance [0.1 - 1.0]")
+    learn_p.add_argument("--supersede", type=int, help="ID of the observation to supersede")
     learn_p.add_argument(
         "--layer",
         "-l",
@@ -85,14 +86,15 @@ def main():
 
             uid = args.uid or current_context
             
-            # API call now supports to_global
+            # API call now supports to_global and supersede
             fact_id = api.get_brain().learn(
                 uid=uid,
                 kind=args.kind,
                 content=content,
                 importance=args.importance,
                 layer=args.layer,
-                to_global=args.to_global
+                to_global=args.to_global,
+                supersede_id=args.supersede
             )
             target = "Global" if args.to_global else "Project"
             print_diagnostic(f"✅ Learned: [{uid}] -> {target} Brain (ID: {fact_id})")
@@ -106,7 +108,7 @@ def main():
                 print_diagnostic("No matches found.")
             else:
                 for m in memories:
-                    print(f"• [{m.brain_source}:{m.node_uid}] {m.content} (score: {m.score:.2f})")
+                    print(f"• [ID:{m.id}][{m.brain_source}:{m.node_uid}] {m.content} (score: {m.score:.2f})")
 
         elif args.command == "recall":
             entities = args.entities or [current_context]
@@ -119,7 +121,7 @@ def main():
                 print_diagnostic("No relevant memories found.")
             else:
                 for m in memories:
-                    print(f"• [{m.brain_source}:{m.node_uid}] {m.content}")
+                    print(f"• [ID:{m.id}][{m.brain_source}:{m.node_uid}] {m.content}")
 
         elif args.command == "link":
             api.link(args.src, args.dst, args.rel, args.weight)

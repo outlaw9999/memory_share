@@ -134,11 +134,11 @@ def decay() -> None:
 
 
 def touch(fact_id: int) -> bool:
-    """Refresh a fact's timestamp to 'burn' its working memory priority again."""
+    """Refresh a fact's timestamp (v3.14 compliant)."""
     try:
         get_brain().touch_fact(fact_id)
         return True
-    except Exception:
+    except SAMBrainError:
         return False
 
 
