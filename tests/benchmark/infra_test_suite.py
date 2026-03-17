@@ -28,17 +28,17 @@ def high_stakes_test():
         conn.execute("PRAGMA synchronous = OFF") # Turbo mode for ingestion
         conn.execute("BEGIN TRANSACTION")
         
-        # Create 100,000 entities
+        # Create 100,000 nodes
         for i in range(100000):
-            conn.execute("INSERT INTO entities (uid, kind) VALUES (?, ?)", (f"entity_{i}", "node"))
+            conn.execute("INSERT INTO nodes (uid, kind) VALUES (?, ?)", (f"entity_{i}", "node"))
             
-        # Create 1,000,000 facts
+        # Create 1,000,000 observations
         for i in range(1000000):
-            entity_id = (i % 100000) + 1
+            node_id = (i % 100000) + 1
             content = f"Atomic observation {i} about semantic property {random.randint(1, 1000)}"
             conn.execute(
-                "INSERT INTO facts (entity_id, content, source, importance, metadata) VALUES (?, ?, ?, ?, ?)",
-                (entity_id, content, "bulk_simulator", random.uniform(0.1, 1.0), "{}")
+                "INSERT INTO observations (node_id, content, importance, metadata) VALUES (?, ?, ?, ?, ?)",
+                (node_id, content, random.uniform(0.1, 1.0), "{}")
             )
             
         conn.execute("COMMIT")
@@ -78,10 +78,10 @@ def high_stakes_test():
     # 4. Ranking Sanity Check (Half-life Decay)
     print("\n⚖️ Verifying Half-life Ranking...")
     with brain._get_connection() as conn:
-        # Manipulate one fact to be OLD (30 days ago)
-        conn.execute("UPDATE facts SET created_at = datetime('now', '-30 days'), importance = 1.0 WHERE id = 1")
-        # One fact is NEW (now)
-        conn.execute("UPDATE facts SET created_at = datetime('now'), importance = 1.0 WHERE id = 2")
+        # Manipulate one observation to be OLD (30 days ago)
+        conn.execute("UPDATE observations SET created_at = datetime('now', '-30 days'), importance = 1.0 WHERE id = 1")
+        # One observation is NEW (now)
+        conn.execute("UPDATE observations SET created_at = datetime('now'), importance = 1.0 WHERE id = 2")
         
     results = api.recall(["entity_0"], limit=10)
     # The one with id=2 should be higher than id=1

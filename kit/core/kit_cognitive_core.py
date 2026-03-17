@@ -1,9 +1,19 @@
 import json
 import sqlite3
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any
 from datetime import datetime
+
+from kit.core import schema_factory
+from kit.core.schema_factory import enable_wal, init_db
+
+
+class FactTag(str, Enum):
+    INVARIANT = "invariant"
+    DECISION = "decision"
+    PREFERENCE = "preference"
 
 from kit.core import schema_factory
 from kit.core.schema_factory import enable_wal, init_db
@@ -29,6 +39,7 @@ class Memory:
     importance: float = 1.0
     symbol: str | None = None
     branch: str = "main"
+    tag: str = "decision"
 
 
 class SAMBrain:
@@ -265,7 +276,8 @@ class SAMBrain:
         scope: str | None = None,
         agent_id: str | None = None,
         symbol: str | None = None,
-        structural_hash: str | None = None
+        structural_hash: str | None = None,
+        tag: str = FactTag.DECISION.value
     ) -> int:
         """Learn a new observation at a specific node."""
         target_db = self.global_db_path if (to_global and self.global_db_path) else self.db_path
@@ -301,12 +313,12 @@ class SAMBrain:
                 sql = """
                 INSERT INTO observations (
                     node_id, content, importance, layer, metadata, namespace, scope, agent_id, 
-                    commit_id, branch, symbol, structural_hash, materialized_score
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    commit_id, branch, symbol, structural_hash, materialized_score, tag
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
                 cur = conn.execute(sql, (
                     node_id, content, importance, layer, meta_json, namespace, normalized_scope, agent_id, 
-                    commit_id, self.current_branch, symbol, structural_hash, m_score
+                    commit_id, self.current_branch, symbol, structural_hash, m_score, tag
                 ))
                 fact_id = cur.lastrowid
                 
@@ -404,7 +416,9 @@ class SAMBrain:
                     branch=row["branch"],
                     created_at=row["created_at"],
                     importance=row["importance"],
-                    symbol=row["symbol"] # Added symbol
+                    symbol=row["symbol"],
+                    tag=row["tag"],
+                    scope=row["scope"]
                 ))
 
         # 1. Project Brain
@@ -543,7 +557,9 @@ class SAMBrain:
                     branch=row["branch"],
                     created_at=row["created_at"],
                     importance=row["importance"],
-                    symbol=row["symbol"]
+                    symbol=row["symbol"],
+                    tag=row["tag"],
+                    scope=row["scope"]
                 ))
 
         with self._get_connection() as conn:

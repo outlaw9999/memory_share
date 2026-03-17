@@ -27,3 +27,5 @@ _tmp*/
 # .kit Memory Store
 .kit/brain.db-*
 .kit/brain.db.bak
+.kit/*.wal
+.kit/*.shm

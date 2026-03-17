@@ -1,0 +1,5 @@
+# .kit Project Context
+# Generated: 2026-03-15 23:25:37 | Root: test_repo_root
+
+- [src/auth] JWT should have 30s skew tolerance
+- Project uses Python 3.14

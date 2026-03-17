@@ -1,47 +1,21 @@
-# .kit — Deterministic Memory for AI Agents
+# 🧠 .kit — Deterministic Memory for AI Agents
 
-> .kit is a deterministic memory engine for AI agents, with a built-in governance and coordination layer.
+> **Without memory, agents hallucinate. .kit fixes that.**
+> 
+> AI agents suffer from a fatal flaw: **They have amnesia.** Context windows reset. Architectural rules are forgotten. Multiple agents overwrite each other because they lack a persistent, shared worldview.
+> 
+> `.kit` is a deterministic, filesystem-anchored memory engine and governance bus for AI. No vector databases. No hallucinations. Just structural integrity.
 
-## 🚨 The Problem: Agents Have No Memory
-Current AI agents suffer from a fatal flaw: **They are stateless.** Context windows reset after every interaction. Architectural decisions are forgotten. Multiple agents working on the same repository overwrite each other's logic because they do not share a persistent, deterministic worldview.
+## 🎯 What does it do?
+Instead of probabilistic RAG, `.kit` provides a SQLite-backed **Agent Memory Share Bus (AMSB)** that enforces rules before code is committed.
+- **Remember**: `kit learn` injects persistent architectural decisions.
+- **Recall**: `kit recall` instantly retrieves $PWD-anchored context.
+- **Reflect**: `kit reflect` detects missing knowledge and architectural drift in real-time.
+- **Govern**: `kit preflight` (Git hook) strictly blocks agents from committing hallucinated dependencies or violating invariants.
 
-## 💡 The Solution
+## 🚦 Quickstart
 
-`.kit` is a deterministic memory engine for AI agents.
-
-It acts as a cognitive infrastructure layer, enabling shared memory, coordination, and governance across multiple agents—anchored directly to your filesystem.
-
----
-
-## 🎯 Who is this for?
-
-- AI-native developers
-- Multi-agent systems
-- Teams using Codex, Google Antigravity, or other automation agents
-
-
-## 🏛️ Architecture: The 7-Layer Cognitive Map
-
-.kit is built on a modular hierarchy, evolving from raw storage to active cognition:
-
-### Layers 1–4: The Memory Engine (SAM Core)
-1. **Persistence Layer**: SQLite FTS5 - Fast, deterministic, zero-infrastructure storage.
-2. **Contextual Layer**: Hierarchy-based recall anchored to your `$PWD`.
-3. **Temporal Layer**: Immutable Ledger - Append-only history with full time-travel capability.
-4. **Ranking Layer**: `materialized_score` - Deterministic ranking based on Importance, Frequency, and Decay (No runtime AI math).
-
-### Layers 5–6: The Cognitive Bus (AMSB)
-5. **Coordination Layer**: Multi-agent shared memory space with event-driven updates.
-6. **Governance Layer**: `kit preflight` - Architectural gatekeeper (Git Hook) that enforces discipline and blocks hallucinations.
-
-### Layer 7: Cognitive Feedback (Coming Soon)
-7. **Feedback Layer**: `kit reflect` - Self-awareness, Gap Detection, and Architectural Drift analysis.
-
----
-
-## 🚦 Getting Started
-
-### 1. Installation
+### 1. Install Globally
 ```bash
 # Windows
 install.bat
@@ -50,12 +24,16 @@ install.bat
 curl -sSL https://raw.githubusercontent.com/vantruong-dang/memory_share/main/install.sh | bash
 ```
 
-### 2. Initialize your Brain
+### 2. Initialize a Brain in any repository
 ```bash
-cd my-project
+cd your-project
 kit init
 ```
-This bootstraps `.kit/brain.db` and the canonical `AGENTS.md` manifest.
+
+### 3. Teach your agent a physical law
+```bash
+kit learn --tag invariant "This project strictly uses PostgreSQL. Never use Redis."
+```
 
 ---
 
@@ -66,10 +44,7 @@ This bootstraps `.kit/brain.db` and the canonical `AGENTS.md` manifest.
 - **`kit preflight`**: Pre-commit gatekeeper to prevent architectural entropy.
 - **`kit doctor`**: Run deterministic self-cleaning and maintenance.
 
----
-
-## 📜 Technical Deep Dive
-For detailed information on the Quad-Store schema, FTS5 indexing, and the cognitive ranking algorithm, see [ARCHITECTURE.md](ARCHITECTURE.md).
+For the low-level Quad-Store schema, FTS5 engine, and the math behind our Supreme Court Arbitrator, see [ARCHITECTURE.md](ARCHITECTURE.md). For the ideological vision, see [MANIFESTO.md](MANIFESTO.md).
 
 ---
 

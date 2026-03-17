@@ -23,10 +23,10 @@ def temporal_test():
     # We use manual julianday manipulation for testing speed
     api.learn("redis", "infra", "Redis is a fast in-memory store")
     api.learn("auth", "infra", "Auth uses Redis (T0)")
-    api.link_entities("auth", "redis", "USES")
+    api.link("auth", "redis", "USES")
     
     with api.get_brain()._get_connection() as conn:
-        conn.execute("UPDATE facts SET created_at = julianday('now', '-1 day')")
+        conn.execute("UPDATE observations SET created_at = julianday('now', '-1 day')")
         conn.execute("UPDATE relations SET created_at = julianday('now', '-1 day')")
         t0 = (datetime.now() - timedelta(hours=12)).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -37,26 +37,26 @@ def temporal_test():
     # Get ID of first fact belonging to 'auth'
     with api.get_brain()._get_connection() as conn:
         fid = conn.execute("""
-            SELECT f.id FROM facts f 
-            JOIN entities e ON f.entity_id = e.id 
-            WHERE f.content LIKE '%Redis%' AND e.uid = 'auth'
+            SELECT o.id FROM observations o 
+            JOIN nodes n ON o.node_id = n.id 
+            WHERE o.content LIKE '%Redis%' AND n.uid = 'auth'
         """).fetchone()["id"]
     
     api.learn("kafka", "infra", "Kafka is a distributed streaming platform")
-    api.learn("auth", "infra", "Auth uses Kafka (T1)", replaces_id=fid)
-    api.link_entities("auth", "kafka", "USES", supersede=True)
+    api.learn("auth", "infra", "Auth uses Kafka (T1)", supersede_id=fid)
+    api.link("auth", "kafka", "USES")
     
     # 3. Verification: Today
     print("\n🧐 Verifying 'Today' (Should see Kafka):")
     res_now = api.recall(["auth"])
     for r in res_now:
-        print(f"  - [{r.entity_uid}] {r.content}")
+        print(f"  - [{r.node_uid}] {r.content}")
     
     # 4. Verification: Yesterday (Snapshot T0)
     print(f"\n🧐 Verifying Snapshot at T0: {t0} (Should see Redis):")
     res_t0 = api.recall(["auth"], at=t0)
     for r in res_t0:
-        print(f"  - [{r.entity_uid}] {r.content}")
+        print(f"  - [{r.node_uid}] {r.content}")
 
     # Success criteria
     redis_in_t0 = any("Redis" in r.content for r in res_t0)

@@ -1,0 +1,2 @@
+@echo off
+echo PLUGIN_CALLED_SUCCESSFULLY

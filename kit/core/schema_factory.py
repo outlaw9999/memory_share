@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS observations (
     node_id INTEGER NOT NULL,
     content TEXT NOT NULL,
     layer TEXT CHECK(layer IN ('working', 'episodic', 'semantic', 'procedural')) DEFAULT 'episodic',
+    tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference')) DEFAULT 'decision',
     importance REAL DEFAULT 1.0,
     materialized_score REAL NOT NULL DEFAULT 1.0,
     access_count INTEGER DEFAULT 0,
@@ -155,6 +156,15 @@ def init_db(conn: sqlite3.Connection):
     try:
         conn.execute("ALTER TABLE observations ADD COLUMN structural_hash TEXT")
         logger.info("Migrated: Added structural_hash to observations")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE observations ADD COLUMN tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference')) DEFAULT 'decision'")
+        # Give existing facts that might have [Kind: invariant/decision/preference] their proper tags, otherwise default to decision
+        conn.execute("UPDATE observations SET tag = 'invariant' WHERE content LIKE '%[Kind: invariant]%'")
+        conn.execute("UPDATE observations SET tag = 'preference' WHERE content LIKE '%[Kind: preference]%'")
+        logger.info("Migrated: Added tag enum to observations")
     except sqlite3.OperationalError:
         pass
 

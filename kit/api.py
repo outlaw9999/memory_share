@@ -152,6 +152,52 @@ def preflight_check(commit_msg: str, strict: bool = False) -> dict:
     return dataclasses.asdict(result)
 
 
+def reflect_check(diff_text: str | None = None, scope: str | None = None) -> dict:
+    """Run cognitive reflection check."""
+    from kit.core.kit_reflect import run_reflect
+    import subprocess
+    
+    if diff_text is None:
+        try:
+            # Check for staged changes first
+            diff_text = subprocess.check_output(["git", "diff", "--cached"], text=True)
+            if not diff_text:
+                # Fallback to current changes
+                diff_text = subprocess.check_output(["git", "diff", "HEAD"], text=True)
+        except Exception:
+            diff_text = ""
+            
+    report = run_reflect(get_brain(), diff_text, scope=scope)
+    
+    # Map ReflectReport fields to the list-of-issues format the CLI likes
+    issues = []
+    for g in report.gaps:
+        issues.append({"type": "gap", "message": f"'{g}' not found in memory (New signal)", "suggestion": f"kit learn --uid {g}"})
+    for d in report.drifts:
+        issues.append({"type": "drift", "message": f"'{d}' found but not verified in this scope", "suggestion": f"kit learn --uid {d} --scope {scope or 'here'}"})
+    for v in report.violations:
+        issues.append({"type": "violation", "message": f"'{v}' violates an architectural invariant", "suggestion": f"kit blame {v}"})
+    for c in report.confirmations:
+        # Confirmations are positive, could be added as 'info' issues or handled separately
+        pass
+
+    matched_signals = report.confirmations + report.drifts + report.violations
+
+    return {
+        "score": report.score,
+        "status": report.status,
+        "issues": issues,
+        "matched_signals": matched_signals,
+        "suggestions": report.suggestions
+    }
+
+
+def reflect(diff_text: str, scope: str | None = None) -> Any:
+    """Run cognitive reflection on a code diff."""
+    from kit.core.kit_reflect import run_reflect
+    return run_reflect(get_brain(), diff_text, scope)
+
+
 if __name__ == "__main__":
     from kit.cli.main import main
     main()

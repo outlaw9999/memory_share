@@ -76,6 +76,14 @@ def main():
     context_p.add_argument("--symbol", help="Recall context specifically for this code symbol")
     context_p.add_argument("--fast", action="store_true", help="Fast mode (skip heavy ranking)")
 
+    # Command: reflect
+    reflect_p = subparsers.add_parser("reflect", help="Cognitive Awareness: detect gaps and drift in diff")
+    reflect_p.add_argument("file", nargs="?", help="File to reflect on (or use staged changes)")
+    reflect_p.add_argument("--strict", action="store_true", help="Exit 1 on architectural violations")
+    reflect_p.add_argument("--json", action="store_true", help="Structured JSON output")
+    reflect_p.add_argument("--scope", help="Optional explicit scope (folder path)")
+    reflect_p.add_argument("--here", action="store_true", help="Filter by current directory scope")
+
     # Command: blame
     blame_p = subparsers.add_parser("blame", help="Show architectural causality chain for a symbol")
     blame_p.add_argument("symbol", help="The code symbol (function, class, etc.)")
@@ -119,7 +127,7 @@ def main():
     preflight_p.add_argument("--json", action="store_true", help="Output raw JSON format")
 
     # Plugin Delegation Logic (Git-style) - Checked BEFORE argparse for unknown commands
-    known_commands = ["init", "learn", "search", "recall", "context", "where", "link", "stats", "bump", "promote", "doctor", "render", "watch", "preflight"]
+    known_commands = ["init", "learn", "search", "recall", "context", "where", "link", "stats", "bump", "promote", "doctor", "render", "watch", "preflight", "blame", "reflect"]
     
     if len(sys.argv) > 1:
         potential_cmd = sys.argv[1]
@@ -331,6 +339,87 @@ def main():
             if result['status'] == "block":
                 sys.exit(2)
             sys.exit(0)
+
+        elif args.command == "reflect":
+            diff_text = ""
+            if args.file:
+                if not Path(args.file).exists():
+                    print_diagnostic(f"❌ Error: File {args.file} not found.")
+                    sys.exit(1)
+                with open(args.file, "r", encoding="utf-8") as f:
+                    diff_text = f.read()
+            else:
+                # Fallback: Check for staged git changes
+                try:
+                    diff_text = subprocess.check_output(["git", "diff", "--cached"], text=True)
+                    if not diff_text:
+                        # Fallback to current changes
+                        diff_text = subprocess.check_output(["git", "diff", "HEAD"], text=True)
+                except Exception:
+                    print_diagnostic("❌ Error: No file provided and no staged git changes found.")
+                    sys.exit(1)
+
+            if not diff_text:
+                print_diagnostic("⚠️ No changes detected for reflection.")
+                sys.exit(0)
+
+            scope = args.scope
+            if getattr(args, "here", False):
+                scope = api.get_brain().get_normalized_scope()
+
+            report = api.reflect(diff_text, scope=scope)
+            
+            if args.json:
+                import json
+                print(json.dumps(vars(report), indent=2))
+            else:
+                print("\n🧠 Cognitive Reflection")
+                color = "✅" if report.score > 0.8 else "⚠️" 
+                if report.status == "BLOCK": color = "🛑"
+                
+                print(f"\nScore: {report.score:.1f} ({report.status}) {color}")
+                
+                if report.confirmations:
+                    print("\n✅ Confirmations:")
+                    for c in report.confirmations:
+                        res = report.resolutions.get(c)
+                        if res and "Overrides" in res.reason:
+                            print(f"  - {c} aligns with previous decisions (Arbitrated: {res.reason} [Conf: {res.confidence:.1f}])")
+                        else:
+                            print(f"  - {c} aligns with previous decisions")
+                
+                if report.gaps:
+                    print("\n⚠️ Gaps (Missing from memory):")
+                    for g in report.gaps:
+                        print(f"  - {g}")
+                        
+                if report.drifts:
+                    print("\n⚠️ Drifts (Scope mismatch):")
+                    for d in report.drifts:
+                        res = report.resolutions.get(d)
+                        reason = f" ({res.reason})" if res else ""
+                        print(f"  - {d}{reason}")
+                        
+                if report.violations:
+                    print("\n❌ Violations (Invariant broken):")
+                    for v in report.violations:
+                        res = report.resolutions.get(v)
+                        # Highlighting Constitutional Violation
+                        if res and "CONSTITUTIONAL" in res.reason:
+                            print(f"  - {v} -> 🛑 {res.reason}")
+                        else:
+                            reason = f" -> {res.reason}" if res else ""
+                            print(f"  - {v}{reason}")
+                
+                if report.suggestions:
+                    print("\n💡 Suggestions:")
+                    for s in report.suggestions:
+                        print(f"  - {s}")
+                
+                print("")
+
+            if args.strict and report.status == "BLOCK":
+                sys.exit(1)
 
     except Exception as e:
         print_diagnostic(f"❌ Error: {e}")

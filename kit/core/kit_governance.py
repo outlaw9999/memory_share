@@ -2,8 +2,13 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from typing import List, Dict, Any
+from enum import Enum
 from kit.core.kit_cognitive_core import SAMBrain
 from pathlib import Path
+
+class ConflictLevel(str, Enum):
+    SOFT = "soft"
+    HARD = "hard"
 
 @dataclass
 class PreflightResult:
@@ -12,15 +17,17 @@ class PreflightResult:
     issues: List[Dict[str, str]] = field(default_factory=list)
     suggestions: List[str] = field(default_factory=list)
 
-def strip_comments_and_strings(code: str) -> str:
-    """Heuristic to remove common comments and strings from code diffs."""
+def normalize_content(code: str) -> str:
+    """Heuristic to remove common comments, strings, and normalize whitespace from code diffs."""
     # Remove single line comments (Python, JS, Shell)
     code = re.sub(r'#.*|//.*', '', code)
     # Remove multi-line comments (JS/C-style)
     code = re.sub(r'/\*.*?\*/', '', code, flags=re.DOTALL)
     # Remove strings
     code = re.sub(r'".*?"|\'.*?\'', '', code)
-    return code.lower()
+    # Normalize whitespace
+    code = re.sub(r'\s+', ' ', code)
+    return code.lower().strip()
 
 def run_preflight(commit_msg: str, brain: SAMBrain, strict_mode: bool = False, limit: int = 20) -> PreflightResult:
     result = PreflightResult()
@@ -29,11 +36,11 @@ def run_preflight(commit_msg: str, brain: SAMBrain, strict_mode: bool = False, l
     try:
         diff_output = subprocess.check_output(
             ["git", "diff", "--cached", "--unified=0"], 
-            stderr=subprocess.STDOUT, text=True
+            stderr=subprocess.STDOUT, text=True, errors='replace'
         )
         staged_files = subprocess.check_output(
             ["git", "diff", "--cached", "--name-only"], 
-            text=True
+            text=True, errors='replace'
         ).splitlines()
     except subprocess.CalledProcessError:
         result.issues.append({"type": "git", "message": "Not a git repository or no staged files."})
@@ -70,36 +77,57 @@ def run_preflight(commit_msg: str, brain: SAMBrain, strict_mode: bool = False, l
     # 3. L2: Cognitive Alignment Check
     # We fetch top invariant/decision facts to see if diff violates them.
     conn = brain._get_connection()
-    sem_rows = conn.execute("""
-        SELECT content FROM observations 
-        WHERE branch = ? AND (layer = 'semantic' OR content LIKE '%[Kind: invariant]%')
-        ORDER BY materialized_score DESC LIMIT ?
-    """, (brain.current_branch, limit)).fetchall()
+    try:
+        sem_rows = conn.execute("""
+            SELECT tag, content FROM observations 
+            WHERE branch = ? AND (layer = 'semantic' OR tag IN ('invariant', 'decision', 'preference'))
+            ORDER BY materialized_score DESC LIMIT ?
+        """, (brain.current_branch, limit)).fetchall()
+    except sqlite3.OperationalError:
+        # Fallback for when tag column doesn't exist yet (before migration)
+        sem_rows = conn.execute("""
+            SELECT 'decision' as tag, content FROM observations 
+            WHERE branch = ? AND (layer = 'semantic' OR content LIKE '%[Kind: invariant]%')
+            ORDER BY materialized_score DESC LIMIT ?
+        """, (brain.current_branch, limit)).fetchall()
     
-    clean_diff = strip_comments_and_strings(diff_output)
+    clean_diff = normalize_content(diff_output)
     
-    # Basic Heuristic Keyword Expansion Map
-    TECH_ALIASES = {
-        "postgres": ["postgres", "psql", "postgresql"],
-        "redis": ["redis", "cache"],
-        "sqlite": ["sqlite", "sqlite3"],
-        "fastapi": ["fastapi", "starlette"],
-        "flask": ["flask", "werkzeug"]
+    # Pattern-based Heuristic Map
+    TECH_PATTERNS = {
+        "redis": [re.compile(r"\bimport redis\b"), re.compile(r"\bfrom redis\b")],
+        "postgres": [re.compile(r"\bpsycopg\b"), re.compile(r"\bpostgres\b"), re.compile(r"\bpostgresql\b")],
+        "sqlite": [re.compile(r"\bsqlite3?\b")],
+        "fastapi": [re.compile(r"\bfastapi\b"), re.compile(r"\bstarlette\b")],
+        "flask": [re.compile(r"\bflask\b"), re.compile(r"\bwerkzeug\b")]
     }
     
     for row in sem_rows:
+        fact_tag = row["tag"]
         fact_content = row["content"].lower()
-        # If fact mentions a tech stack element that is forbidden or prescribed
-        # We do a naive check: if fact mentions postgres but diff introduces redis, warn.
-        # This is a basic simulation of cognitive alignment.
-        for tech, aliases in TECH_ALIASES.items():
-            if tech in fact_content and any(alias in clean_diff for alias in TECH_ALIASES.get("redis", ["redis"]) if tech != "redis"):
-                # Example rule: if memory talks about postgres, but diff brings in redis
-                # Note: A real implementation would parse the fact to see if it's a positive or negative constraint.
-                # For now, we apply a tiny penalty as an illustrative alignment drift.
-                result.score -= 0.1
-                result.issues.append({"type": "alignment", "message": f"Diff mentions alternative tech to established '{tech}' memory."})
-                break
+        
+        # Formalize rule engine check. 
+        # A simple naive rule mapper for demonstration of the pattern engine
+        forbidden_tech = []
+        if "sqlite" in fact_content and any(w in fact_content for w in ["only", "must", "always"]):
+            forbidden_tech = ["redis", "postgres"]
+        elif "postgres" in fact_content and any(w in fact_content for w in ["only", "must", "always"]):
+            forbidden_tech = ["redis", "sqlite"]
+            
+        for tech in forbidden_tech:
+            for pattern in TECH_PATTERNS.get(tech, []):
+                if pattern.search(clean_diff):
+                    is_hard = fact_tag == "invariant"
+                    penalty = 0.5 if is_hard else 0.2
+                    level = ConflictLevel.HARD if is_hard else ConflictLevel.SOFT
+                    
+                    result.score -= penalty
+                    result.issues.append({
+                        "type": "alignment", 
+                        "message": f"[{level.upper()}] Diff introduces '{tech}' which violates '{fact_content[:40]}...'"
+                    })
+                    if is_hard:
+                        result.status = "block"
 
     # 4. L3: Documentation Sync Check
     docs_changed = any("AGENTS.md" in f or "README.md" in f for f in staged_files)

@@ -1,0 +1,25 @@
+# .kit Project Context
+# Generated: 2026-03-18 00:07:48 | Root: memory_share
+# Cognition-Version: 32
+
+- [src/auth] ARCH: Token must have 30s skew tolerance.
+- [src/auth] ARCH: Token must have 30s skew tolerance.
+- Runtime & Mindset: Python >= 3.14. Design as if the GIL does not exist (thread-safe by default).
+- Typing: Mandatory strict typing. Every public/internal function MUST have full type hints. Use pyright or mypy --strict.
+- Data Modeling: Prefer immutable models. Use @dataclass(frozen=True, slots=True) for nogil-ready efficiency.
+- Error Model: No silent failures. Custom exceptions (SAMBrainError) for domain errors. Re-raised with context (from e).
+- Refactor Governance: Legacy code migrated incrementally. Update tests, examples (minimal_example.py), and docs for every refactor.
+- The path from code change to persistent memory follows a strict 5-step loop: Signal Detection -> recall() -> reflect() -> preflight() -> learn().
+- A lower-authority tag (decision) can NEVER override a higher-authority tag (invariant). Violations result in a hard BLOCK.
+- Memory must be Deterministic: If 10 agents ask the same question, they must get the exact same ranked facts.
+- DO NOT USE VANTAGE DIRECTLY
+- [auth] Use vantage for auth
+- DO NOT USE VANTAGE DIRECTLY
+- README.md defines .kit as the Cognitive OS layer for AI agents, moving beyond a simple memory tool.
+- Always use REST APIs instead of GraphQL
+- Event test
+- API Regression: minimal_example.py failed due to legacy 'replaces_id' param after Phase 2 refactor. Fix: Updated examples and exposed 'supersede_id' in public api.py.
+- Schema Migration: missing 'try:' in schema_factory.py caused SyntaxError during Phase 2 migration. Fix: Use structured try/except for every ALTER TABLE.
+- CLI Loop Regression: UnboundLocalError in main.py due to unintended removal of 'for m in memories:' loop during meta-enrichment. Fix: Restore loop structure.
+- Git Upstream Sync: Local branch became detached (Publish Branch) despite successful commits. Fix: git push -u origin main to restore tracking.
+- CLI test fact
