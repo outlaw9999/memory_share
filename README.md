@@ -1,71 +1,77 @@
-# kit — remember things from your terminal. 🧠
+# .kit — Deterministic Memory for AI Agents
 
-**kit** is a tiny, infrastructure-grade memory engine for humans and AI agents. It's a **Temporal Quad-Store** built for the Unix workflow.
+> .kit is a deterministic memory engine for AI agents, with a built-in governance and coordination layer.
 
----
+## 🚨 The Problem: Agents Have No Memory
+Current AI agents suffer from a fatal flaw: **They are stateless.** Context windows reset after every interaction. Architectural decisions are forgotten. Multiple agents working on the same repository overwrite each other's logic because they do not share a persistent, deterministic worldview.
 
-### 1️⃣ Instant Identity
+## 💡 The Solution
 
-**kit — git-like memory for developers.**
-A zero-dependency, local-first primitive to store and recall useful facts.
+`.kit` is a deterministic memory engine for AI agents.
 
-### 2️⃣ 5-Second Demo
-
-```bash
-# Learn something with context (Metadata support)
-kit learn --content "JWT fails because of clock skew" --uid auth --meta tags=bug,security
-
-# Recall it instantly
-kit recall auth
-# Output: • [auth] JWT fails because of clock skew
-
-# Time-travel (Snapshot)
-kit recall auth --at "2026-03-01"
-```
-
-### 3️⃣ Why this exists?
-
-Notes are disconnected from your terminal. Vector DBs are overkill and non-deterministic.
-
-- **kit** is deterministic: Same data, same rank.
-- **kit** is fast: ~10ms search on 1M facts.
-- **kit** is temporal: It remembers what you knew *last week*.
-
-### 4️⃣ Pain → Solution
-
-| Problem | Solution |
-| --- | --- |
-| Forget why code exists | `kit learn arch` |
-| Lose track of bug fixes | `kit learn bug` |
-| Search history for AI | `kit recall` |
-| Knowledge evolution | `kit recall --at "7 days ago"` |
-
-### 5️⃣ Composability
-
-Built to be piped. No fancy UI, just raw power.
-
-```bash
-# Fuzzy search your memories
-kit recall | fzf
-
-# Search historical bugs and pipe to AI agent
-kit recall bug --at "2026-03-01" | aider
-```
-
-### 6️⃣ Where data lives
-
-All data is stored locally in a single, standard SQLite file:
-`~/.kit/brain.db` (WAL mode enabled for concurrency).
-
-### 7️⃣ Philosophy
-
-**Do one thing well.** `.kit` is a memory primitive, not a platform. It's the `sqlite` for your personal and agentic knowledge.
+It acts as a cognitive infrastructure layer, enabling shared memory, coordination, and governance across multiple agents—anchored directly to your filesystem.
 
 ---
 
-### 🏛️ Engineering Specs (Elite Architecture)
-- **Engine**: SQLite FTS5 (External Content) + Porter Tokenizer.
-- **Model**: Unified 4-Table Truth (Nodes, Observations, Edges, Keyword Index).
-- **Temporal logic**: Lineage snapshotting via `created_at` / `superseded_at`.
-- **Latency**: 3-20ms @ 1,000,000 facts.
-- **License**: MIT
+## 🎯 Who is this for?
+
+- AI-native developers
+- Multi-agent systems
+- Teams using Codex, Google Antigravity, or other automation agents
+
+
+## 🏛️ Architecture: The 7-Layer Cognitive Map
+
+.kit is built on a modular hierarchy, evolving from raw storage to active cognition:
+
+### Layers 1–4: The Memory Engine (SAM Core)
+1. **Persistence Layer**: SQLite FTS5 - Fast, deterministic, zero-infrastructure storage.
+2. **Contextual Layer**: Hierarchy-based recall anchored to your `$PWD`.
+3. **Temporal Layer**: Immutable Ledger - Append-only history with full time-travel capability.
+4. **Ranking Layer**: `materialized_score` - Deterministic ranking based on Importance, Frequency, and Decay (No runtime AI math).
+
+### Layers 5–6: The Cognitive Bus (AMSB)
+5. **Coordination Layer**: Multi-agent shared memory space with event-driven updates.
+6. **Governance Layer**: `kit preflight` - Architectural gatekeeper (Git Hook) that enforces discipline and blocks hallucinations.
+
+### Layer 7: Cognitive Feedback (Coming Soon)
+7. **Feedback Layer**: `kit reflect` - Self-awareness, Gap Detection, and Architectural Drift analysis.
+
+---
+
+## 🚦 Getting Started
+
+### 1. Installation
+```bash
+# Windows
+install.bat
+
+# Linux/macOS
+curl -sSL https://raw.githubusercontent.com/vantruong-dang/memory_share/main/install.sh | bash
+```
+
+### 2. Initialize your Brain
+```bash
+cd my-project
+kit init
+```
+This bootstraps `.kit/brain.db` and the canonical `AGENTS.md` manifest.
+
+---
+
+## ⚙️ Command Interface
+- **`kit learn`**: Inject explicit decisions or invariants into the ledger.
+- **`kit recall`**: Context-anchored, ranked retrieval for the current scope.
+- **`kit watch`**: Real-time semantic event stream for background agents.
+- **`kit preflight`**: Pre-commit gatekeeper to prevent architectural entropy.
+- **`kit doctor`**: Run deterministic self-cleaning and maintenance.
+
+---
+
+## 📜 Technical Deep Dive
+For detailed information on the Quad-Store schema, FTS5 indexing, and the cognitive ranking algorithm, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
+---
+
+## ⚖️ License
+MIT. Built for the elite AI-native developer.

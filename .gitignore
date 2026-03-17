@@ -23,3 +23,7 @@ atlas_v1.db
 # Temporary
 .tmp*/
 _tmp*/
+
+# .kit Memory Store
+.kit/brain.db-*
+.kit/brain.db.bak
