@@ -6,52 +6,51 @@ from kit.core.kit_cognitive_core import SAMBrain, SAMBrainError
 
 # --- Stable API Boundary Definitions ---
 # This file is the primary entry point for community forks and IDE integrations.
-# Breaking changes here require a major version bump.
 
 _brain_instance: SAMBrain | None = None
 
 
-def resolve_paths() -> tuple[Path, Path]:
+def resolve_paths() -> tuple[Path, Path, Path]:
     """
     Standard Path Resolver for .kit Kernel.
-    Priority:
-    1. ENV KIT_HOME
-    2. ~/.kit
-    Local project brain is always at ./.kit/brain.db
     """
     kit_home = os.getenv("KIT_HOME")
-
-    if kit_home:
-        global_path = Path(kit_home).expanduser()
-    else:
-        global_path = Path.home() / ".kit"
-
-    project_path = Path.cwd() / ".kit"
-
+    global_path = Path(kit_home).expanduser() if kit_home else Path.home() / ".kit"
     global_db = global_path / "global.db"
-    project_db = project_path / "brain.db"
-
-    # Ensure directories exist
     global_path.mkdir(parents=True, exist_ok=True)
-    if not project_path.exists():
-        # Only create if we are in a project or being proactive
-        project_path.mkdir(parents=True, exist_ok=True)
 
-    return global_db, project_db
+    cwd = Path.cwd().resolve()
+    root_path = cwd
+    project_db = cwd / ".kit" / "brain.db"
+
+    for parent in [cwd] + list(cwd.parents):
+        if (parent / ".kit" / "brain.db").exists():
+            root_path = parent
+            project_db = parent / ".kit" / "brain.db"
+            break
+        if (parent / ".git").exists():
+            root_path = parent
+            project_db = parent / ".kit" / "brain.db"
+            break
+    
+    if not project_db.exists():
+        if (root_path / ".git").exists():
+            (root_path / ".kit").mkdir(parents=True, exist_ok=True)
+            project_db = root_path / ".kit" / "brain.db"
+        else:
+            (cwd / ".kit").mkdir(parents=True, exist_ok=True)
+            project_db = cwd / ".kit" / "brain.db"
+            root_path = cwd
+
+    return global_db, project_db, root_path
 
 
 def init_kernel(db_path: Path | None = None) -> None:
-    """
-    Initialize the global SAMBrain instance with Hybrid Brain support.
-    """
+    """Initialize the global SAMBrain instance."""
     global _brain_instance
-
-    global_db, project_db = resolve_paths()
-
-    # If explicit db_path is provided, it overrides the project_db
+    global_db, project_db, root_path = resolve_paths()
     target_project_db = db_path if db_path else project_db
-
-    _brain_instance = SAMBrain(target_project_db)
+    _brain_instance = SAMBrain(target_project_db, root_path=root_path)
     _brain_instance.attach_global(global_db)
 
 
@@ -73,74 +72,56 @@ def learn(
     namespace: str = "shared",
     agent_id: str | None = None,
     supersede_id: int | None = None,
+    scope: str | None = None,
+    to_global: bool = False,
+    symbol: str | None = None,
+    structural_hash: str | None = None,
 ) -> int:
-    """
-    Primary API for an Agent to 'learn' a new observation.
-    Automatically injects standard metadata.
-    """
-    # Standard Metadata Injection
-    meta = {
-        "source": "cli",
-        "actor": "human",
-        "agent": "antigravity",
-        "origin": "manual",
-    }
+    """Learn a fact with optional symbol anchoring."""
+    meta = {"source": "cli", "actor": "human", "agent": "antigravity"}
     if metadata:
         meta.update(metadata)
 
     return get_brain().learn(
-        uid=uid,
-        kind=kind,
-        content=content,
-        importance=importance,
+        uid=uid, 
+        content=content, 
+        kind=kind, 
+        importance=importance, 
         layer=layer,
-        metadata=meta,
-        namespace=namespace,
-        agent_id=agent_id or meta.get("agent"),
+        to_global=to_global,
         supersede_id=supersede_id,
+        namespace=namespace,
+        scope=scope,
+        agent_id=agent_id or meta.get("agent"),
+        symbol=symbol,
+        structural_hash=structural_hash,
+        metadata=meta,
     )
 
 
-def search(query: str, limit: int = 15, at: str | None = None, agent_id: str | None = None) -> list[Any]:
-    """
-    Hybrid FTS Search across Project and Global brains.
-    """
-    return get_brain().search(query, limit, at_timestamp=at, agent_id=agent_id)
+def search(query: str, limit: int = 15, at: str | None = None, agent_id: str | None = None, fast: bool = False) -> list[Any]:
+    """Hybrid FTS Search."""
+    return get_brain().search(query, limit, at_timestamp=at, agent_id=agent_id, fast=fast)
 
 
-def recall(entities: list[str], limit: int = 15, at: str | None = None, agent_id: str | None = None) -> list[Any]:
-    """
-    Recall ranked context including structural graph expansion.
-    """
-    return get_brain().recall(entities, limit, at_timestamp=at, agent_id=agent_id)
+def recall(entities: list[str], limit: int = 15, at: str | None = None, 
+           agent_id: str | None = None, here: bool = False, symbol: str | None = None, fast: bool = False) -> list[Any]:
+    """Ranked recall context awareness."""
+    return get_brain().recall(entities, limit, at=at, agent_id=agent_id, here=here, symbol=symbol, fast=fast)
 
 
-def export_prompt(
-    entities: list[str],
-    limit: int = 10,
-    budget: int = 1000,
-    at: str | None = None,
-) -> str:
-    """
-    Renders memory into compressed XML for LLM injection.
-    """
+def export_prompt(entities: list[str], limit: int = 10, budget: int = 1000) -> str:
+    """Renders memory for LLM."""
     return get_brain().export_for_prompt(entities, limit, budget)
 
 
 def link(src: str, dst: str, rel: str, weight: float = 1.0, metadata: dict[str, Any] | None = None) -> None:
-    """
-    Create a semantic link (edge) between two nodes.
-    """
+    """Create a semantic link."""
     get_brain().link(src, dst, rel, weight, metadata)
 
 
-def decay() -> None:
-    """Maintenance API for memory decay."""
-    get_brain().process_decay()
-
-
 def touch(fact_id: int) -> bool:
-    """Refresh a fact's timestamp (v3.14 compliant)."""
+    """Reinforce a memory."""
     try:
         get_brain().touch_fact(fact_id)
         return True
@@ -148,12 +129,29 @@ def touch(fact_id: int) -> bool:
         return False
 
 
+def get_blame(symbol: str) -> list[dict]:
+    """Retrieve causality chain."""
+    return get_brain().get_blame(symbol)
+
+
 def promote(threshold: int = 5) -> int:
-    """Promote memories based on activity."""
+    """Promote memories."""
     return get_brain().promote_memories(threshold)
+
+
+def stream_events(poll_interval: float = 0.2):
+    """Wait and yield semantic memory events."""
+    return get_brain().stream_events(poll_interval)
+
+
+def preflight_check(commit_msg: str, strict: bool = False) -> dict:
+    """Run cognitive governance preflight checks."""
+    from kit.core.kit_governance import run_preflight
+    result = run_preflight(commit_msg=commit_msg, brain=get_brain(), strict_mode=strict)
+    import dataclasses
+    return dataclasses.asdict(result)
 
 
 if __name__ == "__main__":
     from kit.cli.main import main
-
     main()

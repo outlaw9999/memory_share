@@ -1,6 +1,9 @@
 import sys
 import argparse
 import random
+import subprocess
+import shutil
+import os
 from pathlib import Path
 
 
@@ -33,7 +36,10 @@ def main():
     )
     learn_p.add_argument("--global", action="store_true", dest="to_global", help="Learn into Global Brain")
     learn_p.add_argument("--namespace", default="shared", help="Namespace (e.g., project, agent:name)")
+    learn_p.add_argument("--scope", help="Optional explicit scope (folder path)")
     learn_p.add_argument("--agent-id", help="Explicit Agent ID for attribution")
+    learn_p.add_argument("--symbol", help="Anchor fact to a specific code symbol (AST node)")
+    learn_p.add_argument("--hash", help="Structural hash of the symbol")
 
     # Command: search
     search_p = subparsers.add_parser("search", help="Hybrid FTS5 keyword search")
@@ -41,6 +47,7 @@ def main():
     search_p.add_argument("--limit", type=int, default=15)
     search_p.add_argument("--at", help="Temporal snapshot (YYYY-MM-DD HH:MM:SS)")
     search_p.add_argument("--agent-id", help="Agent ID for recall boost")
+    search_p.add_argument("--fast", action="store_true", help="Fast mode (skip heavy ranking)")
 
     # Command: recall
     recall_p = subparsers.add_parser("recall", help="Recall ranked context (Project + Global)")
@@ -48,6 +55,24 @@ def main():
     recall_p.add_argument("--limit", type=int, default=15)
     recall_p.add_argument("--at", help="Temporal snapshot")
     recall_p.add_argument("--agent-id", help="Agent ID for recall boost")
+    recall_p.add_argument("--here", action="store_true", help="Filter/Boost by current directory scope")
+    recall_p.add_argument("--symbol", help="Recall context specifically for this code symbol")
+    recall_p.add_argument("--fast", action="store_true", help="Fast mode (skip heavy ranking)")
+
+    # Command: context
+    context_p = subparsers.add_parser("context", help="Alias for recall --here (Project context awareness)")
+    context_p.add_argument("--limit", type=int, default=15)
+    context_p.add_argument("--at", help="Temporal snapshot")
+    context_p.add_argument("--agent-id", help="Agent ID for recall boost")
+    context_p.add_argument("--symbol", help="Recall context specifically for this code symbol")
+    context_p.add_argument("--fast", action="store_true", help="Fast mode (skip heavy ranking)")
+
+    # Command: blame
+    blame_p = subparsers.add_parser("blame", help="Show architectural causality chain for a symbol")
+    blame_p.add_argument("symbol", help="The code symbol (function, class, etc.)")
+
+    # Command: where
+    subparsers.add_parser("where", help="Show current memory context and brain path")
 
     # Command: link
     link_p = subparsers.add_parser("link", help="Create a semantic edge between two nodes")
@@ -70,10 +95,49 @@ def main():
     # Command: doctor
     subparsers.add_parser("doctor", help="System diagnostics")
 
+    # Command: render
+    subparsers.add_parser("render", help="Force regenerate AI context files (.kit/context, AGENTS.md)")
+
+    # Command: watch
+    watch_p = subparsers.add_parser("watch", help="Stream cognitive events in real-time")
+    watch_p.add_argument("--json", action="store_true", help="Output raw JSON stream")
+
+    # Command: preflight
+    preflight_p = subparsers.add_parser("preflight", help="Run cognitive governance checks before committing")
+    preflight_p.add_argument("-m", "--message", type=str, required=True, help="The commit message to evaluate")
+    preflight_p.add_argument("--strict", action="store_true", help="Treat warnings as blocking errors (for CI)")
+    preflight_p.add_argument("--json", action="store_true", help="Output raw JSON format")
+
+    # Plugin Delegation Logic (Git-style) - Checked BEFORE argparse for unknown commands
+    known_commands = ["learn", "search", "recall", "context", "where", "link", "stats", "bump", "promote", "doctor", "render", "watch", "preflight"]
+    
+    if len(sys.argv) > 1:
+        potential_cmd = sys.argv[1]
+        
+        # If it's not a flag and not a known command, check for plugin
+        if not potential_cmd.startswith("-") and potential_cmd not in known_commands:
+            plugin_name = f"kit-{potential_cmd}"
+            plugin_path = shutil.which(plugin_name)
+            
+            if plugin_path:
+                # Shift argv: [kit, vantage, check] -> [kit-vantage, check]
+                plugin_args = [plugin_path] + sys.argv[2:]
+                try:
+                    # Use shell=True on Windows to support .bat/.cmd files
+                    # Pass through stdin/stdout by default
+                    result = subprocess.run(plugin_args, shell=(os.name == 'nt'))
+                    sys.exit(result.returncode)
+                except Exception as e:
+                    print(f"❌ Error executing plugin '{plugin_name}': {e}", file=sys.stderr)
+                    sys.exit(1)
+            else:
+                # Let argparse handle the "unknown command" error later if no plugin found
+                pass
+
     args = parser.parse_args()
 
     # Lazy Import for speed
-    from kit import api
+    import kit.api as api
 
     # Initialize Kernel
     db_path = Path(args.db).absolute() if args.db else None
@@ -108,13 +172,17 @@ def main():
                 to_global=args.to_global,
                 supersede_id=args.supersede,
                 namespace=args.namespace,
-                agent_id=args.agent_id
+                scope=args.scope,
+                agent_id=args.agent_id,
+                symbol=args.symbol,
+                structural_hash=args.hash
             )
             target = "Global" if args.to_global else "Project"
             print_diagnostic(f"✅ Learned: [{uid}] -> {target} Brain (ID: {fact_id})")
 
         elif args.command == "search":
-            memories = api.search(args.query, limit=args.limit, at=args.at, agent_id=args.agent_id)
+            is_fast = getattr(args, "fast", False)
+            memories = api.search(args.query, limit=args.limit, at=args.at, agent_id=args.agent_id, fast=is_fast)
             if is_tty:
                 print_diagnostic(f"🔍 Hybrid Search results for '{args.query}':\n")
             
@@ -124,12 +192,18 @@ def main():
                 for m in memories:
                     print(f"• [ID:{m.id}][{m.brain_source}:{m.node_uid}] {m.content} (score: {m.score:.2f})")
 
-        elif args.command == "recall":
-            entities = args.entities or [current_context]
-            memories = api.recall(entities, limit=args.limit, at=args.at, agent_id=args.agent_id)
+        elif args.command == "recall" or args.command == "context":
+            entities = args.entities if args.command == "recall" else []
+            if args.command == "recall" and not entities:
+                entities = [current_context]
+            
+            is_here = getattr(args, "here", False) or args.command == "context"
+            is_fast = getattr(args, "fast", False)
+            memories = api.recall(entities, limit=args.limit, at=args.at, agent_id=args.agent_id, here=is_here, symbol=args.symbol, fast=is_fast)
             
             if is_tty:
-                print_diagnostic(f"🧠 Recalled context for {entities}:\n")
+                scope_str = f" [Scope: {api.get_brain().get_normalized_scope()}]" if is_here else ""
+                print_diagnostic(f"🧠 Recalled context for {entities or 'current scope'}{scope_str}:\n")
             
             if not memories:
                 print_diagnostic("No relevant memories found.")
@@ -166,7 +240,70 @@ def main():
             print_diagnostic("🏥 AI Kernel Health Check")
             print_diagnostic(f"Project DB: {brain.db_path}")
             print_diagnostic(f"Global DB: {brain.global_db_path}")
+            print_diagnostic(f"Root Path: {brain.root_path}")
+            print_diagnostic(f"Current Scope: '{brain.get_normalized_scope()}'")
             print_diagnostic("Status: OK")
+
+        elif args.command == "where":
+            brain = api.get_brain()
+            print(f"Brain: {brain.db_path}")
+            print(f"Root:  {brain.root_path}")
+            print(f"Scope: '{brain.get_normalized_scope()}'")
+
+        elif args.command == "render":
+            api.get_brain().render_context()
+            print_diagnostic("✅ AI Context manifests regenerated.")
+
+        elif args.command == "blame":
+            records = api.get_blame(args.symbol)
+            if not records:
+                print_diagnostic(f"No architectural history found for symbol '{args.symbol}'.")
+            else:
+                print(f"🕵️  Architectural Blame: {args.symbol}\n")
+                for r in records:
+                    author = r['agent_id'] or "unknown"
+                    commit = f" [{r['commit_msg']}]" if r['commit_msg'] else ""
+                    print(f"   • {r['created_at']} | {author}{commit}")
+                    print(f"     Fact: {r['content']}\n")
+
+        elif args.command == "watch":
+            import json as json_lib
+            try:
+                for event in api.stream_events():
+                    print(json_lib.dumps(event), flush=True)
+            except KeyboardInterrupt:
+                pass
+
+        elif args.command == "preflight":
+            import json as json_lib
+            result = api.preflight_check(args.message, args.strict)
+            
+            if args.json:
+                print(json_lib.dumps(result))
+            else:
+                score_str = f"{result['score']:.2f}"
+                status = result['status'].upper()
+                if status == "PASS":
+                    print(f"✅ Cognitive Check: {status} (Score: {score_str})")
+                elif status == "WARN":
+                    print(f"⚠️ Cognitive Check: {status} (Score: {score_str})")
+                else:
+                    print(f"❌ Cognitive Check: {status} (Score: {score_str})")
+                
+                if result['issues']:
+                    print("\n🔍 Issues Found:")
+                    for i in result['issues']:
+                        print(f"  - [{i['type'].upper()}]: {i['message']}")
+                
+                if result['suggestions']:
+                    print("\n💡 Suggestions:")
+                    for s in result['suggestions']:
+                        print(f"  - {s}")
+            
+            # Exit codes: 0 = PASS, 0 = WARN (if not strict), 2 = BLOCK
+            if result['status'] == "block":
+                sys.exit(2)
+            sys.exit(0)
 
     except Exception as e:
         print_diagnostic(f"❌ Error: {e}")
