@@ -23,4 +23,4 @@ If 10 agents ask the same question, they must get the exact same ranked facts. G
 Stop treating your repository like a loose collection of text. Treat it like a **Cognitive OS**. 
 
 ---
-*Memory is not a luxury. It is a prerequisite for survival.* 🏛️
+*Memory is not a luxury. It is a prerequisite for disciplined engineering.* 🏛️

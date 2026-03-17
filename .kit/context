@@ -1,9 +1,10 @@
 # .kit Project Context
-# Generated: 2026-03-18 00:07:48 | Root: memory_share
-# Cognition-Version: 32
+# Generated: 2026-03-18 00:30:04 | Root: memory_share
+# Cognition-Version: 33
 
 - [src/auth] ARCH: Token must have 30s skew tolerance.
 - [src/auth] ARCH: Token must have 30s skew tolerance.
+- All releases and commits MUST follow disciplined versioning (Semantic Versioning) and structured commit messages (Conventional Commits) to maintain cognitive timeline integrity.
 - Runtime & Mindset: Python >= 3.14. Design as if the GIL does not exist (thread-safe by default).
 - Typing: Mandatory strict typing. Every public/internal function MUST have full type hints. Use pyright or mypy --strict.
 - Data Modeling: Prefer immutable models. Use @dataclass(frozen=True, slots=True) for nogil-ready efficiency.

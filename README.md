@@ -49,4 +49,4 @@ For the low-level Quad-Store schema, FTS5 engine, and the math behind our Suprem
 ---
 
 ## ⚖️ License
-MIT. Built for the elite AI-native developer.
+MIT. Built for disciplined AI-native developers.
