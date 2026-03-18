@@ -32,7 +32,7 @@ def resolve_paths() -> tuple[Path, Path, Path]:
             root_path = parent
             project_db = parent / ".kit" / "brain.db"
             break
-    
+
     if not project_db.exists():
         if (root_path / ".git").exists():
             (root_path / ".kit").mkdir(parents=True, exist_ok=True)
@@ -83,10 +83,10 @@ def learn(
         meta.update(metadata)
 
     return get_brain().learn(
-        uid=uid, 
-        content=content, 
-        kind=kind, 
-        importance=importance, 
+        uid=uid,
+        content=content,
+        kind=kind,
+        importance=importance,
         layer=layer,
         to_global=to_global,
         supersede_id=supersede_id,
@@ -99,15 +99,45 @@ def learn(
     )
 
 
-def search(query: str, limit: int = 15, at: str | None = None, agent_id: str | None = None, fast: bool = False) -> list[Any]:
+def search(
+    query: str, limit: int = 15, at: str | None = None, agent_id: str | None = None, fast: bool = False
+) -> list[Any]:
     """Hybrid FTS Search."""
     return get_brain().search(query, limit, at_timestamp=at, agent_id=agent_id, fast=fast)
 
 
-def recall(entities: list[str], limit: int = 15, at: str | None = None, 
-           agent_id: str | None = None, here: bool = False, symbol: str | None = None, fast: bool = False) -> list[Any]:
+def recall(
+    entities: list[str],
+    limit: int = 15,
+    at: str | None = None,
+    agent_id: str | None = None,
+    here: bool = False,
+    symbol: str | None = None,
+    fast: bool = False,
+) -> list[Any]:
     """Ranked recall context awareness."""
     return get_brain().recall(entities, limit, at=at, agent_id=agent_id, here=here, symbol=symbol, fast=fast)
+
+
+def recall_with_assessment(
+    entities: list[str],
+    limit: int = 15,
+    at: str | None = None,
+    agent_id: str | None = None,
+    here: bool = False,
+    symbol: str | None = None,
+    fast: bool = False,
+) -> Any:
+    """Ranked recall plus confidence / ambiguity metadata."""
+    return get_brain().recall_with_assessment(
+        entities,
+        limit=limit,
+        at=at,
+        agent_id=agent_id,
+        here=here,
+        symbol=symbol,
+        fast=fast,
+    )
 
 
 def export_prompt(entities: list[str], limit: int = 10, budget: int = 1000) -> str:
@@ -129,7 +159,7 @@ def touch(fact_id: int) -> bool:
         return False
 
 
-def get_blame(symbol: str) -> list[dict]:
+def get_blame(symbol: str) -> list[dict[str, Any]]:
     """Retrieve causality chain."""
     return get_brain().get_blame(symbol)
 
@@ -144,19 +174,20 @@ def stream_events(poll_interval: float = 0.2):
     return get_brain().stream_events(poll_interval)
 
 
-def preflight_check(commit_msg: str, strict: bool = False) -> dict:
+def preflight_check(commit_msg: str, strict: bool = False, diff_text: str | None = None) -> dict[str, Any]:
     """Run cognitive governance preflight checks."""
     from kit.core.kit_governance import run_preflight
-    result = run_preflight(commit_msg=commit_msg, brain=get_brain(), strict_mode=strict)
     import dataclasses
+
+    result = run_preflight(commit_msg=commit_msg, brain=get_brain(), strict_mode=strict, diff_text=diff_text)
     return dataclasses.asdict(result)
 
 
-def reflect_check(diff_text: str | None = None, scope: str | None = None) -> dict:
+def reflect_check(diff_text: str | None = None, scope: str | None = None) -> dict[str, Any]:
     """Run cognitive reflection check."""
     from kit.core.kit_reflect import run_reflect
     import subprocess
-    
+
     if diff_text is None:
         try:
             # Check for staged changes first
@@ -166,20 +197,31 @@ def reflect_check(diff_text: str | None = None, scope: str | None = None) -> dic
                 diff_text = subprocess.check_output(["git", "diff", "HEAD"], text=True)
         except Exception:
             diff_text = ""
-            
+
     report = run_reflect(get_brain(), diff_text, scope=scope)
-    
+
     # Map ReflectReport fields to the list-of-issues format the CLI likes
-    issues = []
+    issues: list[dict[str, str]] = []
     for g in report.gaps:
-        issues.append({"type": "gap", "message": f"'{g}' not found in memory (New signal)", "suggestion": f"kit learn --uid {g}"})
+        issues.append(
+            {"type": "gap", "message": f"'{g}' not found in memory (New signal)", "suggestion": f"kit learn --uid {g}"}
+        )
     for d in report.drifts:
-        issues.append({"type": "drift", "message": f"'{d}' found but not verified in this scope", "suggestion": f"kit learn --uid {d} --scope {scope or 'here'}"})
+        issues.append(
+            {
+                "type": "drift",
+                "message": f"'{d}' found but not verified in this scope",
+                "suggestion": f"kit learn --uid {d} --scope {scope or 'here'}",
+            }
+        )
     for v in report.violations:
-        issues.append({"type": "violation", "message": f"'{v}' violates an architectural invariant", "suggestion": f"kit blame {v}"})
-    for c in report.confirmations:
-        # Confirmations are positive, could be added as 'info' issues or handled separately
-        pass
+        issues.append(
+            {
+                "type": "violation",
+                "message": f"'{v}' violates an architectural invariant",
+                "suggestion": f"kit blame {v}",
+            }
+        )
 
     matched_signals = report.confirmations + report.drifts + report.violations
 
@@ -188,16 +230,18 @@ def reflect_check(diff_text: str | None = None, scope: str | None = None) -> dic
         "status": report.status,
         "issues": issues,
         "matched_signals": matched_signals,
-        "suggestions": report.suggestions
+        "suggestions": report.suggestions,
     }
 
 
 def reflect(diff_text: str, scope: str | None = None) -> Any:
     """Run cognitive reflection on a code diff."""
     from kit.core.kit_reflect import run_reflect
+
     return run_reflect(get_brain(), diff_text, scope)
 
 
 if __name__ == "__main__":
     from kit.cli.main import main
+
     main()

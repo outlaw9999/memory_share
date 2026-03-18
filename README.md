@@ -1,52 +1,94 @@
-# 🧠 .kit — Deterministic Memory for AI Agents
+# .kit - Deterministic Memory for AI Agents
 
-> **Without memory, agents hallucinate. .kit fixes that.**
-> 
-> AI agents suffer from a fatal flaw: **They have amnesia.** Context windows reset. Architectural rules are forgotten. Multiple agents overwrite each other because they lack a persistent, shared worldview.
-> 
-> `.kit` is a deterministic, filesystem-anchored memory engine and governance bus for AI. No vector databases. No hallucinations. Just structural integrity.
+`.kit` is a SQLite-backed memory and governance layer for developers and AI agents. It keeps architectural facts persistent, ranked, and deterministic across repeated runs without using embeddings or probabilistic RAG.
 
-## 🎯 What does it do?
-Instead of probabilistic RAG, `.kit` provides a SQLite-backed **Agent Memory Share Bus (AMSB)** that enforces rules before code is committed.
-- **Remember**: `kit learn` injects persistent architectural decisions.
-- **Recall**: `kit recall` instantly retrieves $PWD-anchored context.
-- **Reflect**: `kit reflect` detects missing knowledge and architectural drift in real-time.
-- **Govern**: `kit preflight` (Git hook) strictly blocks agents from committing hallucinated dependencies or violating invariants.
+## AMSB v1.1 Stable
 
-## 🚦 Quickstart
+- Production-ready release line focused on deterministic memory, assessment, orchestration, and resilience
+- Locked scope: no new features in this line, only bug fixes, maintenance, and documentation alignment
+- Canonical architecture contract lives in [ARCHITECTURE.md](ARCHITECTURE.md)
+- Generated manifests in `.kit/context` and `AGENTS.md` remain the highest local authority for agents
 
-### 1. Install Globally
+## What It Does
+
+- `kit learn` stores explicit memories as `invariant`, `decision`, `preference`, or `note`
+- `kit recall` retrieves ranked context deterministically for the current project or scope
+- `kit reflect` detects memory gaps, drift, and invariant violations against a diff
+- `kit preflight` enforces governance before code is committed
+- `kit doctor` performs hygiene and agent-metric recovery tasks
+- `kit-agent` runs provider orchestration with fallback, repair loops, and confidence-aware prompt injection
+
+## Quickstart
+
 ```bash
-# Windows
-install.bat
-
-# Linux/macOS
-curl -sSL https://raw.githubusercontent.com/vantruong-dang/memory_share/main/install.sh | bash
-```
-
-### 2. Initialize a Brain in any repository
-```bash
-cd your-project
+# Initialize a project brain
 kit init
+
+# Learn an invariant
+kit learn --uid auth_service --tag invariant --content "Auth tokens MUST NOT be logged"
+
+# Recall scoped context
+kit recall auth_service --here
+
+# Run reflection on current changes
+kit reflect --here
+
+# Check agent health and reset persisted cloud cooldown state if needed
+kit doctor --check-agents
+kit doctor --reset-cloud
+
+# Run the agent loop with provider fallback
+python -m kit_agent.cli.main run "Implement payment flow"
 ```
 
-### 3. Teach your agent a physical law
+## Stable Contracts
+
+- Deterministic recall and ranking across repeated identical inputs
+- Append-only fact ledger with `supersede` lineage
+- Confidence states: `HIGH_CONFIDENCE`, `AMBIGUOUS`, `WEAK_SIGNAL`, `EMPTY`
+- Prompt export constrained to Top-K `3` memories and approximately `200` characters of compact prompt budget
+- SQLite WAL concurrency with bounded retry behavior
+
+## CLI Surface
+
 ```bash
-kit learn --tag invariant "This project strictly uses PostgreSQL. Never use Redis."
+kit learn --uid cache --tag decision --content "Use SQLite for caching"
+kit learn --uid ui --tag note --content "Maybe prefer file-based logging locally"
+kit recall cache --here
+kit reflect --mode advisory
+kit preflight -m "check invariants"
+kit doctor --mode safe --check-agents
+kit doctor --reset-cloud
 ```
 
----
+## Python API
 
-## ⚙️ Command Interface
-- **`kit learn`**: Inject explicit decisions or invariants into the ledger.
-- **`kit recall`**: Context-anchored, ranked retrieval for the current scope.
-- **`kit watch`**: Real-time semantic event stream for background agents.
-- **`kit preflight`**: Pre-commit gatekeeper to prevent architectural entropy.
-- **`kit doctor`**: Run deterministic self-cleaning and maintenance.
+```python
+from pathlib import Path
+import kit.api as api
 
-For the low-level Quad-Store schema, FTS5 engine, and the math behind our Supreme Court Arbitrator, see [ARCHITECTURE.md](ARCHITECTURE.md). For the ideological vision, see [MANIFESTO.md](MANIFESTO.md).
+api.init_kernel(Path(".kit/brain.db"))
+api.learn(uid="auth", content="JWT required", tag="decision")
+assessment = api.recall_with_assessment(["auth"], limit=3, here=True)
+prompt_block = api.export_prompt(["auth"], budget=200)
+```
 
----
+## Release Boundary
 
-## ⚖️ License
-MIT. Built for disciplined AI-native developers.
+Out of scope for AMSB v1.1 stable:
+
+- Vector search, embeddings, or semantic RAG retrieval
+- Automatic resolution of conflicting invariants
+- New product surface area outside memory, governance, orchestration, resilience, and verification
+
+## See Also
+
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [REFERENCE.md](REFERENCE.md)
+- [AGENT_PLAYBOOK.md](AGENT_PLAYBOOK.md)
+- [AGENT_PLAYBOOK.md](AGENT_PLAYBOOK.md) - see `Unix-Philosophy Locked` for the operating principles behind the stable line
+- [MANIFESTO.md](MANIFESTO.md)
+
+## License
+
+MIT
