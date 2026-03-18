@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS observations (
     node_id INTEGER NOT NULL,
     content TEXT NOT NULL,
     layer TEXT CHECK(layer IN ('working', 'episodic', 'semantic', 'procedural')) DEFAULT 'episodic',
-    tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference')) DEFAULT 'decision',
+    tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference', 'note')) DEFAULT 'decision',
     importance REAL DEFAULT 1.0,
     materialized_score REAL NOT NULL DEFAULT 1.0,
     access_count INTEGER DEFAULT 0,
@@ -60,8 +60,11 @@ CREATE TABLE IF NOT EXISTS observations (
     structural_hash TEXT,
     metadata TEXT DEFAULT '{}',
     commit_id TEXT,
+    is_active BOOLEAN DEFAULT 1,
+    supersedes_id INTEGER DEFAULT NULL,
     FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE,
-    FOREIGN KEY (commit_id) REFERENCES commits(id)
+    FOREIGN KEY (commit_id) REFERENCES commits(id),
+    FOREIGN KEY (supersedes_id) REFERENCES observations(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_obs_created ON observations(created_at);
@@ -86,6 +89,20 @@ END;
 CREATE TRIGGER IF NOT EXISTS observations_ad AFTER DELETE ON observations BEGIN
     INSERT INTO observations_fts(observations_fts, rowid, content) VALUES('delete', old.id, old.content);
 END;
+
+CREATE TABLE IF NOT EXISTS metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    signal TEXT,
+    scope TEXT,
+    outcome TEXT,
+    latency_ms REAL,
+    message TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_metrics_event ON metrics(event_type);
+CREATE INDEX IF NOT EXISTS idx_metrics_created ON metrics(created_at);
 """
 
 def init_db(conn: sqlite3.Connection):
@@ -160,7 +177,9 @@ def init_db(conn: sqlite3.Connection):
         pass
 
     try:
-        conn.execute("ALTER TABLE observations ADD COLUMN tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference')) DEFAULT 'decision'")
+        conn.execute(
+            "ALTER TABLE observations ADD COLUMN tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference', 'note')) DEFAULT 'decision'"
+        )
         # Give existing facts that might have [Kind: invariant/decision/preference] their proper tags, otherwise default to decision
         conn.execute("UPDATE observations SET tag = 'invariant' WHERE content LIKE '%[Kind: invariant]%'")
         conn.execute("UPDATE observations SET tag = 'preference' WHERE content LIKE '%[Kind: preference]%'")
@@ -181,6 +200,18 @@ def init_db(conn: sqlite3.Connection):
         pass
 
     try:
+        conn.execute("ALTER TABLE observations ADD COLUMN is_active BOOLEAN DEFAULT 1")
+        logger.info("Migrated: Added is_active to observations")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE observations ADD COLUMN supersedes_id INTEGER")
+        logger.info("Migrated: Added supersedes_id to observations")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_node ON observations(node_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_commit ON observations(commit_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_branch ON observations(branch)")
@@ -188,6 +219,22 @@ def init_db(conn: sqlite3.Connection):
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_scope_created ON observations(scope, created_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_node_scope ON observations(node_id, scope)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_symbol ON observations(symbol)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_active_score ON observations(is_active, materialized_score DESC)")
+        
+        # Ensure metrics table exists for existing DBs
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                signal TEXT,
+                scope TEXT,
+                outcome TEXT,
+                latency_ms REAL,
+                message TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_metrics_event ON metrics(event_type)")
     except sqlite3.OperationalError:
         pass
 
@@ -196,3 +243,4 @@ def enable_wal(conn: sqlite3.Connection):
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=5000")
