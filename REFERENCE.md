@@ -78,6 +78,15 @@ kit-agent run "Implement payment flow" --provider local
 kit-agent reset-metrics
 ```
 
+## Utility Scripts
+
+```bash
+python scripts/smoke_test_gemini.py
+python scripts/smoke_test_full_local_gemini.py
+python scripts/run_stress_test.py
+python scripts/epoch_archive.py
+```
+
 ### Agent runtime guarantees
 
 - Max repair loop attempts: `3`

@@ -1,6 +1,10 @@
 # Project Intelligence (AGENTS.md)
 This file is maintained by .kit. You can add manual notes outside the KIT blocks.
 
+## Manual Notes
+
+- Verification helpers live in `scripts/` for smoke, stress, and epoch archive workflows.
+
 
 
 
