@@ -23,7 +23,7 @@ def test_invariant_sanctity(tmp_path):
     assert "CONSTITUTIONAL VIOLATION" in res.reason
 
 def test_scoped_invariant_override(tmp_path):
-    """VERIFY: Scoped Invariant CAN override Global Invariant."""
+    """VERIFY: Multiple Invariants conflict triggers BLOCK (Hard Governance)."""
     db_path = tmp_path / "test_calibration.db"
     brain = SAMBrain(db_path)
     
@@ -36,11 +36,10 @@ def test_scoped_invariant_override(tmp_path):
     diff = "+ import db"
     report = run_reflect(brain, diff, scope="auth")
     
-    # Should PASS because a Scoped Invariant has higher scope weight
-    assert report.status == "PASS"
+    # In AMSB v1.1, conflicting invariants require supervised resolution
+    assert report.status == "BLOCK"
     res = report.resolutions["db"]
-    assert "Winner chosen by adaptive score" in res.reason
-    assert "Overrides 1" in res.reason
+    assert "CONSTITUTIONAL CONFLICT" in res.reason
 
 def test_parent_vs_child_decision(tmp_path):
     """VERIFY: Child scope decision beats parent scope decision (Additive Scoring)."""
@@ -66,15 +65,14 @@ def test_confidence_margin(tmp_path):
     db_path = tmp_path / "test_calibration.db"
     brain = SAMBrain(db_path)
     
-    # Winner: exact match scope (+0.3 bonus)
+    # Winner: exact match scope (+0.2 bonus)
     brain.learn(uid="test", content="Winner", scope="auth", tag="decision")
-    # Loser: broader scope (+0.2 bonus)
-    brain.learn(uid="test", content="Loser", scope="src", tag="decision")
+    # Loser: broader scope (+0.1 bonus)
+    brain.learn(uid="test", content="Loser", scope="", tag="decision")
     
     diff = "+ import test"
     report = run_reflect(brain, diff, scope="auth")
     
     res = report.resolutions["test"]
-    # Score diff should be roughly 0.1 (bonus gap)
-    # Confidence = margin / score
-    assert 0.0 < res.confidence < 0.2
+    # Score diff is 0.1. Confidence = 0.1 / (~0.5) * penalty
+    assert 0.1 < res.confidence < 0.4

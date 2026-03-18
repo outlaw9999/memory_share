@@ -29,3 +29,10 @@ _tmp*/
 .kit/brain.db.bak
 .kit/*.wal
 .kit/*.shm
+.kit/agent_metrics.json
+
+# Generated reports and scratch artifacts
+tests/behavioral_report.md
+tests/stress_test_report.md
+*.diff
+test_out*.txt

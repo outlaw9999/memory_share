@@ -49,6 +49,12 @@ python -m kit_agent.cli.main run "Implement payment flow"
 - Prompt export constrained to Top-K `3` memories and approximately `200` characters of compact prompt budget
 - SQLite WAL concurrency with bounded retry behavior
 
+## Verification
+
+- `pytest tests/ -v` is the canonical regression command for the locked v1.1 stable surface
+- Coverage includes AMSB core behavior, deterministic ranking, reflection, provider fallback, protocol prompt injection, and chaos/resilience paths
+- Behavioral and execution-model tests validate confidence-aware memory use against `semantic_mock` and fallback providers
+
 ## CLI Surface
 
 ```bash
