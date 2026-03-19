@@ -1,6 +1,10 @@
-# .kit Reference Guide (AMSB v1.1 Stable)
+# .kit Reference Guide (AMSB v1.2.0 GA)
 
-This guide captures the current CLI and Python API surface for the locked AMSB v1.1 stable line.
+This guide captures the current CLI and Python API surface for the locked AMSB v1.2.0 GA line.
+
+## Runtime Support
+
+`.kit` v1.2.0 GA supports Python `3.14.x` only.
 
 ## Python API
 
@@ -14,7 +18,7 @@ api.init_kernel(Path(".kit/brain.db"))
 ### Core functions
 
 - `init_kernel(db_path: Path | None = None) -> None`
-- `learn(uid, content, kind="observation", importance=0.5, metadata=None, layer="episodic", namespace="shared", agent_id=None, supersede_id=None, scope=None, to_global=False, symbol=None, structural_hash=None) -> int`
+- `learn(uid, content, kind="observation", importance=0.5, metadata=None, layer="episodic", namespace="shared", agent_id=None, supersede_id=None, scope=None, to_global=False, symbol=None, structural_hash=None, skip_render=False) -> int`
 - `search(query, limit=15, at=None, agent_id=None, fast=False) -> list[Any]`
 - `recall(entities, limit=15, at=None, agent_id=None, here=False, symbol=None, fast=False) -> list[Any]`
 - `recall_with_assessment(entities, limit=15, at=None, agent_id=None, here=False, symbol=None, fast=False) -> RankingAssessment`
@@ -44,6 +48,7 @@ kit where
 kit learn --uid auth --tag invariant --content "Auth tokens MUST NOT be logged"
 kit learn --uid cache --tag decision --content "Use SQLite for caching" --symbol cache_layer
 kit learn --uid ui --tag note --content "Maybe prefer local file logging"
+kit learn --uid architecture_v1_2_0 --tag invariant --content "..." --no-render
 
 kit recall auth
 kit recall cache --here --symbol cache_layer
@@ -75,6 +80,7 @@ kit watch
 kit-agent status
 kit-agent run "Design the cache layer"
 kit-agent run "Implement payment flow" --provider local
+kit-agent ask "Implement a login logger." --json
 kit-agent reset-metrics
 ```
 
@@ -93,6 +99,8 @@ python scripts/epoch_archive.py
 - Local fallback is preferred when healthy cloud providers are unavailable
 - Capacity failures trigger immediate cooldown-aware fallback
 - Prompt injection uses the `.kit` assessment contract instead of raw retrieval alone
+- Output contract is JSON with `decision`, `reason`, and `confidence`
+- Exit codes are standardized at the `kit-agent` surface: `PASS/WARN=0`, `BLOCK=1`, `ERROR=2`
 
 ## Locked prompt export contract
 

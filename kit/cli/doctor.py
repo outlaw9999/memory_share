@@ -5,6 +5,9 @@ import sys
 from kit.core.kit_cognitive_core import SAMBrain
 
 
+DASHBOARD_WIDTH = 40
+
+
 def normalize_for_dedup(text: str) -> str:
     import re
 
@@ -103,13 +106,14 @@ def run_doctor(brain: SAMBrain, mode: str = "safe", check_agents: bool = False, 
         print("\n[AGENT DIAGNOSTICS]", file=sys.stderr)
         with sqlite3.connect(brain.db_path, timeout=5.0) as conn:
             conn.row_factory = sqlite3.Row
-            
+
             if reset_cloud:
                 conn.execute("DELETE FROM agent_metrics WHERE name != 'local'")
                 print("  - Cloud provider metrics reset.", file=sys.stderr)
 
             if check_agents:
                 import json
+
                 rows = conn.execute("SELECT * FROM agent_metrics ORDER BY name").fetchall()
                 if not rows:
                     print("  - No Persisted Metrics: All agents are in clean state.", file=sys.stderr)
@@ -121,9 +125,44 @@ def run_doctor(brain: SAMBrain, mode: str = "safe", check_agents: bool = False, 
                             failures = data.get("failures", 0)
                             healthy = "HEALTHY" if data.get("healthy", True) else "DEGRADED (Cooldown)"
                             latency = data.get("avg_latency", 0.0)
-                            
-                            print(f"  - {row['name']:8}: {healthy:20} [S:{successes} F:{failures}] Latency: {latency:.2f}s", file=sys.stderr)
-                        except Exception:
+
+                            print(
+                                f"  - {row['name']:8}: {healthy:20} [S:{successes} F:{failures}] Latency: {latency:.2f}s",
+                                file=sys.stderr,
+                            )
+                        except (KeyError, TypeError, ValueError):
                             print(f"  - {row['name']:8}: Error reading metrics data.", file=sys.stderr)
 
-    print("Doctor complete. System is healthy.", file=sys.stderr)
+    # --- Dashboard Summary ---
+    from kit.api import get_brain
+
+    brain = get_brain()
+
+    # Count stats using internal connection helper
+    with brain._get_connection() as conn:
+        total_facts = conn.execute("SELECT COUNT(*) FROM observations WHERE is_active = 1").fetchone()[0]
+        invariants = conn.execute(
+            "SELECT COUNT(*) FROM observations WHERE tag = 'invariant' AND is_active = 1"
+        ).fetchone()[0]
+        decisions = conn.execute(
+            "SELECT COUNT(*) FROM observations WHERE tag = 'decision' AND is_active = 1"
+        ).fetchone()[0]
+
+    border = "=" * DASHBOARD_WIDTH
+    print("\n" + border, file=sys.stderr)
+    print(" .KIT COGNITIVE DASHBOARD", file=sys.stderr)
+    print(border, file=sys.stderr)
+    print(f" Brain Path:  {brain.db_path}", file=sys.stderr)
+    print(f" Total Facts: {total_facts}", file=sys.stderr)
+    print(f" Invariants:  {invariants}", file=sys.stderr)
+    print(f" Decisions:   {decisions}", file=sys.stderr)
+    print(f" Engine:      {'HEALTHY' if total_facts > 0 else 'EMPTY'}", file=sys.stderr)
+    print(border, file=sys.stderr)
+
+    if invariants == 0:
+        print(
+            "\nTIP: No invariants found. Run `kit learn --tag invariant 'Rule'` to secure your architecture.",
+            file=sys.stderr,
+        )
+
+    print("\nAll subsystems operational.", file=sys.stderr)

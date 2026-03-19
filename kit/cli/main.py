@@ -1,9 +1,38 @@
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+
+def _cognitive_guardrail(text: str, tag: str | None) -> bool:
+    """
+    Returns True if content is 'smelly' (contains dynamic/temporal data).
+    """
+    # 1. Patterns: %, ms, MB, timestamps, usage metrics
+    smell_patterns = [
+        r"\d+%",
+        r"\d+ms",
+        r"\d+s\s",
+        r"\d+(KB|MB|GB|B)",
+        r"cpu|ram|usage|load|latency|throughput",
+        r"error|exception|stacktrace",
+        r"\d{4}-\d{2}-\d{2}",
+        r"\d{2}:\d{2}:\d{2}",
+    ]
+
+    # 2. Keywords: Temporal/Transient
+    smell_keywords = {"currently", "now", "today", "recently", "temporary", "current", "latest", "moment", "instant"}
+
+    found_pattern = any(re.search(p, text, re.IGNORECASE) for p in smell_patterns)
+    found_keyword = any(k in text.lower() for k in smell_keywords)
+
+    # Only guard 'invariant' and 'decision' tags strictly
+    if tag in ("invariant", "decision"):
+        return found_pattern or found_keyword
+    return False
 
 
 def main() -> None:
@@ -45,6 +74,7 @@ def main() -> None:
     learn_p.add_argument("--agent-id", help="Explicit Agent ID for attribution")
     learn_p.add_argument("--symbol", help="Anchor fact to a specific code symbol (AST node)")
     learn_p.add_argument("--hash", help="Structural hash of the symbol")
+    learn_p.add_argument("--no-render", action="store_true", help="Skip manifest rendering (AGENTS.md) for batch speed")
 
     search_p = subparsers.add_parser("search", help="Hybrid FTS5 keyword search")
     search_p.add_argument("query", help="Keyword or phrase to search for")
@@ -199,6 +229,30 @@ def main() -> None:
                 print_diagnostic("Error: No content provided.")
                 sys.exit(1)
 
+            # --- Cognitive Friction ---
+            if _cognitive_guardrail(content, args.tag):
+                print("\n" + "!" * 60, file=sys.stderr)
+                print("COGNITIVE FRICTION WARNING: DYNAMIC DATA DETECTED", file=sys.stderr)
+                print("!" * 60, file=sys.stderr)
+                print(f"Tag '{args.tag}' should be reserved for immutable/deterministic facts.", file=sys.stderr)
+                print(
+                    "Your content contains dynamic elements (metrics, timestamps, or temporal words).", file=sys.stderr
+                )
+                print("Storing non-deterministic data in long-term memory causes cognitive drift.", file=sys.stderr)
+                print("-" * 60, file=sys.stderr)
+                print("AFFORDANCE TIPS:", file=sys.stderr)
+                print(" - Use '--tag note' for advisory/informational context.", file=sys.stderr)
+                print(" - Use the Ephemeral Layer via 'kit-agent' for dynamic sensor data.", file=sys.stderr)
+                print(" - Check ARCHITECTURE.md for memory purity guidelines.", file=sys.stderr)
+
+                if sys.stdin.isatty():
+                    choice = input("\nDo you want to proceed anyway? (y/N): ").lower().strip()
+                    if choice != "y":
+                        print_diagnostic("Aborted. Actionable: use 'ephemeral' layer for dynamic data.")
+                        sys.exit(0)
+                else:
+                    print_diagnostic("Non-interactive mode: Proceeding with caution (WARN-only v1.2.0).")
+
             uid = args.uid or current_context
             fact_id = api.get_brain().learn(
                 uid=uid,
@@ -214,6 +268,7 @@ def main() -> None:
                 symbol=args.symbol,
                 structural_hash=args.hash,
                 tag=args.tag,
+                skip_render=args.no_render,
             )
             target = "Global" if args.to_global else "Project"
             print_diagnostic(f"Learned: [{uid}] -> {target} Brain (ID: {fact_id})")
@@ -352,8 +407,8 @@ def main() -> None:
                     for suggestion in result["suggestions"]:
                         print(f"  - {suggestion}")
 
-            if result["status"] == "block":
-                sys.exit(2)
+                if result["status"] == "block":
+                    sys.exit(1)
             sys.exit(0)
 
         elif args.command == "reflect":
@@ -362,14 +417,14 @@ def main() -> None:
                 if not Path(args.file).exists():
                     print_diagnostic(f"Error: File {args.file} not found.")
                     sys.exit(1)
-                with open(args.file, "r", encoding="utf-8") as f:
+                with open(args.file, encoding="utf-8") as f:
                     diff_text = f.read()
             else:
                 try:
                     diff_text = subprocess.check_output(["git", "diff", "--cached"], text=True)
                     if not diff_text:
                         diff_text = subprocess.check_output(["git", "diff", "HEAD"], text=True)
-                except Exception:
+                except (subprocess.CalledProcessError, FileNotFoundError):
                     print_diagnostic("Error: No file provided and no staged git changes found.")
                     sys.exit(1)
 

@@ -1,99 +1,68 @@
-# .kit - Deterministic Memory for AI Agents
+# .kit - Deterministic Memory OS for Multi-Agent Systems
 
-`.kit` is a SQLite-backed memory and governance layer for developers and AI agents. It keeps architectural facts persistent, ranked, and deterministic across repeated runs without using embeddings or probabilistic RAG.
+> "LLMs forget. .kit remembers deterministically."
 
-## AMSB v1.1 Stable
+`.kit` is a SQLite-backed memory and governance layer for AI agents. It maintains an append-only ledger of facts, decisions, and invariants, then uses deterministic ranking and protocol enforcement to turn stochastic model output into a controlled system.
 
-- Production-ready release line focused on deterministic memory, assessment, orchestration, and resilience
-- Locked scope: no new features in this line, only bug fixes, maintenance, and documentation alignment
-- Canonical architecture contract lives in [ARCHITECTURE.md](ARCHITECTURE.md)
-- Generated manifests in `.kit/context` and `AGENTS.md` remain the highest local authority for agents
+## Core Philosophy
 
-## What It Does
+- **Determinism First**: Identical inputs should yield identical ranked context.
+- **Immutable Ledger**: Facts are not silently deleted; they are superseded by newer truths.
+- **Cognitive Friction**: Dynamic or temporal data is detected and challenged before it is stored as long-term architecture.
+- **Unix Composability**: The CLI is designed for pipes, scripts, and stateless orchestration.
 
-- `kit learn` stores explicit memories as `invariant`, `decision`, `preference`, or `note`
-- `kit recall` retrieves ranked context deterministically for the current project or scope
-- `kit reflect` detects memory gaps, drift, and invariant violations against a diff
-- `kit preflight` enforces governance before code is committed
-- `kit doctor` performs hygiene and agent-metric recovery tasks
-- `kit-agent` runs provider orchestration with fallback, repair loops, and confidence-aware prompt injection
-
-## Quickstart
+## The Golden Path
 
 ```bash
-# Initialize a project brain
 kit init
-
-# Learn an invariant
-kit learn --uid auth_service --tag invariant --content "Auth tokens MUST NOT be logged"
-
-# Recall scoped context
-kit recall auth_service --here
-
-# Run reflection on current changes
-kit reflect --here
-
-# Check agent health and reset persisted cloud cooldown state if needed
-kit doctor --check-agents
-kit doctor --reset-cloud
-
-# Run the agent loop with provider fallback
-python -m kit_agent.cli.main run "Implement payment flow"
+kit learn --tag invariant --content "Auth tokens MUST NOT be logged to console."
+kit-agent ask "Implement a login logger."
 ```
 
-## Stable Contracts
+Result: `DECISION: BLOCK`
 
-- Deterministic recall and ranking across repeated identical inputs
-- Append-only fact ledger with `supersede` lineage
-- Confidence states: `HIGH_CONFIDENCE`, `AMBIGUOUS`, `WEAK_SIGNAL`, `EMPTY`
-- Prompt export constrained to Top-K `3` memories and approximately `200` characters of compact prompt budget
-- SQLite WAL concurrency with bounded retry behavior
+## Cognitive Friction
 
-## Verification
+`.kit` is not a log aggregator or metrics store. `kit learn` warns and challenges content that looks dynamic, such as:
 
-- `pytest tests/ -v` is the canonical regression command for the locked v1.1 stable surface
-- Coverage includes AMSB core behavior, deterministic ranking, reflection, provider fallback, protocol prompt injection, and chaos/resilience paths
-- Behavioral and execution-model tests validate confidence-aware memory use against `semantic_mock` and fallback providers
+- percentages or latency measurements
+- CPU or RAM metrics
+- timestamps or temporal words such as `currently` and `now`
+
+Dynamic signals should go to `kit-agent` as ephemeral facts instead of being stored as long-term memory.
+
+In v1.2.0 this is a friction layer, not a hard block:
+
+- interactive use asks for confirmation
+- non-interactive use emits a warning and continues
+
+## Ephemeral Memory
+
+```bash
+echo '{"env":"prod","version":"1.2.0"}' | kit-agent ask "What is the environment?"
+```
 
 ## CLI Surface
 
+- `kit learn`: ingest observations, invariants, and decisions
+- `kit recall`: retrieve ranked context for a symbol or scope
+- `kit reflect`: detect memory gaps and architectural drift in a diff
+- `kit doctor`: inspect system and agent health
+- `kit-agent run` or `kit-agent ask`: execute a task with provider fallback and structured output
+
+## Installation
+
 ```bash
-kit learn --uid cache --tag decision --content "Use SQLite for caching"
-kit learn --uid ui --tag note --content "Maybe prefer file-based logging locally"
-kit recall cache --here
-kit reflect --mode advisory
-kit preflight -m "check invariants"
-kit doctor --mode safe --check-agents
-kit doctor --reset-cloud
+pip install memory-share-kit
 ```
 
-## Python API
+Python `3.14.x` is the only supported runtime for this release line. If you need another Python version, fork it.
 
-```python
-from pathlib import Path
-import kit.api as api
-
-api.init_kernel(Path(".kit/brain.db"))
-api.learn(uid="auth", content="JWT required", tag="decision")
-assessment = api.recall_with_assessment(["auth"], limit=3, here=True)
-prompt_block = api.export_prompt(["auth"], budget=200)
-```
-
-## Release Boundary
-
-Out of scope for AMSB v1.1 stable:
-
-- Vector search, embeddings, or semantic RAG retrieval
-- Automatic resolution of conflicting invariants
-- New product surface area outside memory, governance, orchestration, resilience, and verification
-
-## See Also
+## Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md)
 - [REFERENCE.md](REFERENCE.md)
 - [AGENT_PLAYBOOK.md](AGENT_PLAYBOOK.md)
-- [AGENT_PLAYBOOK.md](AGENT_PLAYBOOK.md) - see `Unix-Philosophy Locked` for the operating principles behind the stable line
-- [MANIFESTO.md](MANIFESTO.md)
 
 ## License
 

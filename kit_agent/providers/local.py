@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Any
 
@@ -25,7 +26,7 @@ class LocalLLMProvider(BaseProvider):
         self.base_url = raw_url.rstrip("/")
         if not self.base_url.endswith("/v1"):
             self.base_url = f"{self.base_url}/v1"
-            
+
         self.api_key = api_key or env_api_key or "jan-local"
         self.model_id = env_model_id or model_id
         self.timeout = timeout
@@ -52,22 +53,20 @@ class LocalLLMProvider(BaseProvider):
                     discovered_id = sorted(models, key=lambda x: x["id"], reverse=True)[0]["id"]
                     print(f"\033[90m[INFO] [LOCAL] Auto-discovered model: {discovered_id}\033[0m")
                     return discovered_id
-        except Exception:
+        except (json.JSONDecodeError, KeyError, IndexError, TypeError):
             pass
         return None
 
     def _ensure_model_id(self) -> None:
         """Ensures self.model_id is valid: auto-discover if placeholder or likely broken."""
         placeholder_ids = ["phi-3-mini:latest", "jan-v3-4b", "default", "", None]
-        
+
         # We also trigger discovery if the ID contains '\' (typical for raw Jan IDs that might have changed)
         # or if JAN_AUTO_DISCOVER is explicitly enabled.
         should_discover = (
-            self.model_id in placeholder_ids or 
-            "\\" in str(self.model_id) or 
-            os.environ.get("JAN_AUTO_DISCOVER") == "1"
+            self.model_id in placeholder_ids or "\\" in str(self.model_id) or os.environ.get("JAN_AUTO_DISCOVER") == "1"
         )
-        
+
         if should_discover:
             discovered = self._discover_model_id()
             if discovered:
@@ -97,20 +96,20 @@ class LocalLLMProvider(BaseProvider):
             return self._parse_chat_response(response)
         except RequestException as error:
             error_type = "TIMEOUT" if isinstance(error, Timeout) else "NETWORK"
-            return {
-                "ok": False, 
-                "error": f"LOCAL_LLM_{error_type}: {error}", 
-                "text": "", 
-                "error_type": error_type
-            }
+            return {"ok": False, "error": f"LOCAL_LLM_{error_type}: {error}", "text": "", "error_type": error_type}
 
     def _parse_chat_response(self, response: Response) -> dict[str, Any]:
         if response.status_code != 200:
             # If we get a Model Not Found, reset for next time's discovery
             if response.status_code == 404:
-                 print(f"\033[91m[WARN] [LOCAL] Model {self.model_id} not found in Jan.\033[0m")
-                 self.model_id = "phi-3-mini:latest" # Force re-discovery next time
-                 return {"ok": False, "error": response.text, "text": "", "error_type": "CAPACITY"} # Trigger circuit breaker
+                print(f"\033[91m[WARN] [LOCAL] Model {self.model_id} not found in Jan.\033[0m")
+                self.model_id = "phi-3-mini:latest"  # Force re-discovery next time
+                return {
+                    "ok": False,
+                    "error": response.text,
+                    "text": "",
+                    "error_type": "CAPACITY",
+                }  # Trigger circuit breaker
             return {
                 "ok": False,
                 "error": f"LOCAL_LLM_HTTP_{response.status_code}: {response.text}",

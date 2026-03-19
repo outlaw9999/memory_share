@@ -1,19 +1,29 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.29.0"]
 build-backend = "hatchling.build"
 
 [project]
 name = "memory-share-kit"
-version = "1.1.0"
+version = "1.2.0"
 description = "Deterministic memory and governance for developers and AI agents."
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.14,<3.15"
 license = {text = "MIT"}
 authors = [
     {name = "Chief Architect", email = "architect@memory-share.kit"}
 ]
 keywords = ["ai", "agents", "memory", "sqlite", "graph", "deterministic"]
-dependencies = [] # Zero-dependency core logic
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = ["requests>=2.31.0"]
 
 [project.scripts]
 kit = "kit.cli.main:main"
@@ -25,13 +35,32 @@ packages = ["kit", "kit_agent", "runtime"]
 [tool.ruff]
 line-length = 120
 target-version = "py314"
-lint.select = ["E", "F", "B", "UP"]
+lint.select = ["E", "F", "B", "UP", "I", "N", "W"]
+lint.ignore = [
+    "E501",  # line too long
+    "W291",  # trailing whitespace (allowed in SQL for readability)
+    "W293",  # blank line contains whitespace (allowed in SQL for readability)
+]
 exclude = [
     ".git",
     "archive",
     "__pycache__",
     "build",
     "dist",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["kit", "runtime"]
+omit = ["*/tests/*", "*/archive/*"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
 ]
 
 [tool.pyright]

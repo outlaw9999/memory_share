@@ -1,6 +1,7 @@
 import time
 from typing import Any
 from dataclasses import dataclass
+import json
 
 import pytest
 
@@ -63,9 +64,9 @@ def disable_search_fallback(monkeypatch) -> None:
 
 def test_protocol_labels_local_mode_on_success(monkeypatch) -> None:
     def fake_safe_run(command: list[str], input_text: str | None = None) -> tuple[str, str, int]:
-        if command[:3] == ["python", "kit.py", "preflight"]:
+        if "preflight" in command:
             return ("PASS", "", 0)
-        if command[:3] == ["python", "kit.py", "learn"]:
+        if "learn" in command:
             return ("", "", 0)
         raise AssertionError(f"Unexpected command: {command}")
 
@@ -77,20 +78,23 @@ def test_protocol_labels_local_mode_on_success(monkeypatch) -> None:
 
     protocol = AMSBProtocol(
         router=StubRouter(["local"]),
-        providers={"local": StubProvider([{"ok": True, "text": "jan response", "error": None}])},
+        providers={"local": StubProvider([{"ok": True, "text": "{\"decision\":\"PASS\",\"reason\":\"jan response\",\"confidence\":0.9}", "error": None}])},
         cache=SemanticCache(),
     )
 
     result = protocol.run("say hello")
 
-    assert result == "[LOCAL MODE]\njan response"
+    payload = json.loads(result)
+    assert payload["provider"] == "local"
+    assert payload["decision"] == "PASS"
+    assert payload["reason"] == "jan response"
 
 
 def test_protocol_labels_local_mode_after_fallback(monkeypatch) -> None:
     def fake_safe_run(command: list[str], input_text: str | None = None) -> tuple[str, str, int]:
-        if command[:3] == ["python", "kit.py", "preflight"]:
+        if "preflight" in command:
             return ("PASS", "", 0)
-        if command[:3] == ["python", "kit.py", "learn"]:
+        if "learn" in command:
             return ("", "", 0)
         raise AssertionError(f"Unexpected command: {command}")
 
@@ -104,21 +108,24 @@ def test_protocol_labels_local_mode_after_fallback(monkeypatch) -> None:
         router=StubRouter(["gemini", "local"]),
         providers={
             "gemini": StubProvider([{"ok": False, "text": "", "error": "503_CAPACITY_EXHAUSTED", "error_type": "CAPACITY"}]),
-            "local": StubProvider([{"ok": True, "text": "fallback answer", "error": None, "error_type": None}]),
+            "local": StubProvider([{"ok": True, "text": "{\"decision\":\"PASS\",\"reason\":\"fallback answer\",\"confidence\":0.8}", "error": None, "error_type": None}]),
         },
         cache=SemanticCache(),
     )
 
     result = protocol.run("write cache function")
 
-    assert result == "[LOCAL MODE]\nfallback answer"
+    payload = json.loads(result)
+    assert payload["provider"] == "local"
+    assert payload["decision"] == "PASS"
+    assert payload["reason"] == "fallback answer"
 
 
 def test_protocol_capacity_failure_marks_provider_down_without_delay(monkeypatch) -> None:
     def fake_safe_run(command: list[str], input_text: str | None = None) -> tuple[str, str, int]:
-        if command[:3] == ["python", "kit.py", "preflight"]:
+        if "preflight" in command:
             return ("PASS", "", 0)
-        if command[:3] == ["python", "kit.py", "learn"]:
+        if "learn" in command:
             return ("", "", 0)
         raise AssertionError(f"Unexpected command: {command}")
 
@@ -133,7 +140,7 @@ def test_protocol_capacity_failure_marks_provider_down_without_delay(monkeypatch
         router=router,
         providers={
             "gemini": StubProvider([{"ok": False, "text": "", "error": "503_CAPACITY_EXHAUSTED", "error_type": "CAPACITY"}]),
-            "local": StubProvider([{"ok": True, "text": "fallback answer", "error": None, "error_type": None}]),
+            "local": StubProvider([{"ok": True, "text": "{\"decision\":\"PASS\",\"reason\":\"fallback answer\",\"confidence\":0.8}", "error": None, "error_type": None}]),
         },
         cache=SemanticCache(),
     )
@@ -142,7 +149,10 @@ def test_protocol_capacity_failure_marks_provider_down_without_delay(monkeypatch
     result = protocol.run("write cache function")
     duration = time.perf_counter() - start
 
-    assert result == "[LOCAL MODE]\nfallback answer"
+    payload = json.loads(result)
+    assert payload["provider"] == "local"
+    assert payload["decision"] == "PASS"
+    assert payload["reason"] == "fallback answer"
     assert duration < 0.5
     assert router.models["gemini"].healthy is False
     assert router.models["gemini"].cooldown_active() is True
@@ -152,16 +162,16 @@ def test_protocol_injects_memory_block_into_prompt(monkeypatch) -> None:
     captured: dict[str, str] = {}
 
     def fake_safe_run(command: list[str], input_text: str | None = None) -> tuple[str, str, int]:
-        if command[:3] == ["python", "kit.py", "preflight"]:
+        if "preflight" in command:
             return ("PASS", "", 0)
-        if command[:3] == ["python", "kit.py", "learn"]:
+        if "learn" in command:
             return ("", "", 0)
         raise AssertionError(f"Unexpected command: {command}")
 
     class CapturingProvider:
         def ask(self, prompt: str) -> dict[str, Any]:
             captured["prompt"] = prompt
-            return {"ok": True, "text": "done", "error": None}
+            return {"ok": True, "text": "{\"decision\":\"PASS\",\"reason\":\"done\",\"confidence\":0.8}", "error": None}
 
     monkeypatch.setattr("kit_agent.core.protocol.safe_run", fake_safe_run)
     monkeypatch.setattr(
@@ -192,16 +202,16 @@ def test_protocol_handles_empty_memory_without_crashing(monkeypatch) -> None:
     captured: dict[str, str] = {}
 
     def fake_safe_run(command: list[str], input_text: str | None = None) -> tuple[str, str, int]:
-        if command[:3] == ["python", "kit.py", "preflight"]:
+        if "preflight" in command:
             return ("PASS", "", 0)
-        if command[:3] == ["python", "kit.py", "learn"]:
+        if "learn" in command:
             return ("", "", 0)
         raise AssertionError(f"Unexpected command: {command}")
 
     class CapturingProvider:
         def ask(self, prompt: str) -> dict[str, Any]:
             captured["prompt"] = prompt
-            return {"ok": True, "text": "done", "error": None}
+            return {"ok": True, "text": "{\"decision\":\"PASS\",\"reason\":\"done\",\"confidence\":0.8}", "error": None}
 
     monkeypatch.setattr("kit_agent.core.protocol.safe_run", fake_safe_run)
     monkeypatch.setattr(
@@ -217,24 +227,29 @@ def test_protocol_handles_empty_memory_without_crashing(monkeypatch) -> None:
 
     result = protocol.run("check empty memory")
 
-    assert result == "[LOCAL MODE]\ndone"
-    assert captured["prompt"] == "[TASK]\ncheck empty memory"
+    payload = json.loads(result)
+    assert payload["provider"] == "local"
+    assert payload["decision"] == "PASS"
+    assert payload["reason"] == "done"
+    assert "[STRICT EXECUTION RULES]" in captured["prompt"]
+    assert "[OUTPUT CONTRACT]" in captured["prompt"]
+    assert captured["prompt"].endswith("[TASK]\ncheck empty memory")
 
 
 def test_protocol_limits_and_truncates_memory_rules(monkeypatch) -> None:
     captured: dict[str, str] = {}
 
     def fake_safe_run(command: list[str], input_text: str | None = None) -> tuple[str, str, int]:
-        if command[:3] == ["python", "kit.py", "preflight"]:
+        if "preflight" in command:
             return ("PASS", "", 0)
-        if command[:3] == ["python", "kit.py", "learn"]:
+        if "learn" in command:
             return ("", "", 0)
         raise AssertionError(f"Unexpected command: {command}")
 
     class CapturingProvider:
         def ask(self, prompt: str) -> dict[str, Any]:
             captured["prompt"] = prompt
-            return {"ok": True, "text": "done", "error": None}
+            return {"ok": True, "text": "{\"decision\":\"PASS\",\"reason\":\"done\",\"confidence\":0.8}", "error": None}
 
     monkeypatch.setattr("kit_agent.core.protocol.safe_run", fake_safe_run)
     monkeypatch.setattr(
@@ -267,16 +282,16 @@ def test_protocol_marks_ambiguous_memory_in_prompt(monkeypatch) -> None:
     captured: dict[str, str] = {}
 
     def fake_safe_run(command: list[str], input_text: str | None = None) -> tuple[str, str, int]:
-        if command[:3] == ["python", "kit.py", "preflight"]:
+        if "preflight" in command:
             return ("PASS", "", 0)
-        if command[:3] == ["python", "kit.py", "learn"]:
+        if "learn" in command:
             return ("", "", 0)
         raise AssertionError(f"Unexpected command: {command}")
 
     class CapturingProvider:
         def ask(self, prompt: str) -> dict[str, Any]:
             captured["prompt"] = prompt
-            return {"ok": True, "text": "depends", "error": None}
+            return {"ok": True, "text": "{\"decision\":\"WARN\",\"reason\":\"depends\",\"confidence\":0.2}", "error": None}
 
     monkeypatch.setattr("kit_agent.core.protocol.safe_run", fake_safe_run)
     monkeypatch.setattr(
@@ -300,3 +315,31 @@ def test_protocol_marks_ambiguous_memory_in_prompt(monkeypatch) -> None:
     assert "CRITICAL: CONFLICT DETECTED IN ARCHITECTURAL SIGNALS" in captured["prompt"]
     assert "MUST NOT make a silent assumption" in captured["prompt"]
     assert "request clarification" in captured["prompt"]
+
+
+def test_protocol_retries_when_provider_breaks_output_contract(monkeypatch) -> None:
+    def fake_safe_run(command: list[str], input_text: str | None = None) -> tuple[str, str, int]:
+        if "preflight" in command:
+            return ("PASS", "", 0)
+        if "learn" in command:
+            return ("", "", 0)
+        raise AssertionError(f"Unexpected command: {command}")
+
+    monkeypatch.setattr("kit_agent.core.protocol.safe_run", fake_safe_run)
+    monkeypatch.setattr(
+        "kit_agent.core.protocol.kit_api.recall_with_assessment",
+        lambda *args, **kwargs: FakeAssessment(memories=[FakeMemory("Use SQLite")], confidence=1.0, status="HIGH_CONFIDENCE"),
+    )
+
+    protocol = AMSBProtocol(
+        router=StubRouter(["gemini", "local"]),
+        providers={
+            "gemini": StubProvider([{"ok": True, "text": "not json", "error": None}]),
+            "local": StubProvider([{"ok": True, "text": "{\"decision\":\"PASS\",\"reason\":\"fallback contract\",\"confidence\":0.8}", "error": None}]),
+        },
+        cache=SemanticCache(),
+    )
+
+    payload = json.loads(protocol.run("stabilize provider output"))
+    assert payload["decision"] == "PASS"
+    assert payload["provider"] == "local"

@@ -2,6 +2,7 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from enum import Enum
+
 from kit.core.kit_cognitive_core import SAMBrain
 
 
@@ -95,7 +96,7 @@ def run_preflight(
     clean_diff = normalize_content(diff_output)
 
     # Pattern-based Heuristic Map
-    TECH_PATTERNS = {
+    TECH_PATTERNS = {  # noqa: N806
         "redis": [re.compile(r"\bimport redis\b"), re.compile(r"\bfrom redis\b")],
         "postgres": [re.compile(r"\bpsycopg\b"), re.compile(r"\bpostgres\b"), re.compile(r"\bpostgresql\b")],
         "sqlite": [re.compile(r"\bsqlite3?\b")],

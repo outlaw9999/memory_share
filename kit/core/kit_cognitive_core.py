@@ -3,13 +3,12 @@ import logging
 import sqlite3
 import time
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
-from datetime import datetime
 
 from kit.core.schema_factory import enable_wal, init_db
-
 
 logger = logging.getLogger("kit.core")
 
@@ -121,7 +120,7 @@ class SAMBrain:
             enable_wal(conn)
             return conn
         except sqlite3.Error as e:
-            raise SAMBrainError(f"Database connection failed: {e}")
+            raise SAMBrainError(f"Database connection failed: {e}") from e
 
     @staticmethod
     def _is_retryable_sqlite_error(error: sqlite3.Error) -> bool:
@@ -201,7 +200,9 @@ class SAMBrain:
             return 0.1
         return 0.0
 
-    def _scope_bonus(self, memory_scope: str, current_scope: str, memory_symbol: str | None, symbol: str | None) -> float:
+    def _scope_bonus(
+        self, memory_scope: str, current_scope: str, memory_symbol: str | None, symbol: str | None
+    ) -> float:
         if symbol and memory_symbol == symbol:
             return 0.3
         if current_scope and memory_scope == current_scope:
@@ -221,11 +222,16 @@ class SAMBrain:
         source_priority: float = 1.0,
     ) -> float:
         base = memory.materialized_score * source_priority * self._namespace_factor(memory.namespace, agent_id)
-        return base + self._tag_bonus(memory.tag) + self._namespace_bonus(memory.namespace, agent_id) + self._scope_bonus(
-            memory.scope,
-            current_scope,
-            memory.symbol,
-            symbol,
+        return (
+            base
+            + self._tag_bonus(memory.tag)
+            + self._namespace_bonus(memory.namespace, agent_id)
+            + self._scope_bonus(
+                memory.scope,
+                current_scope,
+                memory.symbol,
+                symbol,
+            )
         )
 
     def calculate_confidence(self, memories: list[Memory]) -> float:
@@ -252,7 +258,7 @@ class SAMBrain:
     def stream_events(self, poll_interval: float = 0.2):
         """Yields semantic events when the cognitive version increments."""
         import time
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         last_version = self.cognition_version
 
@@ -277,7 +283,7 @@ class SAMBrain:
                         "version": current_version,
                         "entity": entity,
                         "origin": origin,
-                        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
                     }
                     yield event
                     last_version = current_version
@@ -314,7 +320,7 @@ class SAMBrain:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
                 ctx_lines = []
-                ctx_lines.append(f"# .kit Project Context\n")
+                ctx_lines.append("# .kit Project Context\n")
                 ctx_lines.append(f"# Generated: {timestamp} | Root: {self.root_path.name}\n")
                 ctx_lines.append(f"# Cognition-Version: {self.cognition_version}\n\n")
                 for r in rows:
@@ -327,13 +333,13 @@ class SAMBrain:
                 should_write_ctx = True
                 if context_file.exists():
                     try:
-                        with open(context_file, "r", encoding="utf-8") as f:
+                        with open(context_file, encoding="utf-8") as f:
                             old_ctx = f.read()
                             old_body = "\n".join(old_ctx.split("\n")[3:])
                             new_body = "\n".join(new_ctx_content.split("\n")[3:])
                             if old_body == new_body:
                                 should_write_ctx = False
-                    except Exception:
+                    except (json.JSONDecodeError, OSError):
                         pass
 
                 if should_write_ctx:
@@ -367,7 +373,7 @@ class SAMBrain:
 
                 # Smart Update: Preserve manual content
                 if agents_file.exists():
-                    with open(agents_file, "r", encoding="utf-8") as f:
+                    with open(agents_file, encoding="utf-8") as f:
                         old_content = f.read()
 
                     old_kit_body = ""
@@ -422,12 +428,14 @@ class SAMBrain:
         symbol: str | None = None,
         structural_hash: str | None = None,
         tag: str = FactTag.DECISION.value,
+        skip_render: bool = False,
     ) -> int:
         """Learn a new observation at a specific node."""
         target_db = self.global_db_path if (to_global and self.global_db_path) else self.db_path
         normalized_scope = scope if scope is not None else self.get_normalized_scope()
 
         try:
+
             def _operation(conn: sqlite3.Connection) -> int:
                 # 0. Handle Supersede (Atomic Transaction)
                 if supersede_id:
@@ -487,7 +495,8 @@ class SAMBrain:
                 return fact_id
 
             fact_id = self._run_write_transaction(_operation, target_db)
-            self.render_context()
+            if not skip_render:
+                self.render_context()
             return fact_id
         except sqlite3.Error as e:
             raise SAMBrainError(f"Failed to learn observation: {e}") from e
@@ -502,6 +511,7 @@ class SAMBrain:
     ) -> None:
         """Create a directed edge between two nodes."""
         try:
+
             def _operation(conn: sqlite3.Connection) -> None:
                 src_row = conn.execute("SELECT id FROM nodes WHERE uid = ?", (src_uid.lower(),)).fetchone()
                 dst_row = conn.execute("SELECT id FROM nodes WHERE uid = ?", (dst_uid.lower(),)).fetchone()
@@ -532,7 +542,9 @@ class SAMBrain:
         results: list[Memory] = []
         candidate_limit = max(limit * 5, limit)
 
-        def run_query(conn: sqlite3.Connection, prefix: str = "", priority: float = 1.0, source: str = "project") -> None:
+        def run_query(
+            conn: sqlite3.Connection, prefix: str = "", priority: float = 1.0, source: str = "project"
+        ) -> None:
             p = f"{prefix}." if prefix else ""
             sql = f"""
             SELECT o.*, n.uid as node_uid
@@ -601,7 +613,9 @@ class SAMBrain:
         candidate_limit = max(limit * 5, limit)
 
         # Internal helper for querying a single brain
-        def _recall_from(conn: sqlite3.Connection, prefix: str = "", priority: float = 1.0, source: str = "project") -> None:
+        def _recall_from(
+            conn: sqlite3.Connection, prefix: str = "", priority: float = 1.0, source: str = "project"
+        ) -> None:
             p = f"{prefix}." if prefix else ""
             current_scope = self.get_normalized_scope() if here else ""
 
@@ -747,6 +761,7 @@ class SAMBrain:
     def touch_fact(self, fact_id: int) -> None:
         """Increment access count and refresh recency (v3.14 compliant)."""
         try:
+
             def _operation(conn: sqlite3.Connection) -> None:
                 conn.execute(
                     """UPDATE observations 
@@ -766,6 +781,7 @@ class SAMBrain:
     def promote_memories(self, threshold: int = 5) -> int:
         """Promote Episodic facts to Semantic based on access frequency."""
         try:
+
             def _operation(conn: sqlite3.Connection) -> int:
                 cur = conn.execute(
                     """UPDATE observations 
@@ -787,6 +803,7 @@ class SAMBrain:
     def checkout(self, branch_name: str, create: bool = False) -> None:
         """Switch to a specific memory branch."""
         try:
+
             def _operation(conn: sqlite3.Connection) -> None:
                 row = conn.execute("SELECT name FROM branches WHERE name = ?", (branch_name,)).fetchone()
                 if not row:
@@ -810,14 +827,15 @@ class SAMBrain:
         except sqlite3.Error as e:
             raise SAMBrainError(f"Failed to switch branch: {e}") from e
 
-    def commit(self, message: str, agent_id: str | None = None) -> str:
+    def commit(self, message: str, agent_id: str | None = None, skip_render: bool = False) -> str:
         """Freeze current memory state as a commit."""
-        import uuid
         import hashlib
+        import uuid
 
         commit_id = hashlib.sha1(str(uuid.uuid4()).encode()).hexdigest()[:8]
 
         try:
+
             def _operation(conn: sqlite3.Connection) -> str:
                 cur_head = conn.execute(
                     "SELECT head_commit_id FROM branches WHERE name = ?", (self.current_branch,)
@@ -832,7 +850,8 @@ class SAMBrain:
                 return commit_id
 
             committed_id = self._run_write_transaction(_operation)
-            self.render_context()
+            if not skip_render:
+                self.render_context()
             return committed_id
         except sqlite3.Error as e:
             raise SAMBrainError(f"Failed to commit memory: {e}") from e

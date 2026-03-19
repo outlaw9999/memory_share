@@ -76,6 +76,7 @@ def learn(
     to_global: bool = False,
     symbol: str | None = None,
     structural_hash: str | None = None,
+    skip_render: bool = False,
 ) -> int:
     """Learn a fact with optional symbol anchoring."""
     meta = {"source": "cli", "actor": "human", "agent": "antigravity"}
@@ -96,6 +97,7 @@ def learn(
         symbol=symbol,
         structural_hash=structural_hash,
         metadata=meta,
+        skip_render=skip_render,
     )
 
 
@@ -176,8 +178,9 @@ def stream_events(poll_interval: float = 0.2):
 
 def preflight_check(commit_msg: str, strict: bool = False, diff_text: str | None = None) -> dict[str, Any]:
     """Run cognitive governance preflight checks."""
-    from kit.core.kit_governance import run_preflight
     import dataclasses
+
+    from kit.core.kit_governance import run_preflight
 
     result = run_preflight(commit_msg=commit_msg, brain=get_brain(), strict_mode=strict, diff_text=diff_text)
     return dataclasses.asdict(result)
@@ -185,8 +188,9 @@ def preflight_check(commit_msg: str, strict: bool = False, diff_text: str | None
 
 def reflect_check(diff_text: str | None = None, scope: str | None = None) -> dict[str, Any]:
     """Run cognitive reflection check."""
-    from kit.core.kit_reflect import run_reflect
     import subprocess
+
+    from kit.core.kit_reflect import run_reflect
 
     if diff_text is None:
         try:
@@ -195,7 +199,7 @@ def reflect_check(diff_text: str | None = None, scope: str | None = None) -> dic
             if not diff_text:
                 # Fallback to current changes
                 diff_text = subprocess.check_output(["git", "diff", "HEAD"], text=True)
-        except Exception:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             diff_text = ""
 
     report = run_reflect(get_brain(), diff_text, scope=scope)

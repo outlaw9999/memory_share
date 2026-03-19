@@ -1,4 +1,5 @@
 import time
+import json
 from typing import Dict, Any
 from kit_agent.providers.base import BaseProvider
 
@@ -24,14 +25,34 @@ class SemanticMockProvider(BaseProvider):
             if task_is_database and "SQLITE" in prompt_upper:
                 return {
                     "ok": True,
-                    "text": "The database layer will use SQLite as a mandated invariant from memory.",
+                    "text": json.dumps({
+                        "decision": "PASS",
+                        "reason": "Use SQLite as the mandated invariant from memory.",
+                        "confidence": 0.98,
+                    }),
                     "error": None
                 }
             if task_is_logging and "AUTH TOKENS" in prompt_upper:
                 return {
                     "ok": True,
-                    "text": "The login logger is implemented. As a MANDATED INVARIANT, auth tokens MUST NOT be logged to console.",
+                    "text": json.dumps({
+                        "decision": "BLOCK",
+                        "reason": "Auth tokens must not be logged because this violates a mandated invariant.",
+                        "confidence": 0.99,
+                        "violations": ["Auth tokens MUST NOT be logged to console."],
+                    }),
                     "error": None
+                }
+            if "JWT" in prompt_upper and "COOKIE" in prompt_upper:
+                return {
+                    "ok": True,
+                    "text": json.dumps({
+                        "decision": "BLOCK",
+                        "reason": "Cookies conflict with the JWT-only invariant.",
+                        "confidence": 0.99,
+                        "violations": ["Auth must use JWT."],
+                    }),
+                    "error": None,
                 }
         
         # 2. AMBIGUOUS: Expecting Hedged Reasoning (Hard Directive)
@@ -39,7 +60,13 @@ class SemanticMockProvider(BaseProvider):
             if "CACHING" in prompt_upper:
                 return {
                     "ok": True,
-                    "text": "CRITICAL: CONFLICT DETECTED. Memory contains conflicting decisions for caching (Redis vs Memcached). As required by the Hard Directive, I am requesting clarification rather than making an assumption.",
+                    "text": json.dumps({
+                        "decision": "WARN",
+                        "reason": "Conflict detected between Redis and Memcached; requesting clarification before proceeding.",
+                        "confidence": 0.15,
+                        "violations": ["Conflicting decisions for caching."],
+                        "suggestions": ["Clarify whether Redis or Memcached is the intended cache."],
+                    }),
                     "error": None
                 }
         
@@ -48,7 +75,12 @@ class SemanticMockProvider(BaseProvider):
             if task_is_logging:
                 return {
                     "ok": True,
-                    "text": "Considering file-based logging as it is mentioned as a potential suggestion (weak signal), rather than a strict requirement.",
+                    "text": json.dumps({
+                        "decision": "PASS",
+                        "reason": "Considering file-based logging as a potential suggestion, not a strict requirement.",
+                        "confidence": 0.55,
+                        "suggestions": ["Use file-based logging if it fits the runtime environment."],
+                    }),
                     "error": None
                 }
 
@@ -56,18 +88,30 @@ class SemanticMockProvider(BaseProvider):
         if task_is_logging:
             return {
                 "ok": True,
-                "text": "Considering file-based logging as a potential suggestion, with sensitive data checks applied.",
+                "text": json.dumps({
+                    "decision": "PASS",
+                    "reason": "Considering file-based logging as a potential suggestion, with sensitive data checks applied.",
+                    "confidence": 0.6,
+                }),
                 "error": None,
             }
         if task_is_database:
             return {
                 "ok": True,
-                "text": "Database setup: Use SQLite as the mandated architectural invariant.",
+                "text": json.dumps({
+                    "decision": "PASS",
+                    "reason": "Use SQLite as the mandated architectural invariant.",
+                    "confidence": 0.95,
+                }),
                 "error": None,
             }
         
         return {
             "ok": True,
-            "text": "Task processed by semantic mock (Standard output).",
+            "text": json.dumps({
+                "decision": "PASS",
+                "reason": "Task processed successfully by semantic mock.",
+                "confidence": 0.7,
+            }),
             "error": None
         }

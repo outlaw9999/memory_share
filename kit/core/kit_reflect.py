@@ -1,7 +1,8 @@
 import re
 import sys
 from dataclasses import dataclass, field
-from kit.core.kit_cognitive_core import SAMBrain, Memory
+
+from kit.core.kit_cognitive_core import Memory, SAMBrain
 
 # Standard library modules to ignore in gap detection
 STDLIB_MODULES = set(sys.builtin_module_names) | {
@@ -94,7 +95,7 @@ def extract_signals(diff_text: str) -> list[str]:
             if match:
                 # Get root module, handling both Python '.' and Rust '::'
                 raw_signal = match.group(1)
-                signal = re.split(r"[\.::]+", raw_signal)[0] 
+                signal = re.split(r"[\.::]+", raw_signal)[0]
                 if signal not in STDLIB_MODULES:
                     signals.add(signal)
 
@@ -165,7 +166,7 @@ def resolve_cognitive_conflict(memories: list[Memory], current_scope: str, signa
                 winner_id=invariants[0].id,
                 winner_content=invariants[0].content,
                 is_violation=True,
-                reason=f"CONSTITUTIONAL CONFLICT: Multiple conflicting Invariants detected.",
+                reason="CONSTITUTIONAL CONFLICT: Multiple conflicting Invariants detected.",
                 confidence=0.0,
                 overridden=[inv.id for inv in invariants[1:]],
             )
@@ -178,7 +179,7 @@ def resolve_cognitive_conflict(memories: list[Memory], current_scope: str, signa
             is_violation=True,
             reason=f"CONSTITUTIONAL VIOLATION: Scoped '{winner.tag}' cannot override Global Invariant.",
             confidence=1.0,
-            overridden=[winner.id] + [l.id for l in losers if l.id != inv.id],
+            overridden=[winner.id] + [loser.id for loser in losers if loser.id != inv.id],
         )
 
     # 5. Explainability & Suggestions
@@ -194,7 +195,7 @@ def resolve_cognitive_conflict(memories: list[Memory], current_scope: str, signa
         reason=reason,
         is_violation=False,
         confidence=confidence,
-        overridden=[l.id for l in losers],
+        overridden=[loser.id for loser in losers],
     )
 
 
@@ -234,7 +235,11 @@ def run_reflect(brain: SAMBrain, diff_text: str, scope: str | None = None) -> Re
             # and does not represent a global/shared rule.
             if winner_memory and current_scope:
                 winner_scope = winner_memory.scope or ""
-                if winner_scope not in {"", "global"} and winner_scope != current_scope and not current_scope.startswith(winner_scope):
+                if (
+                    winner_scope not in {"", "global"}
+                    and winner_scope != current_scope
+                    and not current_scope.startswith(winner_scope)
+                ):
                     report.drifts.append(signal)
                     report.suggestions.append(SUGGESTION_TEMPLATES["DRIFT"].format(scope=current_scope))
                     continue

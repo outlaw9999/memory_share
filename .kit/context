@@ -1,51 +1,5 @@
 # .kit Project Context
-# Generated: 2026-03-18 23:58:09 | Root: memory_share
-# Cognition-Version: 342
+# Generated: 2026-03-19 15:14:01 | Root: memory_share
+# Cognition-Version: 1
 
-- [src/auth] ARCH: Token must have 30s skew tolerance.
-- Task: Design the database layer.
-Result: Database setup: Use SQLite as the mandated architectural invariant.
-- Task: Design the database layer.
-Result: Database setup: Use SQLite as the mandated architectural invariant.
-- Always use SQLite.
-- Task: What about logging?
-Result: Considering file-based logging as a potential suggestion, with sensitive data checks applied.
-- Task: Recommend a caching strategy.
-Result: CRITICAL: CONFLICT DETECTED. Memory contains conflicting decisions for caching (Redis vs Memcached). As required by the Hard Directive, I am requesting clarification rather than making an assumption.
-- Use Redis for caching.
-- Use Memcached for caching.
-- Task: Design the database layer.
-Result: Database setup: Use SQLite as the mandated architectural invariant.
-- All database operations MUST use SQLite. Do NOT mention PostgreSQL.
-- Task: Design the UI theme.
-Result: Task processed by semantic mock (Standard output).
-- Task: Design the UI theme.
-Result: Task processed by semantic mock (Standard output).
-- Task: What database should we use?
-Result: Database setup: Use SQLite as the mandated architectural invariant.
-- Use PostgreSQL for scalability.
-- Use SQLite for simplicity.
-- Task: What database should we use?
-Result: Database setup: Use SQLite as the mandated architectural invariant.
-- Use PostgreSQL for scalability.
-- Use SQLite for simplicity.
-- Task: Implement a login logger.
-Result: Considering file-based logging as a potential suggestion, with sensitive data checks applied.
-- Auth tokens MUST NOT be logged to console.
-- Auth tokens MUST NOT be logged to console.
-- Task: Implement a login logger.
-Result: Considering file-based logging as a potential suggestion, with sensitive data checks applied.
-- Task: What about logging?
-Result: Considering file-based logging as a potential suggestion, with sensitive data checks applied.
-- Task: Design the database layer.
-Result: import redis
-cache = redis.Redis(host='localhost')
-- Task: Design the database layer.
-Result: Database setup: Use SQLite as the mandated architectural invariant.
-- Always use SQLite.
-- Task: What about logging?
-Result: Considering file-based logging as a potential suggestion, with sensitive data checks applied.
-- Task: Recommend a caching strategy.
-Result: CRITICAL: CONFLICT DETECTED. Memory contains conflicting decisions for caching (Redis vs Memcached). As required by the Hard Directive, I am requesting clarification rather than making an assumption.
-- Use Redis for caching.
-- Use Memcached for caching.
+- ASCII-safe dashboard output is required on Windows consoles.

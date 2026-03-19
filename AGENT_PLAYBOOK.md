@@ -72,7 +72,7 @@ Goal: preserve the Unix and Linux design posture of `.kit` and `kit-agent` so ne
 - No semantic inference beyond explicit metadata and deterministic scoring.
 - No embeddings, ANN indexes, or vector retrieval.
 - No auto-resolution of invariant conflicts.
-- No product-surface expansion beyond the locked AMSB v1.1 stable scope.
+- No product-surface expansion beyond the locked AMSB v1.2.0 GA scope.
 
 6. Safe multi-agent concurrency
 

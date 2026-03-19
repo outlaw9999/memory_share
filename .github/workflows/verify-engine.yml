@@ -15,7 +15,7 @@ jobs:
     - name: Set up Python 3.14
       uses: actions/setup-python@v5
       with:
-        python-version: '3.14-dev' # Use dev until stable release
+        python-version: '3.14'
         
     - name: Install dependencies
       run: |
@@ -28,5 +28,5 @@ jobs:
         
     - name: API Import Honor Check
       run: |
-        python -c "from kit.api import *; print('✅ API imports successful')"
-        python -c "import runtime; print('✅ Runtime accessible')"
+        python -c "from kit.api import *; print('API imports successful')"
+        python -c "import runtime; print('Runtime accessible')"

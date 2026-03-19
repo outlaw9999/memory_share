@@ -1,9 +1,13 @@
 import argparse
+import sys
+import json
+from pathlib import Path
 
 from kit_agent.core.cache import SemanticCache
 from kit_agent.core.metrics import MetricsPersistence, ModelMetrics
 from kit_agent.core.protocol import AMSBProtocol
 from kit_agent.core.router import ModelRouter
+from kit_agent.core.output_contract import normalize_output_contract
 from kit_agent.providers.gemini import GeminiProvider
 from kit_agent.providers.local import LocalLLMProvider
 from kit_agent.providers.mock import MockChaosProvider
@@ -11,7 +15,8 @@ from kit_agent.providers.semantic_mock import SemanticMockProvider
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="kit-agent (AMSB v1.1 Stable): Production-grade AI orchestrator")
+    parser = argparse.ArgumentParser(description="kit-agent (AMSB v1.2.0 GA): Production-grade AI orchestrator")
+    parser.add_argument("--db", help="Path to the project database (overrides default)")
     subparsers = parser.add_subparsers(dest="command")
 
     run_parser = subparsers.add_parser("run", aliases=["ask"], help="Run a task through the AMSB loop")
@@ -19,6 +24,7 @@ def main() -> None:
     run_parser.add_argument("--type", choices=["general", "simple", "refactor", "critical"], default="general")
     run_parser.add_argument("--mode", choices=["strict", "advisory", "silent"], default="strict")
     run_parser.add_argument("--provider", help="Force a specific provider (e.g., local, gemini, mock)")
+    run_parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON only")
 
     recall_parser = subparsers.add_parser("recall", help="Recall context from memory")
     recall_parser.add_argument("entities", nargs="+", help="Entities or tags to recall")
@@ -32,6 +38,8 @@ def main() -> None:
 
     import kit.api as api
 
+    db_path = Path(args.db).absolute() if args.db else None
+    api.init_kernel(db_path)
     _, project_db, _ = api.resolve_paths()
     persistence = MetricsPersistence(project_db)
 
@@ -56,10 +64,67 @@ def main() -> None:
     protocol = AMSBProtocol(router, providers, cache)
 
     if args.command in {"run", "ask"}:
+        ephemeral_data = None
+        if not sys.stdin.isatty():
+            try:
+                raw_stdin = sys.stdin.read().strip()
+                if raw_stdin:
+                    # Try to parse as JSON for structure, otherwise keep as raw text
+                    try:
+                        ephemeral_data = json.loads(raw_stdin)
+                        ephemeral_data = json.dumps(ephemeral_data, indent=2)
+                    except json.JSONDecodeError:
+                        ephemeral_data = raw_stdin
+            except Exception as e:
+                print(f"[WARN] Failed to read stdin: {e}", file=sys.stderr)
+
+        result_raw = protocol.run(
+            args.task, task_type=args.type, forced_provider=args.provider, ephemeral_data=ephemeral_data
+        )
+
+        try:
+            data = normalize_output_contract(result_raw)
+        except (ValueError, TypeError):
+            if not args.json:
+                print(f"[AGENT] kit-agent starting task: {args.task}")
+            print(result_raw)
+            sys.exit(2)
+
+        if args.json:
+            print(json.dumps(data, sort_keys=True))
+            return
+
         print(f"[AGENT] kit-agent starting task: {args.task}")
-        result = protocol.run(args.task, task_type=args.type, forced_provider=args.provider)
-        print("\n--- RESULT ---")
-        print(result)
+        print("\n" + "=" * 60)
+        print("AGENT COGNITIVE REPORT")
+        print("=" * 60)
+        print(f"DECISION:   {data['decision']}")
+        print(f"CONFIDENCE: {data['confidence']:.2f}")
+        print(f"REASON:     {data['reason']}")
+
+        provider = data.get("provider")
+        if provider:
+            print(f"PROVIDER:   {provider}")
+
+        if data.get("violations"):
+            print("VIOLATIONS:")
+            for item in data["violations"]:
+                print(f"- {item}")
+
+        if data.get("suggestions"):
+            print("SUGGESTIONS:")
+            for item in data["suggestions"]:
+                print(f"- {item}")
+
+        if data.get("content"):
+            print("CONTENT:")
+            print(data["content"])
+
+        print("=" * 60 + "\n")
+
+        # Standardized Exit Codes: BLOCK=1, PASS/WARN=0
+        if data["decision"] == "BLOCK":
+            sys.exit(1)
     elif args.command == "recall":
         print(f"[RECALL] Recalling context for: {', '.join(args.entities)}")
         facts = api.recall(args.entities, limit=args.limit)

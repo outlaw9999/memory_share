@@ -1,10 +1,10 @@
 import json
 import os
-import uuid
 import time
+import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-from collections.abc import Callable
 
 
 class MemoryConflictError(Exception):

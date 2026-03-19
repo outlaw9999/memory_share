@@ -1,5 +1,6 @@
 import time
 import random
+import json
 from typing import Dict, Any
 from kit_agent.providers.base import BaseProvider
 
@@ -20,7 +21,11 @@ class MockChaosProvider(BaseProvider):
             # If in repair loop, return fixed output
             return {
                 "ok": True, 
-                "text": "import sqlite3\ndef get_cache(): return sqlite3.connect('brain.db')",
+                "text": json.dumps({
+                    "decision": "PASS",
+                    "reason": "Repaired output now aligns with the SQLite constraint.",
+                    "confidence": 0.8,
+                }),
                 "error": None,
                 "error_type": None,
             }
@@ -28,7 +33,11 @@ class MockChaosProvider(BaseProvider):
             # First attempt: return violating output
             return {
                 "ok": True,
-                "text": "import redis\ncache = redis.Redis(host='localhost')",
+                "text": json.dumps({
+                    "decision": "WARN",
+                    "reason": "Initial mock response is intentionally unstable to exercise repair and fallback behavior.",
+                    "confidence": 0.3,
+                }),
                 "error": None,
                 "error_type": None,
             }

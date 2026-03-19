@@ -1,5 +1,5 @@
-import sqlite3
 import logging
+import sqlite3
 
 logger = logging.getLogger("kit.schema")
 
@@ -108,7 +108,7 @@ CREATE INDEX IF NOT EXISTS idx_metrics_created ON metrics(created_at);
 def init_db(conn: sqlite3.Connection):
     """Bootstrap or migrate the database schema."""
     conn.executescript(SCHEMA_SQL)
-    
+
     # Migration: Ensure superseded_at exists in observations (Chronos Patch)
     try:
         conn.execute("ALTER TABLE observations ADD COLUMN superseded_at DATETIME")
@@ -220,7 +220,7 @@ def init_db(conn: sqlite3.Connection):
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_node_scope ON observations(node_id, scope)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_symbol ON observations(symbol)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_active_score ON observations(is_active, materialized_score DESC)")
-        
+
         # Ensure metrics table exists for existing DBs
         conn.execute("""
             CREATE TABLE IF NOT EXISTS metrics (

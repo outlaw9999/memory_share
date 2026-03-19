@@ -1,9 +1,9 @@
 import time
 from pathlib import Path
 
-from runtime.lock_manager import LockManager
-from runtime.journal_engine import JournalEngine
 from plugins.ast_scanner.ast_parser import ASTMarkdownParser
+from runtime.journal_engine import JournalEngine
+from runtime.lock_manager import LockManager
 
 
 class AntigravityKernel:

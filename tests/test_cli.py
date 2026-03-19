@@ -1,5 +1,4 @@
 import subprocess
-import pytest
 from pathlib import Path
 
 def run_kit(*args):
@@ -37,3 +36,57 @@ def test_cli_context_generation():
     assert res.returncode == 0
     assert Path("AGENTS.md").exists()
     assert Path(".kit/context").exists()
+
+
+def test_preflight_block_uses_exit_code_1(tmp_path):
+    db_path = tmp_path / "preflight_test.db"
+
+    subprocess.run(
+        ["python", "-m", "kit.cli.main", "--db", str(db_path), "learn", "--uid", "db", "--tag", "invariant", "--content", "All database operations MUST use SQLite."],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    res = subprocess.run(
+        ["python", "-m", "kit.cli.main", "--db", str(db_path), "preflight", "-m", "feat(core): add redis path"],
+        input="import redis\ncache = redis.Redis(host='localhost')\n",
+        capture_output=True,
+        text=True,
+    )
+
+    assert res.returncode == 1
+
+
+def test_doctor_output_is_ascii_safe(tmp_path):
+    db_path = tmp_path / "doctor_test.db"
+
+    subprocess.run(
+        [
+            "python",
+            "-m",
+            "kit.cli.main",
+            "--db",
+            str(db_path),
+            "learn",
+            "--uid",
+            "doctor",
+            "--tag",
+            "invariant",
+            "--content",
+            "ASCII-safe dashboard output is required on Windows consoles.",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    res = subprocess.run(
+        ["python", "-m", "kit.cli.main", "--db", str(db_path), "doctor", "--mode", "safe"],
+        capture_output=True,
+        text=True,
+    )
+
+    assert res.returncode == 0
+    assert ".KIT COGNITIVE DASHBOARD" in res.stderr
+    res.stderr.encode("ascii")
