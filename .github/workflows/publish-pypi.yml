@@ -27,6 +27,12 @@ jobs:
         python -m pip install build
         python -m build
 
+    - name: Purge Ghost Artifacts (v1.2.0)
+      run: |
+        echo "Dọn dẹp các phiên bản cũ bị kẹt trong Runner..."
+        rm -f dist/*1.2.0*
+        ls -la dist/
+
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
