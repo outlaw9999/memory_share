@@ -1,7 +1,18 @@
 import argparse
 import sys
 import json
+import socket
 from pathlib import Path
+
+
+def is_port_open(host: str, port: int, timeout: float = 0.2) -> bool:
+    """Fast TCP probe to verify if a provider port is alive."""
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except (ConnectionRefusedError, socket.timeout, socket.error):
+        return False
+
 
 from kit_agent.core.cache import SemanticCache
 from kit_agent.core.metrics import MetricsPersistence, ModelMetrics
@@ -54,12 +65,25 @@ def main() -> None:
     router = ModelRouter(metrics, persistence=persistence)
     cache = SemanticCache()
 
+    # v1.2.1 Hotfix: Default to 'gemini' and probe 'local' to avoid 300s timeout.
+    local_alive = is_port_open("127.0.0.1", 1337)
+    forced_provider = getattr(args, "provider", None)
+    
+    if forced_provider == "local" and not local_alive:
+        print("\033[91m[ERROR] Local provider (Jan) unreachable on port 1337. Aborting.\033[0m")
+        sys.exit(1)
+
     providers = {
         "gemini": GeminiProvider(),
         "local": LocalLLMProvider(),
         "mock": MockChaosProvider(failure_rate=0.4),
         "semantic_mock": SemanticMockProvider(),
     }
+    
+    # If using discovery (no forced provider), and local is dead, remove it from 
+    # the active pool to prevent the router from even trying it.
+    if not forced_provider and not local_alive:
+        del providers["local"]
 
     protocol = AMSBProtocol(router, providers, cache)
 
