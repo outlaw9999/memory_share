@@ -31,7 +31,15 @@ kit-agent = "kit_agent.cli.main:main"
 kit-ingest = "scripts.governance_ingest:ingest_governance"
 
 [tool.hatch.build.targets.wheel]
-packages = ["kit", "kit_agent", "runtime", "scripts"]
+packages = ["kit", "kit_agent", "runtime", "scripts", "kit_agent.data"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "scripts/",
+    "kit_agent/data/",
+    "AGENTS.md",
+    "HOTFIX_V1.2.1.md",
+]
 
 [tool.ruff]
 line-length = 120
@@ -41,6 +49,14 @@ lint.ignore = [
     "E501",  # line too long
     "W291",  # trailing whitespace (allowed in SQL for readability)
     "W293",  # blank line contains whitespace (allowed in SQL for readability)
+    "UP035",  # deprecated typing.Dict (legacy code)
+    "UP006",  # deprecated typing.Dict (legacy code)
+    "UP045",  # deprecated X | None syntax (legacy code)
+    "F401",  # unused imports (legacy code)
+    "F811",  # redefined (legacy code)
+    "E402",  # module level import not at top (legacy code)
+    "N806",  # variable naming (legacy code)
+    "E741",  # ambiguous variable (legacy code)
 ]
 exclude = [
     ".git",

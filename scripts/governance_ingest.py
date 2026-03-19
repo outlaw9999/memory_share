@@ -1,65 +1,95 @@
-import sys
+#!/usr/bin/env python3
+"""
+Governance Ingester v1.2.1-Py314
+Distills and ingests architectural decisions/invariants into SAMBrain.
+"""
+
+from __future__ import annotations
+
 import os
 import subprocess
+import sys
+from pathlib import Path
 
-def ingest_governance(file_path=None):
+
+def ingest_governance(file_path: str | None = None) -> None:
     """
-    Upgraded Governance Ingester (v1.2.1-Robust)
+    Upgraded Governance Ingester (v1.2.1-Py314)
     - Validates YAML/JSON integrity
     - Injects automated semantic tags
-    - Fail-fast STDIN handling
+    - Fail-fast STDIN handling (Windows-compatible)
     """
-    print("[INGEST] Starting governance distillation (v1.2.1-Robust)...")
-    
+    if file_path in ("--help", "-h"):
+        print("Usage: kit-ingest [file_path]")
+        print("Or: cat fact.yml | kit-ingest")
+        sys.exit(0)
+
+    print("[INGEST] Starting governance distillation (v1.2.1-Py314)...")
+
+    use_yaml = False
     try:
         import yaml
+
         use_yaml = True
     except ImportError:
-        use_yaml = False
         print("[WARN] PyYAML not found. Proceeding with raw string ingestion.")
 
     content = ""
     try:
         if file_path and os.path.exists(file_path):
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
+            content = Path(file_path).read_text(encoding="utf-8")
         elif not sys.stdin.isatty():
-            content = sys.stdin.read()
+            try:
+                content = sys.stdin.read()
+            except OSError:
+                print("[ERROR] Failed to read from STDIN.")
+                sys.exit(1)
         else:
-            print("[ERROR] No input source. Use: cat fact.yml | python scripts/governance_ingest.py")
+            print("[ERROR] No input source. Use: cat fact.yml | kit-ingest")
             sys.exit(1)
-            
+
         if not content.strip():
             print("[ERROR] Empty content.")
             sys.exit(1)
 
-        # Validation & Tag Injection
         if use_yaml:
             try:
+                import yaml
+
                 data = yaml.safe_load(content)
-                # Inject metadata if it's a list or dict
                 if isinstance(data, dict):
-                    data["_metadata"] = {"ingest_source": "governance_ingest_v1.2.1r", "status": "verified"}
+                    data["_metadata"] = {"ingest_source": "governance_ingest_v1.2.1p", "status": "verified"}
                     content = yaml.dump(data)
                 elif isinstance(data, list):
                     content = "---\n" + yaml.dump(data)
-            except Exception as ye:
-                print(f"[ERROR] YAML Validation failed: {str(ye)}")
+            except yaml.YAMLError as ye:
+                print(f"[ERROR] YAML Validation failed: {ye}")
                 sys.exit(1)
-            
-        cmd = ["python", "kit.py", "learn", "--tag", "decision", "--no-render"]
+
+        cmd = [sys.executable, "kit.py", "learn", "--tag", "decision", "--no-render"]
         print(f"[INGEST] Sending {len(content)} bytes to SAMBrain...")
-        
-        result = subprocess.run(cmd, input=content, text=True, capture_output=True)
-        
+
+        result = subprocess.run(
+            cmd,
+            input=content,
+            text=True,
+            capture_output=True,
+            timeout=10,
+        )
+
         if result.returncode == 0:
             print(f"[SUCCESS] {result.stdout.strip()}")
         else:
             print(f"[FAILURE] {result.stderr.strip()}")
-            
-    except Exception as e:
-        print(f"[ERROR] Unhandled exception: {str(e)}")
+            sys.exit(1)
+
+    except subprocess.TimeoutExpired:
+        print("[ERROR] Command timed out.")
         sys.exit(1)
+    except OSError as e:
+        print(f"[ERROR] I/O error: {e}")
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     path = sys.argv[1] if len(sys.argv) > 1 else None

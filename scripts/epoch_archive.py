@@ -1,7 +1,8 @@
 import os
 import shutil
-import time
 import subprocess
+import time
+
 
 def run_command(cmd):
     print(f"\n> {' '.join(cmd)}")

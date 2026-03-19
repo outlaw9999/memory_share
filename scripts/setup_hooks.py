@@ -2,6 +2,7 @@ import os
 import stat
 from pathlib import Path
 
+
 def main():
     git_dir = Path(".git")
     if not git_dir.exists():

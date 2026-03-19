@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 
+
 def run_command(cmd, env=None):
     print(f"\n> {' '.join(cmd)}")
     current_env = os.environ.copy()

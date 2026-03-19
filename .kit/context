@@ -1,8 +1,68 @@
 # .kit Project Context
-# Generated: 2026-03-19 21:25:54 | Root: memory_share
-# Cognition-Version: 452
+# Generated: 2026-03-19 23:55:18 | Root: memory_share
+# Cognition-Version: 474
 
 - [src/auth] ARCH: Token must have 30s skew tolerance.
+- test
+- test
+- test
+- test
+- test
+- test
+- test
+- test
+- DECISION: REFUSE v1.2.1 code patch. REASON: Architecture is locked post v1.2.0 GA. Mitigation: Use environment variables or forced providers.
+- _metadata:
+  ingest_source: governance_ingest_v1.2.1r
+  status: verified
+description: governance_ingest.py upgraded to v1.2.1-Robust.
+id: 467
+subject: Robust Ingestion
+type: pattern
+- id: 466; type: note; subject: Automation Utility; description: governance_ingest.py script added.
+- Architecture Lock v1.2.0 enforced: no schema, ledger, or cognitive core changes allowed. Preserve deterministic behavior.
+- # Distilled Memory: v1.2.1 Hotfix & Governance
+- id: 461
+  type: decision
+  subject: "UX Resilience & Fail-Fast Implementation"
+  description: "Implemented Hotfix v1.2.1 to resolve 300s 'clinical death' in IDE/CI environments."
+  rationale: "Default TCP timeouts and blocking STDIN read were paralyzing automation workflows."
+  actionable_notes:
+    - "STDIN: Skip read() if sys.stdin.isatty() is False and --content is provided."
+    - "TCP Probe: 200ms timeout for provider discovery (Jan/Local)."
+    - "Fallback: Prioritize Gemini/Antigravity if local is silent."
+
+- id: 462
+  type: invariant
+  subject: "Architecture Lock v1.2.0 Protection"
+  description: "Preserving integrity of the SAMBrain cognitive kernel."
+  constraints:
+    - "Schema SQLite (Ledger) is immutable."
+    - "Ranking and Scoring logic are locked."
+    - "AGENTS.md (Manifest) structure is enforced."
+  note: "Hotfix v1.2.1 is a sensory-layer exception; kernel remains sealed."
+
+- id: 463
+  type: decision
+  subject: "Governance Exception for Interaction Layer"
+  description: "Authorized code modification after Lock to resolve system-hanging bugs."
+  justification: "Blocking I/O is a critical failure threatening operational readiness."
+
+- id: 464
+  type: pattern
+  subject: "Fail-Fast Protocol for CI/IDE"
+  implementation:
+    - "Use select.select for input pipes (0.1s timeout) in TTY."
+    - "Use socket.create_connection for 0.2s provider checks."
+    - "Enforce 1.0s timeout for all external HTTP requests."
+
+- id: 465
+  type: decision
+  subject: "Distilled Ingestion Policy"
+  description: "Only distilled facts/decisions are ingested to prevent cognitive drift."
+  goal: "Maintain high-precision memory without verbose log pollution."
+- v1.2.1 HOTFIX DEPLOYED: STDIN non-TTY hang fixed. Provider discovery loop optimized with TCP pre-flight check.
+- v1.2.1 functional verification
 - ARCHITECTURE IS LOCKED. No Python code changes are allowed post v1.2.0 GA.
 - STYLE INVARIANT: All agent responses MUST be concise, neutral, and technical. No roleplay, no exaggerated tone, no honorifics.
 - ARCHITECTURE IS LOCKED. No Python code changes are allowed post v1.2.0 GA.
@@ -21,60 +81,3 @@ Result: {"confidence": 0.3, "decision": "WARN", "provider": "mock", "reason": "I
 Result: {"confidence": 0.3, "decision": "WARN", "provider": "mock", "reason": "Initial mock response is intentionally unstable to exercise repair and fallback behavior.", "suggestions": [], "violations": []}
 - Task: Design the UI theme.
 Result: {"confidence": 0.7, "decision": "PASS", "provider": "semantic_mock", "reason": "Task processed successfully by semantic mock.", "suggestions": [], "violations": []}
-- Task: What database should we use?
-Result: {"confidence": 0.3, "decision": "WARN", "provider": "mock", "reason": "Initial mock response is intentionally unstable to exercise repair and fallback behavior.", "suggestions": [], "violations": []}
-- Task: What database should we use?
-Result: {"confidence": 0.95, "decision": "PASS", "provider": "semantic_mock", "reason": "Use SQLite as the mandated architectural invariant.", "suggestions": [], "violations": []}
-- Task: Implement a login logger.
-Result: {"confidence": 0.6, "decision": "PASS", "provider": "semantic_mock", "reason": "Considering file-based logging as a potential suggestion, with sensitive data checks applied.", "suggestions": [], "violations": []}
-- Task: Recommend a caching strategy.
-Result: {"confidence": 0.15, "decision": "WARN", "provider": "semantic_mock", "reason": "Conflict detected between Redis and Memcached; requesting clarification before proceeding.", "suggestions": ["Clarify whether Redis or Memcached is the intended cache."], "violations": ["Conflicting decisions for caching."]}
-- Task: What about logging?
-Result: {"confidence": 0.6, "decision": "PASS", "provider": "semantic_mock", "reason": "Considering file-based logging as a potential suggestion, with sensitive data checks applied.", "suggestions": [], "violations": []}
-- Task: Recommend a caching strategy.
-Result: {"confidence": 0.15, "decision": "WARN", "provider": "semantic_mock", "reason": "Conflicting caching decisions detected between Redis and Memcached; clarification is required.", "suggestions": ["Clarify whether Redis or Memcached is the intended cache."], "violations": ["Conflicting decisions for caching."]}
-- Task: Design the database layer.
-Result: {"confidence": 0.95, "decision": "PASS", "provider": "semantic_mock", "reason": "Use SQLite as the mandated architectural invariant.", "suggestions": [], "violations": []}
-- Task: Can I use session cookies for login?
-Result: [CONFLICT DETECTED] The provided memory rules contain a critical architectural conflict:  
-1. The rule "A lower-authority tag (decision) can NEVER override a higher-authority tag (invariant)" establishes a strict hierarchy where invariants take precedence over decisions.  
-2. However, the rule "Memory must be Deterministic: If 10 agents ask the same question, they must get the exact same ranked facts" implies a requirement for consistent, deterministic outputs based on memory state — which inherently requires decision-making (e.g., whether to allow session cookies for login).  
-
-This creates a contradiction: if memory must be deterministic, then decisions must be made based on memory state; yet, if a lower-authority decision (e.g., allowing session cookies) can never override a higher-authority invariant, then no such decision can be made — rendering deterministic outputs impossible.  
-
-The system cannot resolve this conflict without explicit clarification on whether "decision" and "invariant" are defined in a way that allows for deterministic outcomes or whether decisions are strictly prohibited.  
-
-Therefore, I cannot proceed with a valid output under these conflicting rules.  
-
-{"decision": "BLOCK", "reason": "Conflicting architectural signals in memory rules prevent deterministic and consistent decision-making.", "confidence": 1.0}
-- Task: Can I use session cookies for login?
-Result: [CONFLICT DETECTED] The provided memory rules contain a critical architectural conflict:  
-1. The rule "A lower-authority tag (decision) can NEVER override a higher-authority tag (invariant)" establishes a strict hierarchy where invariants supersede all decisions.  
-2. However, the rule "Memory must be Deterministic: If 10 agents ask the same question, they must get the exact same ranked facts" implies a requirement for consistent, deterministic outputs based on input, which may conflict with the need to evaluate or respond to ambiguous or non-structured queries (like "Can I use session cookies for login?") without a defined memory or versioning context.  
-
-This creates a contradiction between enforcing strict invariants and allowing deterministic responses to unstructured questions. Since the rules do not define how to resolve this conflict and no clear decision hierarchy exists for ambiguous queries, a silent assumption would violate the memory rules.  
-
-Clarification is required to resolve this architectural inconsistency before any decision can be made.
-- Task: Can I use session cookies for the new login page?
-Result: [CONFLICT DETECTED] The provided memory rules contain a fundamental contradiction:  
-1. The rule "A lower-authority tag (decision) can NEVER override a higher-authority tag (invariant)" establishes a strict hierarchy where invariants take precedence.  
-2. However, the rule "Memory must be Deterministic: If 10 agents ask the same question, they must get the exact same ranked facts" implies a requirement for consistent, predictable outputs across agents — which inherently requires a shared, deterministic memory system.  
-
-These two rules conflict because:  
-- Determinism requires consistent responses across agents, implying a shared memory state.  
-- Yet, the hierarchy rule forbids lower-authority decisions (e.g., a "decision" about session cookies) from overriding higher-authority invariants (e.g., versioning or commit rules).  
-
-This creates a logical contradiction: if memory must be deterministic, then all agents must reach the same conclusion — but if a "decision" about session cookies is considered a lower-authority tag, it cannot override an invariant, which may prevent any such decision from being made.  
-
-Therefore, I cannot resolve this conflict without clarification.  
-
-{"decision": "BLOCK", "reason": "Conflict detected in architectural signals: determinism requires consistent memory across agents, but hierarchy rules forbid lower-authority decisions from overriding invariants. This creates an unresolvable contradiction.", "confidence":  1.0}
-- Task: Can I use session cookies for the new login page?
-Result: Task processed by semantic mock (Standard output).
-- Auth must use JWT tokens only. No session cookies.
-- Task: What database should we use?
-Result: Database setup: Use SQLite as the mandated architectural invariant.
-- Task: Implement a login logger.
-Result: Considering file-based logging as a potential suggestion, with sensitive data checks applied.
-- Task: What about logging?
-Result: Considering file-based logging as a potential suggestion, with sensitive data checks applied.

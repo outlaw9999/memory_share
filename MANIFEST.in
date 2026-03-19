@@ -1,0 +1,3 @@
+include AGENTS.md
+include HOTFIX_V1.2.1.md
+recursive-include scripts *.py

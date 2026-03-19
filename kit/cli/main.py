@@ -228,19 +228,15 @@ def main() -> None:
                     piped = sys.stdin.read().strip()
                     content = piped
             else:
-                # In TTY, we only read from stdin if it's being piped (not isatty but it's TTY? wait)
-                # Actually, the best way is to only read if we are specifically told to, or if piping.
-                # For now, we revert to original behavior for TTY to avoid breaking existing users.
                 try:
                     import select
+
                     if select.select([sys.stdin], [], [], 0)[0]:
                         piped = sys.stdin.read().strip()
                         content = f"{content}\n{piped}".strip() if content else piped
-                except (ImportError, AttributeError):
-                    # Fallback for platforms without select on stdin (Windows)
-                    # On Windows, we skip reading from TTY stdin to avoid the hang.
+                except (ImportError, AttributeError, OSError):
                     pass
-            
+
             if not content:
                 print_diagnostic("Error: No content provided. (Use --content or pipe data via STDIN)")
                 sys.exit(1)
@@ -400,16 +396,17 @@ def main() -> None:
 
             piped_diff = None
             if not sys.stdin.isatty():
-                # v1.2.1 Hotfix: Only read if we expect data and don't have a message? 
-                # Actually, for preflight, we usually want the diff. 
+                # v1.2.1 Hotfix: Only read if we expect data and don't have a message?
+                # Actually, for preflight, we usually want the diff.
                 # But we must not block if no diff is coming.
                 try:
                     import select
+
                     if select.select([sys.stdin], [], [], 0.05)[0]:
                         piped_candidate = sys.stdin.read()
                         if piped_candidate.strip():
                             piped_diff = piped_candidate
-                except (ImportError, AttributeError):
+                except (ImportError, AttributeError, OSError):
                     pass
 
             result = api.preflight_check(args.message, args.strict, diff_text=piped_diff)

@@ -1,7 +1,8 @@
-import subprocess
 import json
-import sys
 import os
+import subprocess
+import sys
+
 
 def run_cmd(cmd, input_text=None):
     process = subprocess.Popen(

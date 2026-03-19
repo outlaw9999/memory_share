@@ -4,7 +4,6 @@ import sys
 
 from kit.core.kit_cognitive_core import SAMBrain
 
-
 DASHBOARD_WIDTH = 40
 
 

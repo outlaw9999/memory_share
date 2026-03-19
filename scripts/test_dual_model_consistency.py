@@ -1,6 +1,7 @@
-import subprocess
 import json
 import os
+import subprocess
+
 
 def run_agent(task, provider):
     cmd = ["python", "-m", "kit_agent.cli.main", "ask", task, "--provider", provider]
@@ -18,10 +19,10 @@ def test_consistency():
     print("--- [DUAL-MODEL CONSISTENCY TEST] ---")
     task = "Can I use session cookies for login?"
     
-    print(f"Running task with Gemini...")
+    print("Running task with Gemini...")
     gemini_out = run_agent(task, "gemini")
     
-    print(f"Running task with Local Jan...")
+    print("Running task with Local Jan...")
     jan_out = run_agent(task, "local")
     
     print("\nGEMINI DECISION:")

@@ -1,9 +1,11 @@
-import os
-import ast
-import re
 import argparse
+import ast
+import os
+import re
 from pathlib import Path
+
 from kit import api
+
 
 class CodebaseIngestor:
     def __init__(self, root_dir: str):
@@ -34,7 +36,7 @@ class CodebaseIngestor:
         print(f"  📄 Processing {rel_path}...")
         
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
                 
             # 1. AST Analysis (Entities & Structure)
