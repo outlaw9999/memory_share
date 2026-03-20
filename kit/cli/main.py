@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from kit.core.kit_platform import run_safe, read_stdin_fail_fast, FAST_TIMEOUT, DEFAULT_TIMEOUT
+
 
 def _cognitive_guardrail(text: str, tag: str | None) -> bool:
     """
@@ -90,6 +92,7 @@ def main() -> None:
     recall_p.add_argument("--agent-id", help="Agent ID for recall boost")
     recall_p.add_argument("--here", action="store_true", help="Filter/Boost by current directory scope")
     recall_p.add_argument("--symbol", help="Recall context specifically for this code symbol")
+    recall_p.add_argument("--with-global", action="store_true", help="Include Global Brain facts in recall")
     recall_p.add_argument("--fast", action="store_true", help="Fast mode (skip heavy ranking)")
 
     context_p = subparsers.add_parser("context", help="Alias for recall --here (Project context awareness)")
@@ -97,6 +100,7 @@ def main() -> None:
     context_p.add_argument("--at", help="Temporal snapshot")
     context_p.add_argument("--agent-id", help="Agent ID for recall boost")
     context_p.add_argument("--symbol", help="Recall context specifically for this code symbol")
+    context_p.add_argument("--with-global", action="store_true", help="Include Global Brain facts in recall")
     context_p.add_argument("--fast", action="store_true", help="Fast mode (skip heavy ranking)")
 
     reflect_p = subparsers.add_parser("reflect", help="Cognitive awareness: detect gaps and drift in diff")
@@ -174,7 +178,7 @@ def main() -> None:
             if plugin_path:
                 plugin_args = [plugin_path] + sys.argv[2:]
                 try:
-                    result = subprocess.run(plugin_args, shell=(os.name == "nt"))
+                    result = run_safe(plugin_args, timeout=DEFAULT_TIMEOUT) # Standard 1s timeout
                     sys.exit(result.returncode)
                 except Exception as e:
                     print(f"Error executing plugin '{plugin_name}': {e}", file=sys.stderr)
@@ -223,19 +227,8 @@ def main() -> None:
             content = args.content
             # v1.2.1 Hotfix: Avoid blocking on sys.stdin.read() in non-TTY environments
             # while maintaining support for piped input in TTY/interactive mode.
-            if not sys.stdin.isatty():
-                if not content:
-                    piped = sys.stdin.read().strip()
-                    content = piped
-            else:
-                try:
-                    import select
-
-                    if select.select([sys.stdin], [], [], 0)[0]:
-                        piped = sys.stdin.read().strip()
-                        content = f"{content}\n{piped}".strip() if content else piped
-                except (ImportError, AttributeError, OSError):
-                    pass
+            if not content:
+                content = read_stdin_fail_fast(timeout=FAST_TIMEOUT)
 
             if not content:
                 print_diagnostic("Error: No content provided. (Use --content or pipe data via STDIN)")
@@ -311,6 +304,7 @@ def main() -> None:
                 agent_id=args.agent_id,
                 here=is_here,
                 symbol=args.symbol,
+                with_global=args.with_global,
                 fast=is_fast,
             )
 
@@ -322,8 +316,9 @@ def main() -> None:
                 print_diagnostic("No relevant memories found.")
             else:
                 for m in memories:
+                    source_tag = f"[{m.brain_source.upper()}]"
                     print(
-                        f"* [ID:{m.id}][{m.brain_source}:{m.node_uid}][{m.layer}:{m.namespace}][{m.created_at}][{m.importance:.1f}] {m.content}"
+                        f"* {source_tag}[ID:{m.id}][{m.node_uid}][{m.layer}:{m.namespace}][{m.created_at}][{m.importance:.1f}] {m.content}"
                     )
 
         elif args.command == "bump":
@@ -395,19 +390,7 @@ def main() -> None:
             import json as json_lib
 
             piped_diff = None
-            if not sys.stdin.isatty():
-                # v1.2.1 Hotfix: Only read if we expect data and don't have a message?
-                # Actually, for preflight, we usually want the diff.
-                # But we must not block if no diff is coming.
-                try:
-                    import select
-
-                    if select.select([sys.stdin], [], [], 0.05)[0]:
-                        piped_candidate = sys.stdin.read()
-                        if piped_candidate.strip():
-                            piped_diff = piped_candidate
-                except (ImportError, AttributeError, OSError):
-                    pass
+            piped_diff = read_stdin_fail_fast(timeout=FAST_TIMEOUT)
 
             result = api.preflight_check(args.message, args.strict, diff_text=piped_diff)
 
@@ -442,10 +425,12 @@ def main() -> None:
                     diff_text = f.read()
             else:
                 try:
-                    diff_text = subprocess.check_output(["git", "diff", "--cached"], text=True)
+                    diff_res = run_safe(["git", "diff", "--cached"], timeout=DEFAULT_TIMEOUT)
+                    diff_text = diff_res.stdout
                     if not diff_text:
-                        diff_text = subprocess.check_output(["git", "diff", "HEAD"], text=True)
-                except (subprocess.CalledProcessError, FileNotFoundError):
+                        diff_res = run_safe(["git", "diff", "HEAD"], timeout=DEFAULT_TIMEOUT)
+                        diff_text = diff_res.stdout
+                except (RuntimeError, FileNotFoundError):
                     print_diagnostic("Error: No file provided and no staged git changes found.")
                     sys.exit(1)
 

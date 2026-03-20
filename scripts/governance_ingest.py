@@ -82,7 +82,7 @@ def ingest_governance(file_path: str | None = None) -> None:
             input=content,
             text=True,
             capture_output=True,
-            timeout=10,
+            timeout=1.0, # Fail-fast: v1.2.2 invariant
         )
 
         if result.returncode == 0:

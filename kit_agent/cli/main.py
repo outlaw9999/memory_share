@@ -1,8 +1,9 @@
 import argparse
 import sys
-import json
 import socket
 from pathlib import Path
+
+from kit.core.kit_platform import read_stdin_fail_fast, FAST_TIMEOUT
 
 
 def is_port_open(host: str, port: int, timeout: float = 0.2) -> bool:
@@ -89,18 +90,17 @@ def main() -> None:
 
     if args.command in {"run", "ask"}:
         ephemeral_data = None
-        if not sys.stdin.isatty():
+        ephemeral_data_raw = read_stdin_fail_fast(timeout=FAST_TIMEOUT)
+        if ephemeral_data_raw:
             try:
-                raw_stdin = sys.stdin.read().strip()
-                if raw_stdin:
-                    # Try to parse as JSON for structure, otherwise keep as raw text
-                    try:
-                        ephemeral_data = json.loads(raw_stdin)
-                        ephemeral_data = json.dumps(ephemeral_data, indent=2)
-                    except json.JSONDecodeError:
-                        ephemeral_data = raw_stdin
+                # Try to parse as JSON for structure, otherwise keep as raw text
+                try:
+                    ephemeral_data = json.loads(ephemeral_data_raw)
+                    ephemeral_data = json.dumps(ephemeral_data, indent=2)
+                except json.JSONDecodeError:
+                    ephemeral_data = ephemeral_data_raw
             except Exception as e:
-                print(f"[WARN] Failed to read stdin: {e}", file=sys.stderr)
+                print(f"[WARN] Failed to process stdin: {e}", file=sys.stderr)
 
         result_raw = protocol.run(
             args.task, task_type=args.type, forced_provider=args.provider, ephemeral_data=ephemeral_data
@@ -165,7 +165,7 @@ def main() -> None:
     elif args.command == "reset-metrics":
         import sqlite3
 
-        with sqlite3.connect(project_db, timeout=5.0) as conn:
+        with sqlite3.connect(project_db, timeout=1.0) as conn:
             conn.execute("DROP TABLE IF EXISTS agent_metrics")
         print("Agent metrics reset. SQLite metrics table cleared.")
     else:

@@ -127,6 +127,46 @@ def verify_bundle():
     return True
 
 
+def audit_fail_fast():
+    """Verify that the Fail-Fast Doctrine is enforced in the codebase."""
+    print("  - Auditing Fail-Fast Enforcement...")
+    
+    # Check for kit_platform.py
+    platform_file = REPO_ROOT / "kit" / "core" / "kit_platform.py"
+    if not platform_file.exists():
+        print("  [ERROR] kit_platform.py missing.")
+        sys.exit(1)
+        
+    # Check for run_safe usage in main CLI
+    cli_file = REPO_ROOT / "kit" / "cli" / "main.py"
+    content = cli_file.read_text(encoding="utf-8")
+    if "run_safe(" not in content or "read_stdin_fail_fast(" not in content:
+        print("  [ERROR] Main CLI not using Fail-Fast utilities.")
+        sys.exit(1)
+        
+    # Check for sqlite timeout in cognitive core
+    core_file = REPO_ROOT / "kit" / "core" / "kit_cognitive_core.py"
+    core_content = core_file.read_text(encoding="utf-8")
+    if "SQLITE_TIMEOUT_SECONDS = 1.0" not in core_content:
+        print("  [ERROR] SQLite timeout not reduced in core.")
+        sys.exit(1)
+    
+    print("  [OK] Fail-Fast Audit passed.")
+
+def audit_multi_scope():
+    """Verify Multi-scope Recall (Phase 1) implementation."""
+    print("  - Auditing Multi-scope Recall...")
+    api_file = REPO_ROOT / "kit" / "api.py"
+    content = api_file.read_text(encoding="utf-8")
+    if "with_global: bool = False" not in content:
+        print("  [ERROR] API missing with_global parameter.")
+        sys.exit(1)
+    print("  [OK] Multi-scope Audit passed.")
+
 if __name__ == "__main__":
     if not verify_bundle():
         sys.exit(1)
+    
+    # Explicit Release Guard v2 Audits
+    audit_fail_fast()
+    audit_multi_scope()

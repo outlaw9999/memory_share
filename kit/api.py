@@ -115,10 +115,13 @@ def recall(
     agent_id: str | None = None,
     here: bool = False,
     symbol: str | None = None,
+    with_global: bool = False,
     fast: bool = False,
 ) -> list[Any]:
     """Ranked recall context awareness."""
-    return get_brain().recall(entities, limit, at=at, agent_id=agent_id, here=here, symbol=symbol, fast=fast)
+    return get_brain().recall(
+        entities, limit, at=at, agent_id=agent_id, here=here, symbol=symbol, with_global=with_global, fast=fast
+    )
 
 
 def recall_with_assessment(
@@ -128,6 +131,7 @@ def recall_with_assessment(
     agent_id: str | None = None,
     here: bool = False,
     symbol: str | None = None,
+    with_global: bool = False,
     fast: bool = False,
 ) -> Any:
     """Ranked recall plus confidence / ambiguity metadata."""
@@ -138,6 +142,7 @@ def recall_with_assessment(
         agent_id=agent_id,
         here=here,
         symbol=symbol,
+        with_global=with_global,
         fast=fast,
     )
 

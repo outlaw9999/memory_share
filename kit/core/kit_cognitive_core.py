@@ -63,7 +63,7 @@ class SAMBrain:
     Hybrid Brain support (Local + Global) with Temporal Graph logic.
     """
 
-    SQLITE_TIMEOUT_SECONDS = 5.0
+    SQLITE_TIMEOUT_SECONDS = 1.0 # Fail-fast v1.2.2
     SQLITE_MAX_RETRIES = 3
     SQLITE_RETRY_BASE_DELAY_SECONDS = 0.1
     TAG_PRIORITY = {"invariant": 3, "decision": 2, "preference": 1, "note": 0}
@@ -606,6 +606,7 @@ class SAMBrain:
         agent_id: str | None = None,
         here: bool = False,
         symbol: str | None = None,
+        with_global: bool = False,
         fast: bool = False,
     ) -> list[Memory]:
         """Ranked recall with support for symbol anchoring."""
@@ -614,7 +615,7 @@ class SAMBrain:
 
         # Internal helper for querying a single brain
         def _recall_from(
-            conn: sqlite3.Connection, prefix: str = "", priority: float = 1.0, source: str = "project"
+            conn: sqlite3.Connection, prefix: str = "", priority: float = 1.5, source: str = "project"
         ) -> None:
             p = f"{prefix}." if prefix else ""
             current_scope = self.get_normalized_scope() if here else ""
@@ -709,10 +710,18 @@ class SAMBrain:
                 )
 
         with self._get_connection() as conn:
+            # Phase 1: Local Context First
             _recall_from(conn, priority=1.5, source="project")
-            if self.global_db_path:
-                with self._get_connection(self.global_db_path) as gconn:
-                    _recall_from(gconn, priority=1.0, source="global")
+
+            # Phase 1: Opt-in Global Awareness via ATTACH DATABASE
+            if with_global and self.global_db_path:
+                try:
+                    # Fail-fast check if global.db exists
+                    if self.global_db_path.exists():
+                        conn.execute(f"ATTACH DATABASE '{self.global_db_path}' AS global_brain")
+                        _recall_from(conn, prefix="global_brain", priority=1.0, source="global")
+                except sqlite3.Error as e:
+                    logger.warning(f"Global Brain attachment failed: {e}")
 
         # Sort combined results: Tag Priority first, then Score
         memories.sort(key=lambda x: (self.TAG_PRIORITY.get(x.tag, 0), x.score, x.created_at), reverse=True)
@@ -726,6 +735,7 @@ class SAMBrain:
         agent_id: str | None = None,
         here: bool = False,
         symbol: str | None = None,
+        with_global: bool = False,
         fast: bool = False,
     ) -> RankingAssessment:
         memories = self.recall(
@@ -735,6 +745,7 @@ class SAMBrain:
             agent_id=agent_id,
             here=here,
             symbol=symbol,
+            with_global=with_global,
             fast=fast,
         )
         return self.assess_ranked_memories(memories)

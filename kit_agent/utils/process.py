@@ -1,7 +1,8 @@
 import subprocess
 from typing import Optional, Tuple
+from kit.core.kit_platform import DEFAULT_TIMEOUT
 
-def safe_run(cmd: list, input_text: Optional[str] = None, timeout: int = 15) -> Tuple[str, str, int]:
+def safe_run(cmd: list, input_text: Optional[str] = None, timeout: float = DEFAULT_TIMEOUT) -> Tuple[str, str, int]:
     """
     Run a command with timeout and input piping.
     Returns (stdout, stderr, returncode).
