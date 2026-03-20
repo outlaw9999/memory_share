@@ -545,6 +545,33 @@ Result: {"confidence": 0.3, "decision": "WARN", "provider": "mock", "reason": "I
 Result: {"confidence": 0.3, "decision": "WARN", "provider": "mock", "reason": "Initial mock response is intentionally unstable to exercise repair and fallback behavior.", "suggestions": [], "violations": []}
 - **task_1773897200**: Task: Design the UI theme.
 Result: {"confidence": 0.7, "decision": "PASS", "provider": "semantic_mock", "reason": "Task processed successfully by semantic mock.", "suggestions": [], "violations": []}
+- **memory_share**: # Distilled Memory: v1.2.2 Packaging & Sensory Finalization
+- id: 468
+  type: decision
+  subject: "Packaging Integrity & Distribution Armor"
+  description: "Implemented v1.2.2 to fix 'Empty Brain' (missing modules) in Wheel/Sdist."
+  rationale: "v1.2.1 failed due to Hatchling auto-discovery misconfiguration and missing __init__.py in scripts/."
+  actionable_notes:
+    - "Hatch Target: Use both 'packages' and 'include' for redundant safety."
+    - "Module Path: scripts/ added as a valid Python package with __init__.py."
+    - "Entry Points: Resolved kit-ingest mapping to scripts.governance_ingest."
+
+- id: 469
+  type: pattern
+  subject: "Cross-Platform Fail-Fast STDIN"
+  implementation:
+    - "POSIX: Use select.select(stdin, ..., 0.2s) for non-TTY hang protection."
+    - "Windows: Fallback to sys.stdin.isatty() and immediate EOF detection."
+    - "Fail-fast: CLI must exit < 1s if no pipe data is present in non-interactive mode."
+
+- id: 470
+  type: invariant
+  subject: "Release Guard Protocol (v2)"
+  description: "Build pipeline now enforces 'No Build from Dirty Repo'."
+  constraints:
+    - "Git status must be clean."
+    - "Imports (kit, kit_agent, scripts) must be verified pre-build."
+    - "Wheel content audit (unzip -l) is mandatory."
 
 <!-- AUTHORITY MARKER: This section is the definitive source of truth for AI agents. Do not infer or assume conflicting information. -->
 
