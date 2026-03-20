@@ -14,22 +14,22 @@ from pathlib import Path
 
 def ingest_governance(file_path: str | None = None) -> None:
     """
-    Upgraded Governance Ingester (v1.2.1-Py314)
+    Upgraded Governance Ingester (v1.2.2)
     - Validates YAML/JSON integrity
     - Injects automated semantic tags
-    - Fail-fast STDIN handling (Windows-compatible)
+    - Fail-fast STDIN handling (Windows-safe)
     """
-    if file_path in ("--help", "-h"):
+    # 1. Explicit Help / Usage
+    if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
         print("Usage: kit-ingest [file_path]")
         print("Or: cat fact.yml | kit-ingest")
         sys.exit(0)
 
-    print("[INGEST] Starting governance distillation (v1.2.1-Py314)...")
+    print("[INGEST] Starting governance distillation (v1.2.2-Robust)...")
 
     use_yaml = False
     try:
         import yaml
-
         use_yaml = True
     except ImportError:
         print("[WARN] PyYAML not found. Proceeding with raw string ingestion.")
@@ -39,10 +39,18 @@ def ingest_governance(file_path: str | None = None) -> None:
         if file_path and os.path.exists(file_path):
             content = Path(file_path).read_text(encoding="utf-8")
         elif not sys.stdin.isatty():
+            # Robust STDIN: select () for POSIX, isatty for Windows
+            if os.name != "nt":
+                import select
+                r, _, _ = select.select([sys.stdin], [], [], 0.2)
+                if not r:
+                    print("[ERROR] Timeout waiting for STDIN. (Fail-fast)")
+                    sys.exit(1)
+            
             try:
                 content = sys.stdin.read()
-            except OSError:
-                print("[ERROR] Failed to read from STDIN.")
+            except OSError as e:
+                print(f"[ERROR] Failed to read from STDIN: {e}")
                 sys.exit(1)
         else:
             print("[ERROR] No input source. Use: cat fact.yml | kit-ingest")
