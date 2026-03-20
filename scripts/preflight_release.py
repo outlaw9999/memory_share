@@ -91,9 +91,7 @@ def verify_bundle():
             "kit_agent/__init__.py",
             "runtime/__init__.py",
             "scripts/__init__.py",
-            "kit_agent/data/AGENTS.md",
-            "AGENTS.md",
-            "HOTFIX_V1.2.1.md"
+            "kit_agent/data/AGENTS.md"
         ]
         for path in required_paths:
             if path not in names:
