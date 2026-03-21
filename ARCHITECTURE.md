@@ -1,52 +1,62 @@
-# .kit Technical Architecture Specification (v1.2.0 GA)
+# .kit Technical Architecture Specification (v1.2.3 STABLE)
 
-`.kit` is a deterministic memory OS for multi-agent and human workflows. This document defines the storage model, ranking model, governance boundaries, and the Stage 5 Sensory Nervous System.
+`.kit` is a deterministic memory OS and Cognitive Governance Layer for multi-agent and human workflows. This document defines the storage model, ranking model, governance boundaries, and the Intelligent Routing System.
 
-## 0. Release Status (GA)
+## 0. Release Status
 
-**Release Status:** General Availability (GA)  
-**Version:** v1.2.0  
-**Focus:** Reliability, Cross-model Determinism, and Sensory Input.
+**Release Status:** STABLE (Merciless Stability)
+**Version:** v1.2.3
+**Focus:** Cognitive Governance, Air-Gapped Determinism, Split-Brain Prevention, and Stateful Resilience.
 
 ## 0.1 Development Journey
 
-`.kit` evolved through five key architecture stages:
-
+`.kit` evolved through six key architecture epochs:
 1. **Stage 1**: Core Memory Ledger (SQLite Kernel).
 2. **Stage 2**: Multi-Agent Integration (Concurrency & Fallback).
 3. **Stage 3**: Semantic Layer (Deterministic Ranking & Conflict Detection).
 4. **Stage 4**: Resilience (Circuit Breakers & Trust Metrics).
-5. **Stage 5 - Sensory Nervous System**: Sensor Contract v1, Ephemeral Memory, and the cognitive friction layer.
+5. **Stage 5**: Sensory Nervous System (Sensor Contract v1, Ephemeral Memory).
+6. **Stage 6 (v1.2.3)**: Cognitive Governance (Auto-Routing, Firewall, Idempotency, and Absolute Path Isolation).
 
-## 1. System Philosophy And Invariants
-- **Local Determinism**: Identical inputs yield identical context.
+## 1. System Philosophy & Invariants
+
+- **Zero Silent Failures**: The system MUST fail fast rather than degrade silently (e.g., STDIN hangs are blocked).
+- **Absolute Path Isolation**: The Global Brain exists at a single, unified OS path (`~/.kit/global.db`) to prevent multi-venv split-brain. Local Brains halt discovery at the `.git` root.
 - **Compute-at-Write**: Read latency is O(log N) through precomputed scores.
 - **Immutable Ledger**: Append-only fact stream.
-- **Unix Composability**: Stream-first CLI (pipes are first-class citizens).
+- **Air-Gapped by Default**: Zero external network dependencies for routing and classification.
 
-## 2. Cognitive Friction
-The cognitive friction layer protects the memory ledger from cognitive drift by detecting and challenging non-deterministic data before it is stored as long-term architecture.
-- **Detection**: Heuristic/Regex scan for percentages, metrics, timestamps, and temporal words.
-- **Enforcement**: Warns on `invariant` and `decision` tags to force data into the Ephemeral layer.
+## 2. Cognitive Governance (The v1.2.3 Control Plane)
+
+To prevent cognitive drift and memory pollution from autonomous agents, v1.2.3 introduces a strict, rule-based Auto-Routing layer (`kit learn --auto`).
+
+### 2.1 The Noise Filter (Garbage Collection)
+Transient agent chatter (e.g., "I will now...", "Output generated") is detected via heuristic pattern matching and explicitly **DROPPED** before touching the database.
+
+### 2.2 The Cognitive Firewall (Secret Protection)
+All inputs are scanned using Shannon Entropy and regex patterns. High-entropy strings containing keywords (e.g., `password=`, `sk-`) are strictly **BLOCKED** to prevent credential leakage into long-term memory.
+
+### 2.3 Idempotency (Deduplication)
+The system computes a `SHA-256` hash of the normalized input. Exact duplicate entries are detected and **SKIPPED** to prevent database bloat.
+
+### 2.4 The Abstraction Scorer
+Inputs are mathematically scored on Generality vs. Specificity:
+- **GLOBAL Write Policy**: Only inputs exceeding a strict confidence threshold (Generality > 0.85) are allowed into the Global Brain.
+- **Downgrade Guard**: Ambiguous or overly specific inputs attempting to write to Global are forcibly downgraded to the LOCAL Brain.
 
 ## 3. Sensor Contract v1 (Sensory Nervous System)
-Stage 5 introduces the ability for external sensors (Git hooks, IDEs, CI/CD) to pipe real-time signals into the agent's reasoning loop without polluting the long-term memory.
+
+External sensors (Git hooks, IDEs, CI/CD) pipe real-time signals into the agent's reasoning loop without polluting long-term memory.
 
 ### 3.1 Unix Pipe Protocol
-Sensors communicate via `stdin` using a standardized JSON or raw text format:
-```json
-{
-  "sensor": "git-hook",
-  "event": "pre-commit",
-  "data": { "env": "production", "branch": "main" }
-}
-```
+Sensors communicate via STDIN using a standardized JSON or raw text format.
 
 ### 3.2 Ephemeral Fact Injection
 Signals from the Sensor Contract are injected into the agent's prompt under the `[EPHEMERAL FACTS]` block. These facts are high-priority but **never** stored in the SQLite database.
 
 ## 4. Output Contract (Predictability)
-To ensure multi-model consistency (Gemini ↔ Jan), all agent responses must conform to a strict Output Contract:
+
+To ensure multi-model consistency, all agent responses must conform to a strict Output Contract:
 ```json
 {
   "decision": "PASS | WARN | BLOCK",
@@ -55,15 +65,11 @@ To ensure multi-model consistency (Gemini ↔ Jan), all agent responses must con
 }
 ```
 
-## 5. System Invariants enforcement
-Prompt injection includes `[STRICT EXECUTION RULES]` to force the LLM to respect memory invariants:
-1. **Rule Override**: Memory invariants override all external training/suggestions.
-2. **Decision Layer**: If a request violates an invariant, the agent MUST return `BLOCK`.
-3. **No Ambiguity**: Non-deterministic answers ("it depends") are banned for invariant checks.
-
-## 6. Physical Storage Model (SQLite)
-The ledger remains an append-only SQLite database using WAL mode for safe concurrent access by multiple agents.
+## 5. Physical Storage Model (SQLite)
+- **Engine**: SQLite in WAL (Write-Ahead Logging) mode.
+- **Concurrency**: Safe concurrent access by multiple agents across IDEs.
+- **Encoding**: Strictly enforced UTF-8 across all OS boundaries (PYTHONUTF8=1).
 
 ---
 
-*Last Updated: 2026-03-19 | Version: v1.2.0 GA*
+*Last Updated: 2026-03-21 | Version: v1.2.3 STABLE | Status: SEALED*

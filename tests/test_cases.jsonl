@@ -1,0 +1,11 @@
+{"input": "I will now create the file", "expected": "DROP"}
+{"input": "Done. Output generated successfully", "expected": "DROP"}
+{"input": "sk-proj-1234567890abcdef1234567890abcdef", "expected": "BLOCK"}
+{"input": "password=SuperSecret123!", "expected": "BLOCK"}
+{"input": "## Decision:\n- Password: `admin123`", "expected": "BLOCK"}
+{"input": "All services MUST use dependency injection and NEVER instantiate global state.", "expected": "GLOBAL"}
+{"input": "System architecture must enforce strict typing across all modules.", "expected": "GLOBAL"}
+{"input": "In this project, we must always use strict typing.", "expected": "AMBIGUOUS"}
+{"input": "Architecture rule for auth.py must be enforced strictly.", "expected": "AMBIGUOUS"}
+{"input": "Fixed bug in parser.rs line 88", "expected": "LOCAL"}
+{"input": "Adjusted timeout from 30s to 60s in api.py", "expected": "LOCAL"}

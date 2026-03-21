@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "memory-share-kit"
-version = "1.2.2-Ultimate"
+version = "1.2.3-Ultimate"
 description = "Deterministic memory and governance for developers and AI agents."
 readme = "README.md"
 requires-python = ">=3.14,<3.15"

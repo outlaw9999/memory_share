@@ -6,6 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from datetime import datetime, timezone
 from kit.core.kit_platform import run_safe, read_stdin_fail_fast, FAST_TIMEOUT, DEFAULT_TIMEOUT
 
 
@@ -46,6 +47,7 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--db", help="Path to the project database (overrides default)")
+    parser.add_argument("--isolated", action="store_true", help="Force isolation: create/use .kit in CWD, ignore parents")
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -71,6 +73,7 @@ def main() -> None:
         help="Cognitive layer",
     )
     learn_p.add_argument("--global", action="store_true", dest="to_global", help="Learn into Global Brain")
+    learn_p.add_argument("--auto", action="store_true", help="Use v1.2.3 intelligent routing (recommended)")
     learn_p.add_argument("--namespace", default="shared", help="Namespace (e.g., project, agent:name)")
     learn_p.add_argument("--scope", help="Optional explicit scope (folder path)")
     learn_p.add_argument("--agent-id", help="Explicit Agent ID for attribution")
@@ -92,6 +95,7 @@ def main() -> None:
     recall_p.add_argument("--agent-id", help="Agent ID for recall boost")
     recall_p.add_argument("--here", action="store_true", help="Filter/Boost by current directory scope")
     recall_p.add_argument("--symbol", help="Recall context specifically for this code symbol")
+    recall_p.add_argument("--query", help="Keyword search within recalled context")
     recall_p.add_argument("--with-global", action="store_true", help="Include Global Brain facts in recall")
     recall_p.add_argument("--fast", action="store_true", help="Fast mode (skip heavy ranking)")
 
@@ -100,6 +104,7 @@ def main() -> None:
     context_p.add_argument("--at", help="Temporal snapshot")
     context_p.add_argument("--agent-id", help="Agent ID for recall boost")
     context_p.add_argument("--symbol", help="Recall context specifically for this code symbol")
+    context_p.add_argument("--query", help="Keyword search within context")
     context_p.add_argument("--with-global", action="store_true", help="Include Global Brain facts in recall")
     context_p.add_argument("--fast", action="store_true", help="Fast mode (skip heavy ranking)")
 
@@ -139,6 +144,10 @@ def main() -> None:
 
     subparsers.add_parser("render", help="Force regenerate AI context files (.kit/context, AGENTS.md)")
 
+    label_p = subparsers.add_parser("label", help="v1.2.4 feedback: Label an observation correctly")
+    label_p.add_argument("--id", type=int, help="Observation ID to correct")
+    label_p.add_argument("--correct", choices=["GLOBAL", "LOCAL"], required=True, help="Correct target brain")
+
     watch_p = subparsers.add_parser("watch", help="Stream cognitive events in real-time")
     watch_p.add_argument("--json", action="store_true", help="Output raw JSON stream")
 
@@ -167,6 +176,7 @@ def main() -> None:
         "preflight",
         "blame",
         "reflect",
+        "label",
     ]
 
     if len(sys.argv) > 1:
@@ -189,7 +199,8 @@ def main() -> None:
     import kit.api as api
 
     db_path = Path(args.db).absolute() if args.db else None
-    api.init_kernel(db_path)
+    mode = "isolated" if args.isolated else "auto"
+    api.init_kernel(db_path, mode=mode)
 
     def print_diagnostic(msg: object) -> None:
         print(msg, file=sys.stderr)
@@ -201,7 +212,7 @@ def main() -> None:
         if args.command == "init":
             from kit.api import resolve_paths
 
-            _, _project_db, root_path = resolve_paths()
+            _, _project_db, root_path = resolve_paths(force_local=True)
             kit_dir = root_path / ".kit"
 
             agents_md = root_path / "AGENTS.md"
@@ -258,6 +269,26 @@ def main() -> None:
                 else:
                     print_diagnostic("Non-interactive mode: Proceeding with caution (WARN-only v1.2.0).")
 
+            # --- v1.2.3 Auto-Routing ---
+            if getattr(args, "auto", False):
+                from kit.cli import auto_route
+                res = auto_route.route_content(content)
+                status = res["status"]
+                
+                if status == "BLOCK":
+                    print_diagnostic(f"FIREWALL: Secret detected ({res['reason']}). Entry BLOCKED.")
+                    sys.exit(1)
+                if status == "DROP":
+                    print_diagnostic("HYGIENE: Noise detected. Entry DROPPED.")
+                    sys.exit(0)
+                if status == "SKIP":
+                    print_diagnostic("IDEMPOTENCY: Duplicate entry detected. Entry SKIPPED.")
+                    sys.exit(0)
+                
+                args.hash = res["hash"]
+                args.to_global = (res["route"] == "GLOBAL")
+                print_diagnostic(f"AUTO-ROUTE: Routed to {res['route']} (Confidence: {res['confidence']:.2f})")
+
             uid = args.uid or current_context
             fact_id = api.get_brain().learn(
                 uid=uid,
@@ -302,10 +333,11 @@ def main() -> None:
                 limit=args.limit,
                 at=args.at,
                 agent_id=args.agent_id,
-                here=is_here,
+                here=args.here,
                 symbol=args.symbol,
+                query=args.query,
                 with_global=args.with_global,
-                fast=is_fast,
+                fast=args.fast or (args.query is not None),
             )
 
             if is_tty:
@@ -504,6 +536,18 @@ def main() -> None:
                 sys.exit(1)
             if mode == "advisory" and report.status == "BLOCK":
                 print_diagnostic("System is in ADVISORY mode: Block bypassed.")
+
+        elif args.command == "label":
+            from kit.cli import auto_route
+            # Log corrective feedback for v1.2.4 Adaptive Loop
+            feedback = {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "type": "FEEDBACK",
+                "obs_id": args.id,
+                "correct_label": args.correct
+            }
+            auto_route.log(feedback)
+            print_diagnostic(f"Feedback logged: Observation {args.id} -> {args.correct}. v1.2.4 Trainer will use this.")
 
     except Exception as e:
         print_diagnostic(f"Error: {e}")

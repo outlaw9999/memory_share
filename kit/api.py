@@ -10,9 +10,12 @@ from kit.core.kit_cognitive_core import SAMBrain, SAMBrainError
 _brain_instance: SAMBrain | None = None
 
 
-def resolve_paths() -> tuple[Path, Path, Path]:
+def resolve_paths(force_local: bool = False, mode: str = "auto") -> tuple[Path, Path, Path]:
     """
     Standard Path Resolver for .kit Kernel.
+    Modes:
+      - 'auto': Parent-walk up to .git boundary to find .kit (default)
+      - 'isolated': Force create .kit in CWD, ignore parents (used for tests/sub-projects)
     """
     kit_home = os.getenv("KIT_HOME")
     if kit_home:
@@ -24,35 +27,56 @@ def resolve_paths() -> tuple[Path, Path, Path]:
     global_path.mkdir(parents=True, exist_ok=True)
 
     cwd = Path.cwd().resolve()
-    root_path = cwd
-    project_db = cwd / ".kit" / "brain.db"
+    
+    # --- STRATEGY 1: EXPLICIT ISOLATION ---
+    if force_local or mode == "isolated":
+        project_db = cwd / ".kit" / "brain.db"
+        (cwd / ".kit").mkdir(parents=True, exist_ok=True)
+        return global_db, project_db, cwd
 
+    # --- STRATEGY 2: AUTO DISCOVERY (Boundary-Aware) ---
+    project_db = None
+    root_path = cwd
+    
+    # 🔥 Step 1: Find Repo Boundary (.git)
+    repo_root = None
     for parent in [cwd] + list(cwd.parents):
+        if (parent / ".git").exists():
+            repo_root = parent
+            break
+
+    # 🔥 Step 2: Walk parent tree but STOP at repo boundary
+    for parent in [cwd] + list(cwd.parents):
+        # PRIORITY 1: Existing brain database (Marker of an active project)
         if (parent / ".kit" / "brain.db").exists():
             root_path = parent
             project_db = parent / ".kit" / "brain.db"
             break
-        if (parent / ".git").exists():
+        # PRIORITY 2: .kit marker directory (Newly initialized project)
+        if (parent / ".kit").is_dir():
             root_path = parent
             project_db = parent / ".kit" / "brain.db"
             break
-
-    if not project_db.exists():
-        if (root_path / ".git").exists():
-            (root_path / ".kit").mkdir(parents=True, exist_ok=True)
-            project_db = root_path / ".kit" / "brain.db"
-        else:
-            (cwd / ".kit").mkdir(parents=True, exist_ok=True)
-            project_db = cwd / ".kit" / "brain.db"
-            root_path = cwd
+        
+        # Boundary Lock: Never cross out of the nearest .git into a parent project
+        if repo_root and parent == repo_root:
+            break
+            
+    # ZERO FALLBACK: If no .kit found within boundary, enforce isolation.
+    if project_db is None:
+        (cwd / ".kit").mkdir(parents=True, exist_ok=True)
+        project_db = cwd / ".kit" / "brain.db"
+        root_path = cwd
+        # Signal creation
+        print(f"[kit] Initialized isolated brain at {root_path}")
 
     return global_db, project_db, root_path
 
 
-def init_kernel(db_path: Path | None = None) -> None:
+def init_kernel(db_path: Path | None = None, mode: str = "auto") -> None:
     """Initialize the global SAMBrain instance."""
     global _brain_instance
-    global_db, project_db, root_path = resolve_paths()
+    global_db, project_db, root_path = resolve_paths(mode=mode)
     target_project_db = db_path if db_path else project_db
     _brain_instance = SAMBrain(target_project_db, root_path=root_path)
     _brain_instance.attach_global(global_db)
@@ -67,8 +91,9 @@ def get_brain() -> SAMBrain:
 
 
 def learn(
-    uid: str,
     content: str,
+    tag: str = "decision",
+    uid: str | None = None,
     kind: str = "observation",
     importance: float = 0.5,
     metadata: dict[str, Any] | None = None,
@@ -82,7 +107,7 @@ def learn(
     structural_hash: str | None = None,
     skip_render: bool = False,
 ) -> int:
-    """Learn a fact with optional symbol anchoring."""
+    """Learn a fact with optional symbol anchoring and cognitive metadata."""
     meta = {"source": "cli", "actor": "human", "agent": "antigravity"}
     if metadata:
         meta.update(metadata)
@@ -90,17 +115,18 @@ def learn(
     return get_brain().learn(
         uid=uid,
         content=content,
+        tag=tag,
         kind=kind,
         importance=importance,
         layer=layer,
+        namespace=namespace,
+        agent_id=agent_id,
         to_global=to_global,
         supersede_id=supersede_id,
-        namespace=namespace,
         scope=scope,
-        agent_id=agent_id or meta.get("agent"),
+        metadata=meta,
         symbol=symbol,
         structural_hash=structural_hash,
-        metadata=meta,
         skip_render=skip_render,
     )
 
@@ -119,12 +145,13 @@ def recall(
     agent_id: str | None = None,
     here: bool = False,
     symbol: str | None = None,
+    query: str | None = None,
     with_global: bool = False,
     fast: bool = False,
 ) -> list[Any]:
     """Ranked recall context awareness."""
     return get_brain().recall(
-        entities, limit, at=at, agent_id=agent_id, here=here, symbol=symbol, with_global=with_global, fast=fast
+        entities, limit, at=at, agent_id=agent_id, here=here, symbol=symbol, query=query, with_global=with_global, fast=fast
     )
 
 
@@ -135,6 +162,7 @@ def recall_with_assessment(
     agent_id: str | None = None,
     here: bool = False,
     symbol: str | None = None,
+    query: str | None = None,
     with_global: bool = False,
     fast: bool = False,
 ) -> Any:
@@ -146,6 +174,7 @@ def recall_with_assessment(
         agent_id=agent_id,
         here=here,
         symbol=symbol,
+        query=query,
         with_global=with_global,
         fast=fast,
     )
@@ -204,11 +233,12 @@ def reflect_check(diff_text: str | None = None, scope: str | None = None) -> dic
     if diff_text is None:
         try:
             # Check for staged changes first
-            diff_text = subprocess.check_output(["git", "diff", "--cached"], text=True)
+            diff_text = subprocess.check_output(["git", "diff", "--cached"], text=True, timeout=3.0, stderr=subprocess.DEVNULL)
             if not diff_text:
                 # Fallback to current changes
-                diff_text = subprocess.check_output(["git", "diff", "HEAD"], text=True)
-        except (subprocess.CalledProcessError, FileNotFoundError):
+                diff_text = subprocess.check_output(["git", "diff", "HEAD"], text=True, timeout=3.0, stderr=subprocess.DEVNULL)
+        except Exception:
+            # FALLBACK: Return empty diff to prevent IDE freeze if git hangs or fails
             diff_text = ""
 
     report = run_reflect(get_brain(), diff_text, scope=scope)

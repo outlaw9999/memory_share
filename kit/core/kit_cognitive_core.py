@@ -6,7 +6,13 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+from kit.core.kit_invariants import (
+    enforce_no_global_contamination, 
+    sanitize_global_metadata,
+    InvariantViolation
+)
 
 from kit.core.schema_factory import enable_wal, init_db
 
@@ -92,12 +98,31 @@ class SAMBrain:
         self.cognition_version += 1
 
     def _resolve_root(self, start_path: Path) -> Path:
-        """Walk up to find the nearest .kit or .git marker."""
+        """Walk up to find the nearest .kit marker inside the nearest .git boundary."""
         curr = start_path.resolve()
+
+        # 🔥 Step 1: Find Repo Boundary (.git)
+        repo_root = None
         for parent in [curr] + list(curr.parents):
-            if (parent / ".kit").exists() or (parent / ".git").exists():
+            if (parent / ".git").exists():
+                repo_root = parent
+                break
+
+        # 🔥 Step 2: Walk but STOP at repo boundary
+        for parent in [curr] + list(curr.parents):
+            if (parent / ".kit").exists():
                 return parent
-        return start_path.resolve()  # Fallback to DB directory if no markers found
+            
+            if repo_root and parent == repo_root:
+                break
+            
+        # Không tìm thấy .kit trong boundary? KHÔNG FALLBACK! Cưỡng chế tạo mới tại start_path
+        kit_dir = curr / ".kit"
+        kit_dir.mkdir(parents=True, exist_ok=True)
+        
+        # EXPLICIT SIGNAL: observable mutation
+        print(f"[kit] Initialized isolated brain at {curr}")
+        return curr
 
     def get_normalized_scope(self, path: Path | str | None = None) -> str:
         """Convert path to a canonical scope string relative to root."""
@@ -430,9 +455,26 @@ class SAMBrain:
         tag: str = FactTag.DECISION.value,
         skip_render: bool = False,
     ) -> int:
-        """Learn a new observation at a specific node."""
+        """Learn a new observation at a specific node with STRICT Invariant Enforcement."""
         target_db = self.global_db_path if (to_global and self.global_db_path) else self.db_path
-        normalized_scope = scope if scope is not None else self.get_normalized_scope()
+        
+        # --- BƯỚC 1: XỬ LÝ DỮ LIỆU ĐẦU VÀO ---
+        if to_global:
+            normalized_scope = "GLOBAL"
+            # Tẩy rửa Metadata: Tuyệt đối cấm các key rác của Local
+            clean_metadata = sanitize_global_metadata(metadata or {})
+        else:
+            normalized_scope = scope if scope is not None else self.get_normalized_scope()
+            clean_metadata = metadata or {}
+
+        # --- BƯỚC 2: CƯỠNG CHẾ BẤT BIẾN (INVARIANT ENFORCEMENT) ---
+        # Đóng gói tạm dữ liệu để Thẩm phán kiểm duyệt
+        test_entry = {
+            "content": content, "scope": normalized_scope, 
+            "tag": tag, "metadata": clean_metadata
+        }
+        if to_global:
+            enforce_no_global_contamination(test_entry)
 
         try:
 
@@ -445,11 +487,12 @@ class SAMBrain:
                     )
 
                 # 1. Upsert Node
+                target_uid = (uid or "fact").lower()
                 conn.execute(
                     "INSERT INTO nodes (uid, kind) VALUES (?, ?) ON CONFLICT(uid) DO UPDATE SET uid=uid",
-                    (uid.lower(), kind),
+                    (target_uid, kind),
                 )
-                node_row = conn.execute("SELECT id FROM nodes WHERE uid = ?", (uid.lower(),)).fetchone()
+                node_row = conn.execute("SELECT id FROM nodes WHERE uid = ?", (target_uid,)).fetchone()
                 node_id = node_row["id"]
 
                 # 2. Get head commit of current branch
@@ -458,8 +501,8 @@ class SAMBrain:
                 ).fetchone()
                 commit_id = head_row["head_commit_id"] if head_row else "ROOT"
 
-                # 3. Insert Observation
-                meta_json = json.dumps(metadata or {})
+                # 3. Insert Observation (Dùng clean_metadata)
+                meta_json = json.dumps(clean_metadata)
                 m_score = self._compute_materialized_score(importance, 0)
 
                 sql = """
@@ -606,6 +649,7 @@ class SAMBrain:
         agent_id: str | None = None,
         here: bool = False,
         symbol: str | None = None,
+        query: str | None = None,
         with_global: bool = False,
         fast: bool = False,
     ) -> list[Memory]:
@@ -633,11 +677,23 @@ class SAMBrain:
                 scope_placeholders = ",".join(["?"] * len(scopes))
                 scope_filter_clause = f"(o.scope IN ({scope_placeholders}) OR o.scope = '')"
 
-            # Entity filter logic
+            # Query filter logic (Explicit FTS)
+            query_filter_clause = ""
+            if query:
+                query_filter_clause = f"o.id IN (SELECT rowid FROM {p}observations_fts WHERE {p}observations_fts MATCH ?)"
+
+            # Entity filter logic (Hybrid UID or FTS)
             entity_filter_clause = ""
             if entities:
-                entity_placeholders = ",".join(["?"] * len(entities))
-                entity_filter_clause = f"n.uid IN ({entity_placeholders})"
+                placeholders = ",".join(["?"] * len(entities))
+                uid_clause = f"n.uid IN ({placeholders})"
+                
+                # Also treat entities as FTS search terms if no specific query is provided
+                if not query:
+                    fts_query = " OR ".join(entities)
+                    entity_filter_clause = f"({uid_clause} OR o.id IN (SELECT rowid FROM {p}observations_fts WHERE {p}observations_fts MATCH ?))"
+                else:
+                    entity_filter_clause = uid_clause
 
             # Combine WHERE clauses
             where_clauses = []
@@ -645,6 +701,8 @@ class SAMBrain:
                 where_clauses.append(entity_filter_clause)
             if scope_filter_clause:
                 where_clauses.append(scope_filter_clause)
+            if query_filter_clause:
+                where_clauses.append(query_filter_clause)
             if symbol_where_clause:
                 where_clauses.append(f"(1=0 {symbol_where_clause})")
 
@@ -669,8 +727,12 @@ class SAMBrain:
             where_params = []
             if entities:
                 where_params.extend([e.lower() for e in entities])
+                if not query:
+                    where_params.append(" OR ".join(entities))
             if here:
                 where_params.extend(scopes)
+            if query:
+                where_params.append(query)
             if symbol:
                 where_params.append(symbol)
 
@@ -713,15 +775,14 @@ class SAMBrain:
             # Phase 1: Local Context First
             _recall_from(conn, priority=1.5, source="project")
 
-            # Phase 1: Opt-in Global Awareness via ATTACH DATABASE
-            if with_global and self.global_db_path:
-                try:
-                    # Fail-fast check if global.db exists
-                    if self.global_db_path.exists():
-                        conn.execute(f"ATTACH DATABASE '{self.global_db_path}' AS global_brain")
-                        _recall_from(conn, prefix="global_brain", priority=1.0, source="global")
-                except sqlite3.Error as e:
-                    logger.warning(f"Global Brain attachment failed: {e}")
+        # Phase 2: Global Awareness (Separate query to avoid FTS ATTACH issues)
+        if with_global and self.global_db_path:
+            try:
+                if self.global_db_path.exists():
+                    with self._get_connection(self.global_db_path) as gconn:
+                        _recall_from(gconn, prefix="", priority=1.0, source="global")
+            except sqlite3.Error as e:
+                logger.warning(f"Global Brain recall failed: {e}")
 
         # Sort combined results: Tag Priority first, then Score
         memories.sort(key=lambda x: (self.TAG_PRIORITY.get(x.tag, 0), x.score, x.created_at), reverse=True)
@@ -862,7 +923,11 @@ class SAMBrain:
 
             committed_id = self._run_write_transaction(_operation)
             if not skip_render:
-                self.render_context()
+                try:
+                    self.render_context()
+                except Exception as e:
+                    # KHÔNG ĐƯỢC NUỐT
+                    raise InvariantViolation(f"Post-migration render failed: {e}")
             return committed_id
         except sqlite3.Error as e:
             raise SAMBrainError(f"Failed to commit memory: {e}") from e

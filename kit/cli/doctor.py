@@ -136,7 +136,7 @@ def run_doctor(brain: SAMBrain, mode: str = "safe", check_agents: bool = False, 
     from kit.api import get_brain
     
     # Try to get version from pyproject.toml if possible
-    package_version = "1.2.2-Ultimate" # Hardcoded for now, should be dynamic in 1.2.3
+    package_version = "1.2.3-Ultimate" 
     
     brain = get_brain()
     
