@@ -44,6 +44,45 @@ Inputs are mathematically scored on Generality vs. Specificity:
 - **GLOBAL Write Policy**: Only inputs exceeding a strict confidence threshold (Generality > 0.85) are allowed into the Global Brain.
 - **Downgrade Guard**: Ambiguous or overly specific inputs attempting to write to Global are forcibly downgraded to the LOCAL Brain.
 
+### 2.5 Execution Layers (Deterministic Separation)
+
+To ensure performance, determinism, and architectural clarity, the system is strictly divided into three execution layers:
+
+#### L1: Fast Guard (Preflight Filter)
+- **Technology**: Regex, diff-based heuristics
+- **Latency**: < 50ms
+- **Role**:
+  - Detect obvious violations (secrets, banned patterns).
+  - Reject massive/binary commits early.
+  - Prevent CPU-heavy downstream execution.
+- **Constraint**:
+  - MUST remain stateless.
+  - MUST NOT replace structural or cognitive checks.
+
+#### L2: Structural Analysis (External Sensors)
+- **Technology**: AST (Vantage), language-aware parsing.
+- **Role**:
+  - Provide structural truth (imports, functions, call graph).
+  - Eliminate ambiguity from raw text.
+- **Constraint**:
+  - Runs only if L1 passes.
+  - Language-dependent, pluggable.
+
+#### L3: Cognitive Governance (Core .kit)
+- **Technology**: SQLite + invariants + scoring.
+- **Role**:
+  - Enforce organizational rules.
+  - Detect drift, conflict, and semantic violations.
+  - Make final decision.
+- **Constraint**:
+  - MUST remain deterministic and air-gapped.
+
+#### Execution Principle
+L1 → L2 → L3 (Strict Pipeline)
+- If L1 fails → **STOP**.
+- If L2 fails → **STOP**.
+- Only L3 can produce the final governance decision.
+
 ## 3. Sensor Contract v1 (Sensory Nervous System)
 
 External sensors (Git hooks, IDEs, CI/CD) pipe real-time signals into the agent's reasoning loop without polluting long-term memory.

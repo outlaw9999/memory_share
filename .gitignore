@@ -1,4 +1,4 @@
-# --- .kit Cognitive Artifacts ---
+# --- .kit v1.2.3 RELEASE GUARD ---
 .kit/
 
 # --- Simulation & Test Stadiums ---
@@ -12,16 +12,29 @@ test_repo_root/
 *.log
 routing_telemetry.jsonl
 
-# --- Build Artifacts ---
+# --- Python Trash ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# --- Build & Dist ---
 dist/
 build/
 *.egg-info/
+*.whl
 
-# --- Python & IDE ---
-__pycache__/
-*.py[cod]
-.pytest_cache/
+# --- Cache & Tooling ---
 .mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.tmp_*/
+
+# --- Environment & OS ---
 .env
+.venv
+venv/
 .DS_Store
-.antigravity/
+Thumbs.db
+.idea/
+.vscode/
