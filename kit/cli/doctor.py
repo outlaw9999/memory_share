@@ -134,9 +134,12 @@ def run_doctor(brain: SAMBrain, mode: str = "safe", check_agents: bool = False, 
 
     # --- Dashboard Summary ---
     from kit.api import get_brain
-
+    
+    # Try to get version from pyproject.toml if possible
+    package_version = "1.2.2-Ultimate" # Hardcoded for now, should be dynamic in 1.2.3
+    
     brain = get_brain()
-
+    
     # Count stats using internal connection helper
     with brain._get_connection() as conn:
         total_facts = conn.execute("SELECT COUNT(*) FROM observations WHERE is_active = 1").fetchone()[0]
@@ -151,7 +154,9 @@ def run_doctor(brain: SAMBrain, mode: str = "safe", check_agents: bool = False, 
     print("\n" + border, file=sys.stderr)
     print(" .KIT COGNITIVE DASHBOARD", file=sys.stderr)
     print(border, file=sys.stderr)
-    print(f" Brain Path:  {brain.db_path}", file=sys.stderr)
+    print(f" Version:     {package_version}", file=sys.stderr)
+    print(f" Project DB:  {brain.db_path}", file=sys.stderr)
+    print(f" Global DB:   {brain.global_db_path if hasattr(brain, 'global_db_path') else 'N/A'}", file=sys.stderr)
     print(f" Total Facts: {total_facts}", file=sys.stderr)
     print(f" Invariants:  {invariants}", file=sys.stderr)
     print(f" Decisions:   {decisions}", file=sys.stderr)

@@ -47,31 +47,54 @@ def is_stdin_ready(timeout: float = FAST_TIMEOUT) -> bool:
     Cross-platform (POSIX via select, Windows via isatty + logic).
     """
     if not sys.stdin.isatty():
-        # In non-TTY, we can often just check if we have data or if the pipe is closed.
-        # But for safety, we try to use select if available.
+        if os.name == "nt":
+            # Windows Pipe/Redirect: Minimal protection.
+            # We check if there's any data available via peek/read if possible,
+            # but usually we just want to avoid blocking if the pipe is open but empty.
+            # For now, we use a fail-fast approach: expect data immediately or fail.
+            return True # In non-TTY, we usually have data if something was piped.
         try:
             import select
             return bool(select.select([sys.stdin], [], [], timeout)[0])
         except (ImportError, AttributeError, OSError):
-            # Fallback for Windows/Non-select environments
-            # On Windows, if non-TTY, we assume data is there or it's empty.
-            return True # Assume ready, the read() might block but we hope it's immediate if EOF
+            return True 
     else:
-        # In TTY, we definitely need a timeout to avoid waiting for user input.
+        if os.name == "nt":
+            # Windows TTY: Minimal wait or just return False if we can't check
+            return False 
         try:
             import select
             return bool(select.select([sys.stdin], [], [], timeout)[0])
         except (ImportError, AttributeError, OSError):
-            # Windows TTY: Minimal protection via isatty check already done.
             return False 
 
 def read_stdin_fail_fast(timeout: float = FAST_TIMEOUT) -> Optional[str]:
     """
     Reads from STDIN only if data is immediately available or appears within timeout.
+    Uses threading on Windows to avoid blocking the main thread.
     """
-    if is_stdin_ready(timeout):
+    if os.name != "nt":
+        if is_stdin_ready(timeout):
+            try:
+                return sys.stdin.read().strip()
+            except EOFError:
+                return None
+        return None
+
+    # Windows Threaded Fail-Fast
+    import threading
+    
+    result = []
+    def _read():
         try:
-            return sys.stdin.read().strip()
-        except EOFError:
-            return None
-    return None
+            result.append(sys.stdin.read())
+        except Exception:
+            pass
+
+    thread = threading.Thread(target=_read, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    
+    if thread.is_alive() or not result:
+        return None
+    return result[0].strip()

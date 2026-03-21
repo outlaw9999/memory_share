@@ -15,7 +15,11 @@ def resolve_paths() -> tuple[Path, Path, Path]:
     Standard Path Resolver for .kit Kernel.
     """
     kit_home = os.getenv("KIT_HOME")
-    global_path = Path(kit_home).expanduser() if kit_home else Path.home() / ".kit"
+    if kit_home:
+        global_path = Path(kit_home).expanduser().resolve()
+    else:
+        global_path = (Path.home() / ".kit").resolve()
+        
     global_db = global_path / "global.db"
     global_path.mkdir(parents=True, exist_ok=True)
 
