@@ -85,12 +85,13 @@ Goal: preserve the Unix and Linux design posture of `.kit` and `kit-agent` so ne
 - `kit.api` remains the stable integration boundary: `learn()`, `recall()`, `recall_with_assessment()`, `reflect()`, `preflight_check()`, and `export_prompt()`.
 - CLI and API behavior should stay aligned and deterministic.
 
-8. Memory hygiene and knowledge distillation
+8. Memory hygiene and knowledge distillation (v1.2.3)
 
 - Runtime noise such as `task_*` and test-only facts should not dominate manifests.
 - Duplicate facts should be soft-deduped by `uid + content + tag + scope + symbol`.
 - `.kit/context` and `AGENTS.md` should expose distilled signal, not raw historical clutter.
-- Key distilled facts currently include `preflight_pipe`, `cli_unicode`, `recall_binding`, and `prompt_contract`.
+- **[NEW]** Key distilled facts currently include `preflight_pipe`, `cli_unicode`, `recall_binding`, and `prompt_contract`.
+- **[NEW]** Prefer `legacy` tag for mass ingestion of historical facts to maintain chronological and structural purity.
 
 9. Verification and storm-proofing
 
@@ -102,3 +103,13 @@ Goal: preserve the Unix and Linux design posture of `.kit` and `kit-agent` so ne
 - CLI output should stay ASCII-safe across Windows and Unix-like consoles.
 - Generated `.kit/context` and `AGENTS.md` content should remain encoding-safe.
 - Preflight and recall-adjacent pipelines must accept piped stdin when used in automation.
+
+11. Auto-Routing Protocol (v1.2.3 upgrade)
+
+Agents SHOULD prefer `kit learn --auto` for routine observations to invoke the v1.2.3 Governance Pipeline:
+
+1. **Heuristic Sanitization**: The system will automatically drop transient chatter and block high-entropy secrets.
+2. **Deterministic Grading**: Facts are scored on a scale of 0.0 to 1.0. 
+   - `Score > 0.85`: Promoted to GLOBAL.
+   - `Score <= 0.85`: Confined to LOCAL.
+3. **No Inference**: Auto-routing is based on deterministic heuristics and scoring, NOT semantic LLM inference. The agent remains responsible for the accuracy of the `--content`.

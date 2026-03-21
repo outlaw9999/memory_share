@@ -38,3 +38,7 @@ venv/
 Thumbs.db
 .idea/
 .vscode/
+
+# .kit Memory Store
+.kit/brain.db-*
+.kit/brain.db.bak

@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS observations (
     node_id INTEGER NOT NULL,
     content TEXT NOT NULL,
     layer TEXT CHECK(layer IN ('working', 'episodic', 'semantic', 'procedural')) DEFAULT 'episodic',
-    tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference', 'note')) DEFAULT 'decision',
+    tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference', 'note', 'legacy')) DEFAULT 'decision',
     importance REAL DEFAULT 1.0,
     materialized_score REAL NOT NULL DEFAULT 1.0,
     access_count INTEGER DEFAULT 0,
@@ -176,16 +176,68 @@ def init_db(conn: sqlite3.Connection):
     except sqlite3.OperationalError:
         pass
 
+    # Tag migration (v1.2.3): Expand allowed tags to include 'note' and 'legacy'
     try:
-        conn.execute(
-            "ALTER TABLE observations ADD COLUMN tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference', 'note')) DEFAULT 'decision'"
-        )
-        # Give existing facts that might have [Kind: invariant/decision/preference] their proper tags, otherwise default to decision
-        conn.execute("UPDATE observations SET tag = 'invariant' WHERE content LIKE '%[Kind: invariant]%'")
-        conn.execute("UPDATE observations SET tag = 'preference' WHERE content LIKE '%[Kind: preference]%'")
-        logger.info("Migrated: Added tag enum to observations")
-    except sqlite3.OperationalError:
-        pass
+        # Check if the constraint is old
+        cur = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='observations'")
+        row = cur.fetchone()
+        if row:
+            schema_sql = row[0]
+            if "legacy" not in schema_sql or "note" not in schema_sql:
+                logger.info("Migrating observations table to expand tag constraints...")
+                # Standard SQLite table migration pattern
+                conn.execute("PRAGMA foreign_keys=OFF")
+                
+                # 1. Create new table with updated schema (using temporary name)
+                # We need to extract the CREATE TABLE statement for observations from SCHEMA_SQL but with a new name
+                # Actually, simpler to just run the create statement directly
+                new_table_sql = """
+                CREATE TABLE observations_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    node_id INTEGER NOT NULL,
+                    content TEXT NOT NULL,
+                    layer TEXT CHECK(layer IN ('working', 'episodic', 'semantic', 'procedural')) DEFAULT 'episodic',
+                    tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference', 'note', 'legacy')) DEFAULT 'decision',
+                    importance REAL DEFAULT 1.0,
+                    materialized_score REAL NOT NULL DEFAULT 1.0,
+                    access_count INTEGER DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    superseded_at DATETIME,
+                    last_accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    namespace TEXT DEFAULT 'shared',
+                    scope TEXT NOT NULL DEFAULT '',
+                    branch TEXT DEFAULT 'main',
+                    symbol TEXT,
+                    structural_hash TEXT,
+                    metadata TEXT DEFAULT '{}',
+                    commit_id TEXT, agent_id TEXT, 
+                    is_active BOOLEAN DEFAULT 1,
+                    supersedes_id INTEGER,
+                    FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE,
+                    FOREIGN KEY (commit_id) REFERENCES commits(id)
+                )
+                """
+                conn.execute(new_table_sql)
+                
+                # 2. Copy data
+                cols_cur = conn.execute("PRAGMA table_info(observations)")
+                cols = [col[1] for col in cols_cur.fetchall()]
+                # Filter columns that are in both old and new (to be safe)
+                cols_str = ", ".join(cols)
+                conn.execute(f"INSERT INTO observations_new ({cols_str}) SELECT {cols_str} FROM observations")
+                
+                # 3. Swap tables
+                conn.execute("DROP TABLE observations")
+                conn.execute("ALTER TABLE observations_new RENAME TO observations")
+                
+                # 4. Re-create Triggers/Indexes (SCHEMA_SQL executescript will handle if not exist)
+                conn.executescript(SCHEMA_SQL)
+                
+                conn.execute("PRAGMA foreign_keys=ON")
+                logger.info("Successfully migrated observations table constraints.")
+    except Exception as e:
+        logger.warning(f"Migration failed or skipped: {e}")
+        conn.execute("PRAGMA foreign_keys=ON")
 
     try:
         conn.execute("ALTER TABLE observations ADD COLUMN materialized_score REAL NOT NULL DEFAULT 1.0")
