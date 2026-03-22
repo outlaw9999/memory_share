@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "memory-share-kit"
-version = "1.2.3-Ultimate"
+version = "1.2.3"
 description = "Deterministic memory and governance for developers and AI agents."
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
@@ -38,8 +38,7 @@ include = [
     "runtime/**/*.py",
     "scripts/**/*.py",
     "kit_agent/data/*",
-    "AGENTS.md",
-    "HOTFIX_V1.2.1.md"
+    "AGENTS.md"
 ]
 
 [tool.hatch.build.targets.sdist]
@@ -49,7 +48,6 @@ include = [
     "runtime/",
     "scripts/",
     "AGENTS.md",
-    "HOTFIX_V1.2.1.md",
     "README.md",
     "pyproject.toml"
 ]
