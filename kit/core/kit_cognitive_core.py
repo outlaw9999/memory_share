@@ -467,11 +467,19 @@ class SAMBrain:
             normalized_scope = scope if scope is not None else self.get_normalized_scope()
             clean_metadata = metadata or {}
 
+        # 🔥 CHUẨN HÓA TAG TRƯỚC KHI VÀO LÒ LUYỆN (Zero-Trust Boundary)
+        normalized_tag = str(tag).strip().lower()
+
+        # 🔥 VALIDATION (Phòng ngừa Agent / User truyền bậy)
+        VALID_TAGS = {'invariant', 'decision', 'preference', 'note', 'legacy'}
+        if normalized_tag not in VALID_TAGS:
+            raise ValueError(f"[POLICY ENGINE] REJECTED: Invalid tag '{normalized_tag}'. Must be one of {VALID_TAGS}")
+
         # --- BƯỚC 2: CƯỠNG CHẾ BẤT BIẾN (INVARIANT ENFORCEMENT) ---
         # Đóng gói tạm dữ liệu để Thẩm phán kiểm duyệt
         test_entry = {
             "content": content, "scope": normalized_scope, 
-            "tag": tag, "metadata": clean_metadata
+            "tag": normalized_tag, "metadata": clean_metadata
         }
         if to_global:
             enforce_no_global_contamination(test_entry)
@@ -527,7 +535,7 @@ class SAMBrain:
                         symbol,
                         structural_hash,
                         m_score,
-                        tag,
+                        normalized_tag,
                         1,
                         supersede_id,
                     ),
