@@ -12,12 +12,12 @@ def run_e2e_verification():
     init_kernel(db_path)
 
     print("🧠 [LEARN] Ingesting knowledge into immutable ledger...")
-    # Learn facts with default importance
-    f1 = learn("AuthService", "Sử dụng JWT HS256 cho stateless authentication.", kind="Component")
-    f2 = learn("Redis", "Dùng để lưu trữ session và blacklist tokens.", kind="Storage")
+    # Learn facts with default importance — use explicit kwargs to avoid positional mismatch
+    f1 = learn(content="Sử dụng JWT HS256 cho stateless authentication.", uid="AuthService", kind="Component")
+    f2 = learn(content="Dùng để lưu trữ session và blacklist tokens.", uid="Redis", kind="Storage")
     
     # Supersede f1 with a more important fact
-    f3 = learn("AuthService", "CẬP NHẬT: Chuyển sang RS256 để hỗ trợ Key Rotation.", kind="Component", importance=1.0, supersede_id=f1)
+    f3 = learn(content="CẬP NHẬT: Chuyển sang RS256 để hỗ trợ Key Rotation.", uid="AuthService", kind="Component", importance=1.0, supersede_id=f1)
 
     print("🔗 [LINK] Establishing synaptic relations...")
     link("AuthService", "Redis", "USES")
