@@ -1,6 +1,5 @@
 import re
 from dataclasses import dataclass, field
-from typing import List
 
 # 🛡️ LAYER 3: REGEX OPTIMIZATION (Pre-compiled & Global)
 STRING_PATTERN = re.compile(r'"[^"]*"|\'[^\']*\'')
@@ -14,20 +13,29 @@ EXCLUDED_PATTERNS = [
     re.compile(r"\.egg-info([\\/]|$)"),
     re.compile(r"\.whl$"),
     re.compile(r"\.lock$"),
-    re.compile(r"\.db(-wal|-shm)?$"),      # Bắt luôn cả SQLite WAL/SHM
+    re.compile(r"\.db(-wal|-shm)?$"),  # Bắt luôn cả SQLite WAL/SHM
     re.compile(r"\.pyc$"),
 ]
+
+
+def _empty_issues() -> list[dict[str, str]]:
+    return []
+
+
+def _empty_staged() -> list[str]:
+    return []
 
 
 @dataclass
 class GuardResult:
     """Kết quả trả về từ lính gác L1"""
+
     passed: bool
     is_hard_block: bool = False
-    issues: list[dict[str, str]] = field(default_factory=list)
+    issues: list[dict[str, str]] = field(default_factory=_empty_issues)
     clean_diff: str = ""
     loc_changed: int = 0
-    staged_files: list[str] = field(default_factory=list)
+    staged_files: list[str] = field(default_factory=_empty_staged)
 
 
 def is_excluded(file_path: str) -> bool:
@@ -47,7 +55,7 @@ def normalize_content(code: str) -> str:
     return code.lower().strip()
 
 
-def execute_l1_guard(diff_output: str, staged_files: List[str]) -> GuardResult:
+def execute_l1_guard(diff_output: str, staged_files: list[str]) -> GuardResult:
     """L1: Fast Guard Pipeline - Ultra-fast, stateless heuristic checks."""
     result = GuardResult(passed=True, staged_files=[])
 
@@ -63,10 +71,7 @@ def execute_l1_guard(diff_output: str, staged_files: List[str]) -> GuardResult:
 
     # 2. Binary Detection (Fail-Fast)
     if "\x00" in diff_output:
-        result.issues.append({
-            "type": "binary",
-            "message": "[HARD] Binary content detected. Analysis aborted."
-        })
+        result.issues.append({"type": "binary", "message": "[HARD] Binary content detected. Analysis aborted."})
         result.passed = False
         result.is_hard_block = True
         return result
@@ -81,15 +86,13 @@ def execute_l1_guard(diff_output: str, staged_files: List[str]) -> GuardResult:
         )
         # Tối ưu chấn động: Chỉ quét những dòng code MỚI THÊM VÀO (+)
         added_lines = [
-            line[1:] for line in diff_output.splitlines()
-            if line.startswith("+") and not line.startswith("+++")
+            line[1:] for line in diff_output.splitlines() if line.startswith("+") and not line.startswith("+++")
         ][:1000]  # Hard cap 1000 lines
         result.loc_changed = 9999
         result.clean_diff = normalize_content(" ".join(added_lines))
     else:
         added_lines = [
-            line[1:] for line in diff_output.splitlines()
-            if line.startswith("+") and not line.startswith("+++")
+            line[1:] for line in diff_output.splitlines() if line.startswith("+") and not line.startswith("+++")
         ]
         result.loc_changed = len(added_lines)
         result.clean_diff = normalize_content(" ".join(added_lines))

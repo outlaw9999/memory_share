@@ -105,6 +105,7 @@ CREATE INDEX IF NOT EXISTS idx_metrics_event ON metrics(event_type);
 CREATE INDEX IF NOT EXISTS idx_metrics_created ON metrics(created_at);
 """
 
+
 def init_db(conn: sqlite3.Connection):
     """Bootstrap or migrate the database schema."""
     conn.executescript(SCHEMA_SQL)
@@ -151,9 +152,7 @@ def init_db(conn: sqlite3.Connection):
         conn.execute(
             "INSERT OR IGNORE INTO commits (id, agent_id, message) VALUES ('ROOT', 'system', 'Initial cognitive root')"
         )
-        conn.execute(
-            "INSERT OR IGNORE INTO branches (name, head_commit_id) VALUES ('main', 'ROOT')"
-        )
+        conn.execute("INSERT OR IGNORE INTO branches (name, head_commit_id) VALUES ('main', 'ROOT')")
     except sqlite3.OperationalError:
         pass
 
@@ -187,7 +186,7 @@ def init_db(conn: sqlite3.Connection):
                 logger.info("Migrating observations table to expand tag constraints...")
                 # Standard SQLite table migration pattern
                 conn.execute("PRAGMA foreign_keys=OFF")
-                
+
                 # 1. Create new table with updated schema (using temporary name)
                 # We need to extract the CREATE TABLE statement for observations from SCHEMA_SQL but with a new name
                 # Actually, simpler to just run the create statement directly
@@ -218,21 +217,21 @@ def init_db(conn: sqlite3.Connection):
                 )
                 """
                 conn.execute(new_table_sql)
-                
+
                 # 2. Copy data
                 cols_cur = conn.execute("PRAGMA table_info(observations)")
                 cols = [col[1] for col in cols_cur.fetchall()]
                 # Filter columns that are in both old and new (to be safe)
                 cols_str = ", ".join(cols)
                 conn.execute(f"INSERT INTO observations_new ({cols_str}) SELECT {cols_str} FROM observations")
-                
+
                 # 3. Swap tables
                 conn.execute("DROP TABLE observations")
                 conn.execute("ALTER TABLE observations_new RENAME TO observations")
-                
+
                 # 4. Re-create Triggers/Indexes (SCHEMA_SQL executescript will handle if not exist)
                 conn.executescript(SCHEMA_SQL)
-                
+
                 conn.execute("PRAGMA foreign_keys=ON")
                 logger.info("Successfully migrated observations table constraints.")
     except Exception as e:
@@ -271,7 +270,9 @@ def init_db(conn: sqlite3.Connection):
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_scope_created ON observations(scope, created_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_node_scope ON observations(node_id, scope)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_symbol ON observations(symbol)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_active_score ON observations(is_active, materialized_score DESC)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_obs_active_score ON observations(is_active, materialized_score DESC)"
+        )
 
         # Ensure metrics table exists for existing DBs
         conn.execute("""
@@ -289,6 +290,7 @@ def init_db(conn: sqlite3.Connection):
         conn.execute("CREATE INDEX IF NOT EXISTS idx_metrics_event ON metrics(event_type)")
     except sqlite3.OperationalError:
         pass
+
 
 def enable_wal(conn: sqlite3.Connection):
     """Activate high-performance mode."""

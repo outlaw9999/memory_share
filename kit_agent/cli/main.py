@@ -1,6 +1,7 @@
 import argparse
-import sys
+import json
 import socket
+import sys
 from pathlib import Path
 
 from kit.core.kit_platform import read_stdin_fail_fast, FAST_TIMEOUT
@@ -69,7 +70,7 @@ def main() -> None:
     # v1.2.1 Hotfix: Default to 'gemini' and probe 'local' to avoid 300s timeout.
     local_alive = is_port_open("127.0.0.1", 1337)
     forced_provider = getattr(args, "provider", None)
-    
+
     if forced_provider == "local" and not local_alive:
         print("\033[91m[ERROR] Local provider (Jan) unreachable on port 1337. Aborting.\033[0m")
         sys.exit(1)
@@ -80,8 +81,8 @@ def main() -> None:
         "mock": MockChaosProvider(failure_rate=0.4),
         "semantic_mock": SemanticMockProvider(),
     }
-    
-    # If using discovery (no forced provider), and local is dead, remove it from 
+
+    # If using discovery (no forced provider), and local is dead, remove it from
     # the active pool to prevent the router from even trying it.
     if not forced_provider and not local_alive:
         del providers["local"]

@@ -1,0 +1,14 @@
+=== THIẾT BỊ GIÁM SÁT AST VANTAGE ===
+📍 Mục tiêu: "E:/DEV/opensource_contrib/Vantage/cli/src/main.rs"
+🔍 Chế độ: RUST (Giám sát cấu trúc)
+
+--- KẾT QUẢ GIÁM SÁT AST ---
+🟡 TRẠNG THÁI: KHÔNG TÌM THẤY VÙNG GIÁM SÁT
+   (Không phát hiện tag @epistemic nào trong file này)
+
+--- LỜI KHAI GIỚI HẠN ---
+⚠️  VANTAGE CHỈ GIÁM SÁT CẤU TRÚC AST
+   - Không phát hiện thay đổi ngữ nghĩa (semantic)
+   - Không kiểm tra logic kinh doanh (business logic)
+   - Không theo dõi phụ thuộc xuyên file (cross-file)
+   - Kiểm tra thủ công vẫn BẮT BUỘC

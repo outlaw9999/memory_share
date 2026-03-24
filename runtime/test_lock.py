@@ -14,6 +14,7 @@ manager = LockManager(str(workspace))
 
 TARGET = "brain/layer2_core/test.md"
 
+
 def worker(agent_id: str):
     print(f"[{agent_id}] Attempting to acquire lock for {TARGET}...")
 
@@ -32,6 +33,7 @@ def worker(agent_id: str):
             print(f"⚠️ [{agent_id}] FAILED to release lock.")
     else:
         print(f"❌ [{agent_id}] FAILED to acquire lock. Another agent is holding it.")
+
 
 if __name__ == "__main__":
     print(f"Starting Concurrency Test (Agent A vs Agent B) on {TARGET}\n")

@@ -6,14 +6,9 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
-from kit.core.kit_invariants import (
-    enforce_no_global_contamination, 
-    sanitize_global_metadata,
-    InvariantViolation
-)
-
+from kit.core.kit_invariants import InvariantViolationError, enforce_no_global_contamination, sanitize_global_metadata
 from kit.core.schema_factory import enable_wal, init_db
 
 logger = logging.getLogger("kit.core")
@@ -69,7 +64,7 @@ class SAMBrain:
     Hybrid Brain support (Local + Global) with Temporal Graph logic.
     """
 
-    SQLITE_TIMEOUT_SECONDS = 1.0 # Fail-fast v1.2.2
+    SQLITE_TIMEOUT_SECONDS = 1.0  # Fail-fast v1.2.2
     SQLITE_MAX_RETRIES = 3
     SQLITE_RETRY_BASE_DELAY_SECONDS = 0.1
     TAG_PRIORITY = {"invariant": 3, "decision": 2, "preference": 1, "note": 0}
@@ -112,14 +107,14 @@ class SAMBrain:
         for parent in [curr] + list(curr.parents):
             if (parent / ".kit").exists():
                 return parent
-            
+
             if repo_root and parent == repo_root:
                 break
-            
+
         # Không tìm thấy .kit trong boundary? KHÔNG FALLBACK! Cưỡng chế tạo mới tại start_path
         kit_dir = curr / ".kit"
         kit_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # EXPLICIT SIGNAL: observable mutation
         print(f"[kit] Initialized isolated brain at {curr}")
         return curr
@@ -146,6 +141,10 @@ class SAMBrain:
             return conn
         except sqlite3.Error as e:
             raise SAMBrainError(f"Database connection failed: {e}") from e
+
+    def get_connection(self, db_path: Path | None = None) -> sqlite3.Connection:
+        """Public alias for _get_connection to allow external access."""
+        return self._get_connection(db_path)
 
     @staticmethod
     def _is_retryable_sqlite_error(error: sqlite3.Error) -> bool:
@@ -344,7 +343,7 @@ class SAMBrain:
                 context_file = kit_dir / "context"
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                ctx_lines = []
+                ctx_lines: list[str] = []
                 ctx_lines.append("# .kit Project Context\n")
                 ctx_lines.append(f"# Generated: {timestamp} | Root: {self.root_path.name}\n")
                 ctx_lines.append(f"# Cognition-Version: {self.cognition_version}\n\n")
@@ -457,7 +456,7 @@ class SAMBrain:
     ) -> int:
         """Learn a new observation at a specific node with STRICT Invariant Enforcement."""
         target_db = self.global_db_path if (to_global and self.global_db_path) else self.db_path
-        
+
         # --- BƯỚC 1: XỬ LÝ DỮ LIỆU ĐẦU VÀO ---
         if to_global:
             normalized_scope = "GLOBAL"
@@ -471,16 +470,13 @@ class SAMBrain:
         normalized_tag = str(tag).strip().lower()
 
         # 🔥 VALIDATION (Phòng ngừa Agent / User truyền bậy)
-        VALID_TAGS = {'invariant', 'decision', 'preference', 'note', 'legacy'}
+        VALID_TAGS = {"invariant", "decision", "preference", "note", "legacy"}
         if normalized_tag not in VALID_TAGS:
             raise ValueError(f"[POLICY ENGINE] REJECTED: Invalid tag '{normalized_tag}'. Must be one of {VALID_TAGS}")
 
         # --- BƯỚC 2: CƯỠNG CHẾ BẤT BIẾN (INVARIANT ENFORCEMENT) ---
         # Đóng gói tạm dữ liệu để Thẩm phán kiểm duyệt
-        test_entry = {
-            "content": content, "scope": normalized_scope, 
-            "tag": normalized_tag, "metadata": clean_metadata
-        }
+        test_entry = {"content": content, "scope": normalized_scope, "tag": normalized_tag, "metadata": clean_metadata}
         if to_global:
             enforce_no_global_contamination(test_entry)
 
@@ -541,6 +537,8 @@ class SAMBrain:
                     ),
                 )
                 fact_id = cur.lastrowid
+                if fact_id is None:
+                    raise SAMBrainError("Failed to insert observation: lastrowid is None")
 
                 self._increment_version(conn)
                 return fact_id
@@ -688,23 +686,24 @@ class SAMBrain:
             # Query filter logic (Explicit FTS)
             query_filter_clause = ""
             if query:
-                query_filter_clause = f"o.id IN (SELECT rowid FROM {p}observations_fts WHERE {p}observations_fts MATCH ?)"
+                query_filter_clause = (
+                    f"o.id IN (SELECT rowid FROM {p}observations_fts WHERE {p}observations_fts MATCH ?)"
+                )
 
             # Entity filter logic (Hybrid UID or FTS)
             entity_filter_clause = ""
             if entities:
                 placeholders = ",".join(["?"] * len(entities))
                 uid_clause = f"n.uid IN ({placeholders})"
-                
+
                 # Also treat entities as FTS search terms if no specific query is provided
                 if not query:
-                    fts_query = " OR ".join(entities)
                     entity_filter_clause = f"({uid_clause} OR o.id IN (SELECT rowid FROM {p}observations_fts WHERE {p}observations_fts MATCH ?))"
                 else:
                     entity_filter_clause = uid_clause
 
             # Combine WHERE clauses
-            where_clauses = []
+            where_clauses: list[str] = []
             if entity_filter_clause:
                 where_clauses.append(entity_filter_clause)
             if scope_filter_clause:
@@ -732,7 +731,7 @@ class SAMBrain:
 
             # Parameters must follow the exact clause order in final_where_clause:
             # entity filter -> scope filter -> symbol filter -> branch -> limit.
-            where_params = []
+            where_params: list[str] = []
             if entities:
                 where_params.extend([e.lower() for e in entities])
                 if not query:
@@ -744,7 +743,7 @@ class SAMBrain:
             if symbol:
                 where_params.append(symbol)
 
-            all_params = where_params + [self.current_branch, candidate_limit]
+            all_params: list[Any] = where_params + [self.current_branch, candidate_limit]
 
             cur = conn.execute(sql, all_params)
             for row in cur.fetchall():
@@ -821,9 +820,9 @@ class SAMBrain:
 
     def get_stats(self) -> dict[str, Any]:
         """Retrieve dual-brain metrics."""
-        stats = {"project": {}, "global": {}}
+        stats: dict[str, dict[str, int]] = {"project": {}, "global": {}}
 
-        def get_db_stats(conn, prefix=""):
+        def get_db_stats(conn: sqlite3.Connection, prefix: str = "") -> dict[str, int]:
             p = f"{prefix}." if prefix else ""
             return {
                 "nodes": conn.execute(f"SELECT COUNT(*) FROM {p}nodes").fetchone()[0],
@@ -935,7 +934,7 @@ class SAMBrain:
                     self.render_context()
                 except Exception as e:
                     # KHÔNG ĐƯỢC NUỐT
-                    raise InvariantViolation(f"Post-migration render failed: {e}")
+                    raise InvariantViolationError(f"Post-migration render failed: {e}") from e
             return committed_id
         except sqlite3.Error as e:
             raise SAMBrainError(f"Failed to commit memory: {e}") from e

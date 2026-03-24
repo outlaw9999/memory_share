@@ -1,8 +1,9 @@
 import os
+import uuid
 from pathlib import Path
 from typing import Any
 
-from kit.core.kit_cognitive_core import SAMBrain, SAMBrainError
+from kit.core.kit_cognitive_core import RankingAssessment, SAMBrain, SAMBrainError
 
 # --- Stable API Boundary Definitions ---
 # This file is the primary entry point for community forks and IDE integrations.
@@ -22,12 +23,12 @@ def resolve_paths(force_local: bool = False, mode: str = "auto") -> tuple[Path, 
         global_path = Path(kit_home).expanduser().resolve()
     else:
         global_path = (Path.home() / ".kit").resolve()
-        
+
     global_db = global_path / "global.db"
     global_path.mkdir(parents=True, exist_ok=True)
 
     cwd = Path.cwd().resolve()
-    
+
     # --- STRATEGY 1: EXPLICIT ISOLATION ---
     if force_local or mode == "isolated":
         project_db = cwd / ".kit" / "brain.db"
@@ -37,7 +38,7 @@ def resolve_paths(force_local: bool = False, mode: str = "auto") -> tuple[Path, 
     # --- STRATEGY 2: AUTO DISCOVERY (Boundary-Aware) ---
     project_db = None
     root_path = cwd
-    
+
     # 🔥 Step 1: Find Repo Boundary (.git)
     repo_root = None
     for parent in [cwd] + list(cwd.parents):
@@ -57,11 +58,11 @@ def resolve_paths(force_local: bool = False, mode: str = "auto") -> tuple[Path, 
             root_path = parent
             project_db = parent / ".kit" / "brain.db"
             break
-        
+
         # Boundary Lock: Never cross out of the nearest .git into a parent project
         if repo_root and parent == repo_root:
             break
-            
+
     # ZERO FALLBACK: If no .kit found within boundary, enforce isolation.
     if project_db is None:
         (cwd / ".kit").mkdir(parents=True, exist_ok=True)
@@ -112,8 +113,10 @@ def learn(
     if metadata:
         meta.update(metadata)
 
+    resolved_uid = uid if uid else str(uuid.uuid4())
+
     return get_brain().learn(
-        uid=uid,
+        uid=resolved_uid,
         content=content,
         tag=tag,
         kind=kind,
@@ -151,7 +154,15 @@ def recall(
 ) -> list[Any]:
     """Ranked recall context awareness."""
     return get_brain().recall(
-        entities, limit, at=at, agent_id=agent_id, here=here, symbol=symbol, query=query, with_global=with_global, fast=fast
+        entities,
+        limit,
+        at=at,
+        agent_id=agent_id,
+        here=here,
+        symbol=symbol,
+        query=query,
+        with_global=with_global,
+        fast=fast,
     )
 
 
@@ -162,10 +173,9 @@ def recall_with_assessment(
     agent_id: str | None = None,
     here: bool = False,
     symbol: str | None = None,
-    query: str | None = None,
     with_global: bool = False,
     fast: bool = False,
-) -> Any:
+) -> RankingAssessment:
     """Ranked recall plus confidence / ambiguity metadata."""
     return get_brain().recall_with_assessment(
         entities,
@@ -174,7 +184,6 @@ def recall_with_assessment(
         agent_id=agent_id,
         here=here,
         symbol=symbol,
-        query=query,
         with_global=with_global,
         fast=fast,
     )
@@ -233,10 +242,14 @@ def reflect_check(diff_text: str | None = None, scope: str | None = None) -> dic
     if diff_text is None:
         try:
             # Check for staged changes first
-            diff_text = subprocess.check_output(["git", "diff", "--cached"], text=True, timeout=3.0, stderr=subprocess.DEVNULL)
+            diff_text = subprocess.check_output(
+                ["git", "diff", "--cached"], text=True, timeout=3.0, stderr=subprocess.DEVNULL
+            )
             if not diff_text:
                 # Fallback to current changes
-                diff_text = subprocess.check_output(["git", "diff", "HEAD"], text=True, timeout=3.0, stderr=subprocess.DEVNULL)
+                diff_text = subprocess.check_output(
+                    ["git", "diff", "HEAD"], text=True, timeout=3.0, stderr=subprocess.DEVNULL
+                )
         except Exception:
             # FALLBACK: Return empty diff to prevent IDE freeze if git hangs or fails
             diff_text = ""

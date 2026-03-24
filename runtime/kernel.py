@@ -44,9 +44,7 @@ class AntigravityKernel:
             if expected_hash and current_hash != expected_hash:
                 reason = f"Hash Mismatch! Current: {current_hash[:8]}, Expected: {expected_hash[:8]}"
                 print(f"[Kernel] REJECTED: {reason}")
-                self.journal.rollback(
-                    str(time.time()), reason
-                )  # Mock txn_id for rollback
+                self.journal.rollback(str(time.time()), reason)  # Mock txn_id for rollback
                 return False
 
             # 3. Log Semantic Intent
@@ -54,9 +52,7 @@ class AntigravityKernel:
                 "node_id": node_id,
                 "content_preview": new_content[:50] + "...",
             }
-            txn_id = self.journal.log_intent(
-                agent_id, target_file, "update_node", node_data, current_hash
-            )
+            txn_id = self.journal.log_intent(agent_id, target_file, "update_node", node_data, current_hash)
 
             # 4. Mutate AST
             success = parser.update_node(node_id, new_content)
@@ -86,14 +82,10 @@ class AntigravityKernel:
 
 if __name__ == "__main__":
     # Internal Unit Test
-    kernel = AntigravityKernel(
-        "c:/Users/Admin/.gemini/antigravity/playground/memory_share"
-    )
+    kernel = AntigravityKernel("c:/Users/Admin/.gemini/antigravity/playground/memory_share")
 
     # Pre-requisite: Create a file with a node
-    test_file = Path(
-        "c:/Users/Admin/.gemini/antigravity/playground/memory_share/brain/layer2_core/auth.md"
-    )
+    test_file = Path("c:/Users/Admin/.gemini/antigravity/playground/memory_share/brain/layer2_core/auth.md")
     if not test_file.exists():
         test_file.parent.mkdir(parents=True, exist_ok=True)
         test_file.write_text(

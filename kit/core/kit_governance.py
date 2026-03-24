@@ -166,10 +166,11 @@ def run_preflight(
 
     # 4. L4: Version Sync Check
     from pathlib import Path
+
     arch_file = Path("ARCHITECTURE.md")
     if arch_file.exists():
         try:
-            with open(arch_file, "r", encoding="utf-8") as f:
+            with open(arch_file, encoding="utf-8") as f:
                 arch_content = f.read()
             if "Version: v1.2.3" not in arch_content:
                 result.score -= 0.5

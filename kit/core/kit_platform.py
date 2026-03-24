@@ -1,7 +1,7 @@
 import os
 import subprocess
 import sys
-from typing import Sequence, Optional, Tuple
+from typing import Optional, Sequence
 
 # Fail-Fast Doctrine Invariants (v1.2.2)
 # NO OPERATION MAY BLOCK > 1 SECOND WITHOUT EXPLICIT USER CONSENT
@@ -10,29 +10,20 @@ FAST_TIMEOUT = 0.2
 LONG_TIMEOUT = 10.0  # Reserved for heavy operations like 'build' or 'ingest-all'
 NETWORK_TIMEOUT = 0.5
 
+
 def run_safe(
-    cmd: Sequence[str], 
-    timeout: float = DEFAULT_TIMEOUT, 
+    cmd: Sequence[str],
+    timeout: float = DEFAULT_TIMEOUT,
     capture_output: bool = True,
     text: bool = True,
     check: bool = False,
-    shell: bool = False
-) -> subprocess.CompletedProcess:
+    shell: bool = False,
+) -> subprocess.CompletedProcess[str]:
     """
     Standardized Subprocess Wrapper with Fail-Fast Enforcement.
     """
-    if shell is None:
-        shell = (os.name == "nt")
-        
     try:
-        return subprocess.run(
-            cmd,
-            timeout=timeout,
-            capture_output=capture_output,
-            text=text,
-            check=check,
-            shell=shell
-        )
+        return subprocess.run(cmd, timeout=timeout, capture_output=capture_output, text=text, check=check, shell=shell)
     except subprocess.TimeoutExpired as e:
         # Standardized timeout error message
         cmd_str = " ".join(cmd) if isinstance(cmd, list) else str(cmd)
@@ -40,6 +31,7 @@ def run_safe(
         raise RuntimeError(f"Operation timed out ({timeout}s)") from e
     except Exception as e:
         raise RuntimeError(f"Subprocess failed: {e}") from e
+
 
 def is_stdin_ready(timeout: float = FAST_TIMEOUT) -> bool:
     """
@@ -52,21 +44,24 @@ def is_stdin_ready(timeout: float = FAST_TIMEOUT) -> bool:
             # We check if there's any data available via peek/read if possible,
             # but usually we just want to avoid blocking if the pipe is open but empty.
             # For now, we use a fail-fast approach: expect data immediately or fail.
-            return True # In non-TTY, we usually have data if something was piped.
+            return True  # In non-TTY, we usually have data if something was piped.
         try:
             import select
+
             return bool(select.select([sys.stdin], [], [], timeout)[0])
         except (ImportError, AttributeError, OSError):
-            return True 
+            return True
     else:
         if os.name == "nt":
             # Windows TTY: Minimal wait or just return False if we can't check
-            return False 
+            return False
         try:
             import select
+
             return bool(select.select([sys.stdin], [], [], timeout)[0])
         except (ImportError, AttributeError, OSError):
-            return False 
+            return False
+
 
 def read_stdin_fail_fast(timeout: float = FAST_TIMEOUT) -> Optional[str]:
     """
@@ -83,9 +78,10 @@ def read_stdin_fail_fast(timeout: float = FAST_TIMEOUT) -> Optional[str]:
 
     # Windows Threaded Fail-Fast
     import threading
-    
-    result = []
-    def _read():
+
+    result: list[str] = []
+
+    def _read() -> None:
         try:
             result.append(sys.stdin.read())
         except Exception:
@@ -94,7 +90,8 @@ def read_stdin_fail_fast(timeout: float = FAST_TIMEOUT) -> Optional[str]:
     thread = threading.Thread(target=_read, daemon=True)
     thread.start()
     thread.join(timeout)
-    
+
     if thread.is_alive() or not result:
         return None
-    return result[0].strip()
+    stripped: str = result[0].strip()
+    return stripped

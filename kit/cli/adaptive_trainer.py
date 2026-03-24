@@ -2,10 +2,12 @@
 # v1.2.4 - Statistical Weight Correction Engine
 
 import json
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
+from typing import Any
 
 TELEMETRY_PATH = Path.home() / ".kit" / "routing_telemetry.jsonl"
+
 
 def run_trainer():
     if not TELEMETRY_PATH.exists():
@@ -13,12 +15,12 @@ def run_trainer():
         return
 
     print("🚀 v1.2.4 Adaptive Scorer Trainer Initialized")
-    
-    stats = defaultdict(int)
-    feedback_count = 0
-    corrections = []
 
-    with open(TELEMETRY_PATH, "r", encoding="utf-8") as f:
+    stats: defaultdict[str, int] = defaultdict(int)
+    feedback_count = 0
+    corrections: list[dict[str, Any]] = []
+
+    with open(TELEMETRY_PATH, encoding="utf-8") as f:
         for line in f:
             try:
                 data = json.loads(line)
@@ -33,7 +35,7 @@ def run_trainer():
     print("-" * 30)
     print(f"Stats: GLOBAL={stats['GLOBAL']}, LOCAL={stats['LOCAL']}")
     print(f"Feedback entries: {feedback_count}")
-    
+
     if feedback_count == 0:
         print("\n[ADVICE] System behavior is consistent. No weighting changes suggested yet.")
         return
@@ -42,9 +44,11 @@ def run_trainer():
     # (In v1.2.4 this will propose changes to GLOBAL_KW/LOCAL_KW weights)
     print("\n[v1.2.4 PROPOSAL]")
     for c in corrections:
-        print(f"  - Correction: Obs {c['obs_id']} should be {c['correct_label']}")
-    
+        correction: dict[str, Any] = c
+        print(f"  - Correction: Obs {correction['obs_id']} should be {correction['correct_label']}")
+
     print("\nRecommendation: Dogfood more data to reach statistical significance (min 50 feedbacks).")
+
 
 if __name__ == "__main__":
     run_trainer()

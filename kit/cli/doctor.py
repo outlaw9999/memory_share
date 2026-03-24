@@ -26,7 +26,7 @@ def run_doctor(brain: SAMBrain, mode: str = "safe", check_agents: bool = False, 
     except Exception as e:
         print(f"Warning: Could not create backup: {e}", file=sys.stderr)
 
-    with brain._get_connection() as conn:  # type: ignore[reportPrivateUsage]
+    with brain.get_connection() as conn:
         print("Running Cognitive Pruning...", file=sys.stderr)
         if mode == "aggressive":
             cutoff_days = 30
@@ -134,14 +134,14 @@ def run_doctor(brain: SAMBrain, mode: str = "safe", check_agents: bool = False, 
 
     # --- Dashboard Summary ---
     from kit.api import get_brain
-    
+
     # Try to get version from pyproject.toml if possible
-    package_version = "1.2.3-Ultimate" 
-    
+    package_version = "1.2.3-Ultimate"
+
     brain = get_brain()
-    
-    # Count stats using internal connection helper
-    with brain._get_connection() as conn:
+
+    # Count stats using public connection helper
+    with brain.get_connection() as conn:
         total_facts = conn.execute("SELECT COUNT(*) FROM observations WHERE is_active = 1").fetchone()[0]
         invariants = conn.execute(
             "SELECT COUNT(*) FROM observations WHERE tag = 'invariant' AND is_active = 1"

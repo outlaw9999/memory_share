@@ -7,13 +7,10 @@ class PagingEngine:
     Antigravity Kernel Paging Engine.
     Prevents 'Memory Creep' by distilling short-term logs into long-term architecture nodes.
     """
+
     def __init__(self, workspace_root: str):
         self.root = Path(workspace_root)
-        self.paging_policy = {
-            "max_file_size_kb": 4,
-            "max_node_count": 50,
-            "distillation_score_threshold": 0.5
-        }
+        self.paging_policy = {"max_file_size_kb": 4, "max_node_count": 50, "distillation_score_threshold": 0.5}
 
     def calculate_importance(self, node_id: str, entry_ts: float) -> float:
         """
@@ -21,7 +18,7 @@ class PagingEngine:
         Simplified for prototype.
         """
         recency = 1.0 / (time.time() - entry_ts + 1)
-        return recency # Placeholder
+        return recency  # Placeholder
 
     def distill_stream_to_core(self, stream_file: str, core_file: str):
         """
@@ -38,6 +35,7 @@ class PagingEngine:
         """
         print(f"[Paging] Archiving cold nodes in {target_file} to prevent Memory Creep.")
         pass
+
 
 if __name__ == "__main__":
     paging = PagingEngine("c:/Users/Admin/.gemini/antigravity/playground/memory_share")
