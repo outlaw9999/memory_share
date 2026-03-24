@@ -419,7 +419,7 @@ def main() -> None:
                 limit=args.limit,
                 at=args.at,
                 agent_id=args.agent_id,
-                here=args.here,
+                here=is_here,
                 symbol=args.symbol,
                 query=args.query,
                 with_global=args.with_global,

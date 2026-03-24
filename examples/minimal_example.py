@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 from kit.api import init_kernel, learn, recall, link
 
+# @epistemic: run_e2e_verification
 def run_e2e_verification():
     print("🚀 [BOOT] Initializing .kit v2.0.0 engine...")
     db_path = Path("sam_v2.db")
