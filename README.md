@@ -5,6 +5,27 @@
 
 `.kit` is a state-of-the-art memory kernel designed for the No-GIL era. It provides deterministic knowledge storage, atomic ingestion, and semantic retrieval for AI agents and human developers.
 
+## Installation
+
+Windows:
+```powershell
+.\install.bat
+```
+
+Linux/macOS:
+```bash
+./install.sh
+```
+
+If `kit` fails with `ModuleNotFoundError: No module named 'kit'`, first check whether a stale editable install is shadowing the wrapper:
+
+```powershell
+python -m pip show memory-share-kit
+python -m pip uninstall memory-share-kit
+```
+
+The common failure mode is an old editable install that still points at a renamed repo path, while the supported wrapper lives in `%USERPROFILE%\.local\bin\kit.bat` on Windows or `$HOME/.local/bin/kit` on Linux/macOS.
+
 ## ⚔️ The v1.2.3 Command Suite (Standard)
 
 ### 1. Atomic Knowledge Ingestion

@@ -22,7 +22,7 @@ function kitf {
         
         $expectation = Read-Host "5. Kỳ vọng (Expectation)"
 
-        # Atomic JSON Packaging
+        # Atomic JSON packaging
         $payloadObj = @{
             symptom = $symptom
             trigger = $trigger
@@ -33,11 +33,9 @@ function kitf {
         
         $rawJson = $payloadObj | ConvertTo-Json -Depth 3 -Compress
 
-        # Armor-plating: Escape double quotes for PowerShell-to-Python boundary
-        $safePayload = $rawJson.Replace('"', '\"')
-
-        # EXECUTION: Ingest as 'tag: note' with 'kind: friction' to pass v1.2.3 Policy
-        python kit.py learn --tag note --kind friction --content "$safePayload"
+        # EXECUTION: Use the installed wrapper to avoid repo-path drift and stale editable installs
+        # Pass the JSON string directly so PowerShell preserves it as one native argument.
+        kit learn --tag note --kind friction --content $rawJson
 
         Write-Host "✅ Đã nạp Friction Log JSON nguyên vẹn vào Két sắt!" -ForegroundColor Green
 
