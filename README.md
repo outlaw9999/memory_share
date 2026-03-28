@@ -1,58 +1,40 @@
-# memory-share-kit
+# .kit - Deterministic Cognitive Memory OS (v1.2.3)
 
-Deterministic memory and governance for AI agents.
+> 🧭 **Agent Playbook**: For detailed AI instructions, see [AGENTS.md](AGENTS.md).
+> 🏗️ **Technical Spec**: For architectural deep-dives, see [docs/architecture.md](docs/architecture.md).
 
-## Install
+`.kit` is a state-of-the-art memory kernel designed for the No-GIL era. It provides deterministic knowledge storage, atomic ingestion, and semantic retrieval for AI agents and human developers.
 
+## ⚔️ The v1.2.3 Command Suite (Standard)
+
+### 1. Atomic Knowledge Ingestion
+Capture insights, decisions, and system invariants.
 ```bash
-pip install memory-share-kit
+kit learn --tag invariant --content "Shared state must be immutable."
 ```
 
-Requires Python 3.14.x only.
-
-## Quick Start
-
+### 2. Semantic Query (Top-K Recall)
+Retrieve distilled context without token bloat.
 ```bash
-kit init
-kit learn --tag invariant --content "Auth MUST use JWT only."
-kit-agent ask "Can I use session cookies?"
+kit recall "concurrency"
 ```
 
-Expected: `DECISION: BLOCK`
+### 3. Structural Mapping (Vantage)
+Eliminate "Spatial Blindness" by mapping the repo architecture.
+```bash
+.\kit-vantage.bat
+```
 
-## Core Commands
+### 4. Friction Logging (The v1.2.3 Secret)
+Record system friction to drive the v1.2.4 roadmap.
+```bash
+.\scripts\kitf.ps1
+```
 
-- `kit init` - Initialize memory space
-- `kit learn` - store facts / invariants
-- `kit recall` - retrieve memory
-- `kit doctor` - system status
-- `kit preflight` - governance gate
-- `kit-agent ask` - run agent with memory
+## 🛡️ Governance & Principles
+- **Memory Isolation**: Local repo memory is strictly separated from global brain.
+- **Identity Consistency**: Local git config (`So.Sai`) ensures verifiable provenance.
+- **Zero-Footprint**: Root directory is kept clean. Databases live only in `.kit/`.
 
-## Philosophy
-
-Memory must be governed. If 10 agents ask the same question, they must get the exact same ranked facts.
-
-> "Memory is not a luxury. It is a prerequisite for disciplined engineering."
-
-### Principles
-- Deterministic memory (SQLite, append-only)
-- Same input → same decision
-- Invariants override everything
-- No dynamic data in long-term memory
-
-## Daily Workflow
-
-1. **Before task**: `kit recall <keyword>`
-2. **During task**: `kit learn --auto` for friction, `kit learn --tag decision` for insights
-3. **Before commit**: `kit preflight -m "<message>"`
-
-## Contributing
-
-- Python 3.14.x only (strict typing)
-- No silent failures (fail-fast)
-- `kit preflight` must pass before commit
-
-## License
-
-MIT
+---
+*Last Updated: 2026-03-28 | Version: v1.2.3 STABLE | Status: SEALED*

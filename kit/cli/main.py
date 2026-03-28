@@ -42,7 +42,7 @@ def main() -> None:
         sys.argv.append("recall")
 
     parser = argparse.ArgumentParser(
-        description="SAMBrain CLI v2.0 - The Elite AI Memory Kernel",
+        description="SAMBrain CLI v1.2.3 - The Elite AI Memory Kernel (Immortal Stability)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--db", help="Path to the project database (overrides default)")
