@@ -1,5 +1,7 @@
 # .kit Technical Architecture Specification (v1.2.3 STABLE)
 
+> 🧭 **Agent Navigation:** Để biết cách vận hành hệ thống này trong thực tế, vui lòng đọc [Agent Playbook (AGENTS.md)](../AGENTS.md).
+
 `.kit` is a deterministic memory OS and Cognitive Governance Layer for multi-agent and human workflows. This document defines the storage model, ranking model, governance boundaries, and the Intelligent Routing System.
 
 ## 0. Release Status

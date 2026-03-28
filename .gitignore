@@ -1,5 +1,6 @@
 # --- .kit v1.2.3 RELEASE GUARD ---
 .kit/
+scripts/archive_v123/
 
 # --- Simulation & Test Stadiums ---
 tests/invariant_cluster/

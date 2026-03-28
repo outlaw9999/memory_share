@@ -254,8 +254,8 @@ def main() -> None:
                         f.write("\n# .kit Memory Store\n.kit/brain.db-*\n.kit/brain.db.bak\n")
                     print_diagnostic(f"Updated {gitignore.name} to ignore SQLite WAL/SHM files")
 
-            # 5. Force render to ensure AGENTS.md is populated
-            brain.render_context()
+            # 5. Render context removed from automatic cycle [v1.2.3 HOTFIX]
+            # Use 'kit render' manually if needed.
 
             print_diagnostic(f".kit initialized successfully in {kit_dir}")
             print_diagnostic("Project identity 'project_identity' breathed into memory.")
