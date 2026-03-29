@@ -20,7 +20,7 @@ BOOTSTRAP_FACTS: list[tuple[str, str]] = [
     ("kit_doctor", "kit doctor checks system health"),
     ("kit_agent", "kit-agent runs orchestrated tasks with memory"),
     ("kit_reference", "docs/reference.md contains exact command syntax"),
-    ("kit_playbook", "docs/playbook.md explains workflow and memory discipline"),
+    ("kit_local_global", "local memory is project specific and global memory is machine wide"),
 ]
 
 
@@ -66,8 +66,7 @@ def _bootloader_template() -> str:
         "## 2. Minimal Navigation\n\n"
         "1. `AGENTS.md` for startup laws\n"
         "2. `docs/reference.md` for exact commands\n"
-        "3. `docs/playbook.md` for workflow\n"
-        "4. `docs/architecture.md` for system design\n\n"
+        "3. `scripts/kitf.ps1` for friction logging on Windows\n\n"
         "## 3. Iron Laws Of Memory\n\n"
         "1. Never treat markdown as long-term memory. `.kit` is the authority.\n"
         "2. Never guess paths or structure. Inspect the repo first.\n"
@@ -125,10 +124,7 @@ def _materialize_onboarding_files(root_path: Path, print_diagnostic: Any) -> Non
             print_diagnostic(f"Created {agents_md.name}")
 
     onboarding_files = [
-        "docs/architecture.md",
-        "docs/playbook.md",
         "docs/reference.md",
-        "docs/integrations/vantage.md",
         "scripts/kitf.ps1",
     ]
     for relative_path in onboarding_files:

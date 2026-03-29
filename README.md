@@ -26,7 +26,7 @@ kit recall
 `kit init` now does three onboarding steps for a fresh repository:
 
 - creates a sterile `AGENTS.md` bootloader
-- copies the core docs and `scripts/kitf.ps1` if they are missing
+- copies only `docs/reference.md` and `scripts/kitf.ps1` if they are missing
 - seeds a small local starter pack into `.kit/brain.db` so `kit recall` can teach the basic command set with low token cost
 
 ## What It Does

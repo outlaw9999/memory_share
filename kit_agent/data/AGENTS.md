@@ -17,8 +17,7 @@ Use `kit recall` first. Open docs only when you need more detail.
 
 1. `AGENTS.md` for startup laws
 2. `docs/reference.md` for exact commands
-3. `docs/playbook.md` for workflow
-4. `docs/architecture.md` for system design
+3. `scripts/kitf.ps1` for friction logging on Windows
 
 ## 3. Iron Laws Of Memory
 
