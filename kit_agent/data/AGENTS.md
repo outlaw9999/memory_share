@@ -1,92 +1,61 @@
-# Project Intelligence (AGENTS.md)
+# AGENT COGNITIVE BOOTLOADER
 
-**STATUS:** Minimal Cognitive Protocol (v1.2.3)
+> **STATUS:** Kit v1.2.3 STABLE
+> **WARNING:** This file is the operating constitution, not the project memory database.
 
-## Cognitive Compass
+## 1. Mandatory Startup Sequence
 
-This file is a pointer, not a database.
-All knowledge, decisions, and history live in `.kit`.
+Before taking action in this repository:
 
-> Always rely on `.kit`, not this file.
-
-## Agent Operating Protocol
-
-### 1. Memory Authority (Mandatory)
-
-- Before any task: `kit recall`
-- Treat `.kit` as the single source of truth
-- Do not infer from old code or comments without recall
-
-### 2. Learning Rituals
-
-| Situation | Command |
-|-----------|---------|
-| Bug / Friction | `kit learn --auto` |
-| Decision / Pattern | `kit learn --content "..." --kind decision` |
-
-### 3. Atomic Learn Protocol (Critical)
-
-- 1 idea per entry
-- 20 words or fewer
-- No explanation
-- No special characters (`>`, `|`, `&`)
-- Use simple natural language
-
-```text
-Correct:
-"province takes priority over ward when no prefix exists"
-
-Wrong:
-"province > ward because..."
+```bash
+kit recall
 ```
 
-### 4. Session Hygiene
+Then read the docs in this exact order:
+
+1. `AGENTS.md`
+2. `docs/architecture.md`
+3. `docs/playbook.md`
+4. `docs/reference.md`
+
+## 2. Iron Laws Of Memory
+
+1. Never treat markdown as long-term memory. `.kit` is the authority.
+2. Never guess paths or structure. Inspect the repo first.
+3. Never store project business logic in this file.
+4. Log friction with `kit learn --auto` or `scripts/kitf.ps1`.
+5. Store decisions with short atomic entries.
+
+## 3. Atomic Learn Protocol
+
+- One idea per entry
+- 20 words or fewer
+- No explanation
+- No special characters `>`, `|`, `&`
+- Use simple natural language
+
+## 4. Working Rules
 
 - Break tasks into small steps
 - Avoid long context accumulation
 - Max autonomous attempts: 5, then surface the blocker
+- Use `kit reflect` before risky changes
+- Use `kit preflight` before commits when governance matters
 
-## Navigation
+## 5. Navigation Graph
 
-```bash
-kit recall <keyword>
-kit symbol <query>
-kit context <symbol>
-```
+1. `AGENTS.md`
+2. `docs/architecture.md`
+3. `docs/playbook.md`
+4. `docs/reference.md`
 
-## Architecture (High-Level Only)
-
-Deterministic pipeline:
-
-```text
-API -> Normalize -> Validate -> Model -> Export
-```
-
-Core principles:
-
-- Normalize first, validate after
-- No `None` after normalization
-- Data integrity over convenience
-
-## Anti-Patterns
-
-- Do not store knowledge in this file
-- Do not duplicate `.kit` memory here
-- Do not write long explanations
-- Do not skip `kit recall`
-
-## System Philosophy
-
-- `.kit` = Memory (Authority)
-- `AGENTS.md` = Compass (Navigation)
-
-## TL;DR
+## 6. Fast Start
 
 ```text
-kit recall -> before doing anything
-Do task
-Hit bug -> kit learn --auto
-Have insight -> kit learn --content ... --kind decision
+kit recall -> hydrate context
+Inspect repo -> avoid blind edits
+kit learn --auto -> capture friction
+kit learn --tag decision --content "..." -> seal decisions
 ```
 
 > If unsure, recall first and act later.

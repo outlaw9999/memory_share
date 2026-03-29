@@ -5,6 +5,24 @@
 
 `.kit` is a deterministic memory kernel for developers and AI agents. It provides persistent memory, ranked recall, governance checks, and operational hygiene without requiring network access for core memory behavior.
 
+## Packaged For Other Repositories
+
+The v1.2.3 package is meant to onboard agents in other repositories without carrying over repo-specific business memory.
+
+What ships for agents:
+
+- a sterile [AGENTS.md](AGENTS.md) bootloader with startup laws
+- [docs/architecture.md](docs/architecture.md) for the system blueprint
+- [docs/playbook.md](docs/playbook.md) for workflow guidance
+- [docs/reference.md](docs/reference.md) for the full `kit` and `kit-agent` command surface
+- [docs/integrations/vantage.md](docs/integrations/vantage.md) for structural sensor behavior
+
+Expected startup in a fresh repo:
+
+```bash
+kit recall
+```
+
 ## What It Does
 
 - Stores project and global memory in SQLite
@@ -82,7 +100,7 @@ Record recurring friction so the system can learn from it.
 - [AGENTS.md](AGENTS.md): agent operating rules and memory discipline
 - [docs/architecture.md](docs/architecture.md): system architecture and execution layers
 - [docs/playbook.md](docs/playbook.md): practical agent workflow guidance
-- [docs/reference.md](docs/reference.md): CLI and API reference
+- [docs/reference.md](docs/reference.md): full CLI and API reference for `kit` and `kit-agent`
 - [docs/integrations/vantage.md](docs/integrations/vantage.md): Vantage integration notes
 
 ---

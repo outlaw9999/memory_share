@@ -1,114 +1,71 @@
-# Project Intelligence (AGENTS.md)
+# AGENT COGNITIVE BOOTLOADER
 
-**STATUS:** Minimal Cognitive Protocol (v1.2.3)
+> **STATUS:** Kit v1.2.3 STABLE
+> **WARNING:** This file is the operating constitution, not the project memory database.
 
-## Cognitive Compass
+## 1. Mandatory Startup Sequence
 
-This file is a pointer, not a database.
-All knowledge, decisions, and history live in `.kit`.
-
-> Always rely on `.kit`, not this file.
-
-## Cognitive Boot Sequence (Mandatory)
-
-To operate inside the `.kit` ecosystem with minimal token drift, use this startup order:
-
-1. Read `AGENTS.md` first to understand behavioral rules and memory discipline
-2. Read [docs/architecture.md](docs/architecture.md) for system layers and governance design
-3. Read [docs/playbook.md](docs/playbook.md) for practical workflow and operating habits
-4. Use [docs/reference.md](docs/reference.md) only for command syntax, flags, and troubleshooting
-
-Startup action:
+Before taking action in this repository:
 
 ```bash
 kit recall
 ```
 
-## Agent Operating Protocol
+Then read the docs in this exact order:
 
-### 1. Memory Authority (Mandatory)
+1. `AGENTS.md`
+2. [docs/architecture.md](docs/architecture.md)
+3. [docs/playbook.md](docs/playbook.md)
+4. [docs/reference.md](docs/reference.md)
 
-- Before any task: `kit recall`
-- Treat `.kit` as the single source of truth
-- Do not infer from old code or comments without recall
+## 2. Iron Laws Of Memory
 
-### 2. Learning Rituals
+1. Never treat markdown as long-term memory. `.kit` is the authority.
+2. Never guess paths or structure. Inspect the repo first.
+3. Never store project business logic in this file.
+4. Log friction with `kit learn --auto` or [scripts/kitf.ps1](scripts/kitf.ps1).
+5. Store decisions with short atomic entries.
 
-| Situation | Command |
-|-----------|---------|
-| Bug / Friction | `kit learn --auto` |
-| Decision / Pattern | `kit learn --content "..." --kind decision` |
+## 3. Atomic Learn Protocol
 
-### 3. Atomic Learn Protocol (Critical)
-
-- 1 idea per entry
+- One idea per entry
 - 20 words or fewer
 - No explanation
-- No special characters (`>`, `|`, `&`)
+- No special characters `>`, `|`, `&`
 - Use simple natural language
 
 ```text
 Correct:
-"province takes priority over ward when no prefix exists"
+"provider discovery falls through sequential TCP checks"
 
 Wrong:
-"province > ward because..."
+"provider discovery is slow because..."
 ```
 
-### 4. Session Hygiene
+## 4. Working Rules
 
 - Break tasks into small steps
 - Avoid long context accumulation
 - Max autonomous attempts: 5, then surface the blocker
+- Use `kit reflect` before risky changes
+- Use `kit preflight` before commits when governance matters
 
-## Navigation
+## 5. Navigation Graph
 
-```bash
-kit recall <keyword>
-kit symbol <query>
-kit context <symbol>
-```
+Do not read markdown files randomly. Follow the graph:
 
-## Core Documentation (Must Read)
+1. `AGENTS.md` for laws and startup
+2. [docs/architecture.md](docs/architecture.md) for system design
+3. [docs/playbook.md](docs/playbook.md) for workflow
+4. [docs/reference.md](docs/reference.md) for exact commands
 
-- [Technical Architecture Specification](docs/architecture.md): Read this file to understand the L1/L2/L3 pipeline and `.kit` auto-routing.
-- [Agent Playbook](docs/playbook.md): Use this for workflow, execution order, and day-to-day operating guidance.
-- [Reference Guide](docs/reference.md): Use this for exact CLI syntax, API shape, and troubleshooting.
-- [Friction Log Protocol](scripts/kitf.ps1): Required tool for logging friction and operational failures.
-
-## Architecture (High-Level Only)
-
-Deterministic pipeline:
+## 6. Fast Start
 
 ```text
-API -> Normalize -> Validate -> Model -> Export
-```
-
-Core principles:
-
-- Normalize first, validate after
-- No `None` after normalization
-- Data integrity over convenience
-
-## Anti-Patterns
-
-- Do not store knowledge in this file
-- Do not duplicate `.kit` memory here
-- Do not write long explanations
-- Do not skip `kit recall`
-
-## System Philosophy
-
-- `.kit` = Memory (Authority)
-- `AGENTS.md` = Compass (Navigation)
-
-## TL;DR
-
-```text
-kit recall -> before doing anything
-Do task
-Hit bug -> kit learn --auto
-Have insight -> kit learn --content ... --kind decision
+kit recall -> hydrate context
+Inspect repo -> avoid blind edits
+kit learn --auto -> capture friction
+kit learn --tag decision --content "..." -> seal decisions
 ```
 
 > If unsure, recall first and act later.
