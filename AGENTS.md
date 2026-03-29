@@ -11,14 +11,16 @@ Before taking action in this repository:
 kit recall
 ```
 
-Then read the docs in this exact order:
+Use `kit recall` first. Open docs only when you need more detail.
 
-1. `AGENTS.md`
-2. [docs/architecture.md](docs/architecture.md)
-3. [docs/playbook.md](docs/playbook.md)
-4. [docs/reference.md](docs/reference.md)
+## 2. Minimal Navigation
 
-## 2. Iron Laws Of Memory
+1. `AGENTS.md` for startup laws
+2. [docs/reference.md](docs/reference.md) for exact commands
+3. [docs/playbook.md](docs/playbook.md) for workflow
+4. [docs/architecture.md](docs/architecture.md) for system design
+
+## 3. Iron Laws Of Memory
 
 1. Never treat markdown as long-term memory. `.kit` is the authority.
 2. Never guess paths or structure. Inspect the repo first.
@@ -26,46 +28,13 @@ Then read the docs in this exact order:
 4. Log friction with `kit learn --auto` or [scripts/kitf.ps1](scripts/kitf.ps1).
 5. Store decisions with short atomic entries.
 
-## 3. Atomic Learn Protocol
-
-- One idea per entry
-- 20 words or fewer
-- No explanation
-- No special characters `>`, `|`, `&`
-- Use simple natural language
+## 4. Fast Start
 
 ```text
-Correct:
-"provider discovery falls through sequential TCP checks"
-
-Wrong:
-"provider discovery is slow because..."
-```
-
-## 4. Working Rules
-
-- Break tasks into small steps
-- Avoid long context accumulation
-- Max autonomous attempts: 5, then surface the blocker
-- Use `kit reflect` before risky changes
-- Use `kit preflight` before commits when governance matters
-
-## 5. Navigation Graph
-
-Do not read markdown files randomly. Follow the graph:
-
-1. `AGENTS.md` for laws and startup
-2. [docs/architecture.md](docs/architecture.md) for system design
-3. [docs/playbook.md](docs/playbook.md) for workflow
-4. [docs/reference.md](docs/reference.md) for exact commands
-
-## 6. Fast Start
-
-```text
-kit recall -> hydrate context
+kit recall -> hydrate local starter memory
 Inspect repo -> avoid blind edits
+Open reference.md only for exact syntax
 kit learn --auto -> capture friction
-kit learn --tag decision --content "..." -> seal decisions
 ```
 
 > If unsure, recall first and act later.
