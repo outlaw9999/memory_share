@@ -1,18 +1,28 @@
 # .kit - Deterministic Cognitive Memory OS (v1.2.3)
 
-> 🧭 **Agent Playbook**: For detailed AI instructions, see [AGENTS.md](AGENTS.md).
-> 🏗️ **Technical Spec**: For architectural deep-dives, see [docs/architecture.md](docs/architecture.md).
+> **Agent Playbook:** For repository operating rules, see [AGENTS.md](AGENTS.md).
+> **Technical Spec:** For architecture details, see [docs/architecture.md](docs/architecture.md).
 
-`.kit` is a state-of-the-art memory kernel designed for the No-GIL era. It provides deterministic knowledge storage, atomic ingestion, and semantic retrieval for AI agents and human developers.
+`.kit` is a deterministic memory kernel for developers and AI agents. It provides persistent memory, ranked recall, governance checks, and operational hygiene without requiring network access for core memory behavior.
+
+## What It Does
+
+- Stores project and global memory in SQLite
+- Supports atomic `learn`, ranked `recall`, and keyword `search`
+- Enforces governance through `reflect`, `preflight`, and `doctor`
+- Separates local and global memory to reduce cross-project pollution
+- Supports agent workflows through `kit-agent` and sensor integrations such as Vantage
 
 ## Installation
 
 Windows:
+
 ```powershell
 .\install.bat
 ```
 
 Linux/macOS:
+
 ```bash
 ./install.sh
 ```
@@ -24,38 +34,57 @@ python -m pip show memory-share-kit
 python -m pip uninstall memory-share-kit
 ```
 
-The common failure mode is an old editable install that still points at a renamed repo path, while the supported wrapper lives in `%USERPROFILE%\.local\bin\kit.bat` on Windows or `$HOME/.local/bin/kit` on Linux/macOS.
+The most common failure mode is an old editable install that still points to a renamed repository path, while the supported wrapper lives in `%USERPROFILE%\.local\bin\kit.bat` on Windows or `$HOME/.local/bin/kit` on Linux/macOS.
 
-## ⚔️ The v1.2.3 Command Suite (Standard)
+## Standard Command Suite
 
 ### 1. Atomic Knowledge Ingestion
-Capture insights, decisions, and system invariants.
+
+Capture insights, decisions, and invariants.
+
 ```bash
 kit learn --tag invariant --content "Shared state must be immutable."
 ```
 
-### 2. Semantic Query (Top-K Recall)
+### 2. Semantic Recall
+
 Retrieve distilled context without token bloat.
+
 ```bash
-kit recall "concurrency"
+kit recall concurrency
 ```
 
-### 3. Structural Mapping (Vantage)
-Eliminate "Spatial Blindness" by mapping the repo architecture.
+### 3. Structural Mapping
+
+Use the Vantage shim to inspect repository structure.
+
 ```bash
 .\kit-vantage.bat
 ```
 
-### 4. Friction Logging (The v1.2.3 Secret)
-Record system friction to drive the v1.2.4 roadmap.
+### 4. Friction Logging
+
+Record recurring friction so the system can learn from it.
+
 ```bash
 .\scripts\kitf.ps1
 ```
 
-## 🛡️ Governance & Principles
-- **Memory Isolation**: Local repo memory is strictly separated from global brain.
-- **Identity Consistency**: Local git config (`So.Sai`) ensures verifiable provenance.
-- **Zero-Footprint**: Root directory is kept clean. Databases live only in `.kit/`.
+## Governance Principles
+
+- **Memory Isolation:** Local repository memory stays separate from global memory.
+- **Identity Consistency:** Local git identity should remain intentional and auditable.
+- **Zero-Footprint:** Operational data belongs in `.kit/`, not in random root files.
+- **Determinism:** The same input should produce the same stored or recalled result under the same state.
+
+## Documentation Map
+
+- [AGENTS.md](AGENTS.md): agent operating rules and memory discipline
+- [docs/architecture.md](docs/architecture.md): system architecture and execution layers
+- [docs/playbook.md](docs/playbook.md): practical agent workflow guidance
+- [docs/reference.md](docs/reference.md): CLI and API reference
+- [docs/integrations/vantage.md](docs/integrations/vantage.md): Vantage integration notes
 
 ---
-*Last Updated: 2026-03-28 | Version: v1.2.3 STABLE | Status: SEALED*
+
+*Last Updated: 2026-03-29 | Version: v1.2.3 STABLE | Status: SEALED*

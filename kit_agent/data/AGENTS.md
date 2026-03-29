@@ -4,18 +4,18 @@
 
 ## Cognitive Compass
 
-This file is a POINTER, not a database.
-All knowledge, decisions, and history are stored in .kit.
+This file is a pointer, not a database.
+All knowledge, decisions, and history live in `.kit`.
 
-> Always rely on .kit, NOT this file.
+> Always rely on `.kit`, not this file.
 
 ## Agent Operating Protocol
 
-### 1. Memory Authority (MANDATORY)
+### 1. Memory Authority (Mandatory)
 
 - Before any task: `kit recall`
-- Treat .kit as single source of truth
-- Do NOT infer from old code or comments without recall
+- Treat `.kit` as the single source of truth
+- Do not infer from old code or comments without recall
 
 ### 2. Learning Rituals
 
@@ -24,19 +24,19 @@ All knowledge, decisions, and history are stored in .kit.
 | Bug / Friction | `kit learn --auto` |
 | Decision / Pattern | `kit learn --content "..." --kind decision` |
 
-### 3. Atomic Learn Protocol (CRITICAL)
+### 3. Atomic Learn Protocol (Critical)
 
 - 1 idea per entry
-- ≤ 20 words
+- 20 words or fewer
 - No explanation
-- No special chars (>, |, &)
+- No special characters (`>`, `|`, `&`)
 - Use simple natural language
 
-```
-✅ Correct:
-"province ưu tiên hơn ward khi không có prefix"
+```text
+Correct:
+"province takes priority over ward when no prefix exists"
 
-❌ Wrong:
+Wrong:
 "province > ward because..."
 ```
 
@@ -44,7 +44,7 @@ All knowledge, decisions, and history are stored in .kit.
 
 - Break tasks into small steps
 - Avoid long context accumulation
-- Max autonomous attempts: 5 (then surface blocker)
+- Max autonomous attempts: 5, then surface the blocker
 
 ## Navigation
 
@@ -57,21 +57,23 @@ kit context <symbol>
 ## Architecture (High-Level Only)
 
 Deterministic pipeline:
-```
-API → Normalize → Validate → Model → Export
+
+```text
+API -> Normalize -> Validate -> Model -> Export
 ```
 
 Core principles:
+
 - Normalize first, validate after
-- No None after normalization
+- No `None` after normalization
 - Data integrity over convenience
 
 ## Anti-Patterns
 
-- Do NOT store knowledge in this file
-- Do NOT duplicate .kit memory here
-- Do NOT write long explanations
-- Do NOT skip `kit recall`
+- Do not store knowledge in this file
+- Do not duplicate `.kit` memory here
+- Do not write long explanations
+- Do not skip `kit recall`
 
 ## System Philosophy
 
@@ -80,15 +82,15 @@ Core principles:
 
 ## TL;DR
 
-```
-kit recall → before doing anything
+```text
+kit recall -> before doing anything
 Do task
-Hit bug → kit learn --auto
-Have insight → kit learn --content ... --kind decision
+Hit bug -> kit learn --auto
+Have insight -> kit learn --content ... --kind decision
 ```
 
-> If unsure → recall first, act later.
+> If unsure, recall first and act later.
 
 ---
 
-*Last Updated: 2026-03-23* | *v1.2.3*
+*Last Updated: 2026-03-29* | *v1.2.3*

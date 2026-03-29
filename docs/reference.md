@@ -1,10 +1,10 @@
-# .kit Reference Guide (AMSB v1.2.0 GA)
+# .kit Reference Guide (v1.2.3 STABLE)
 
-This guide captures the current CLI and Python API surface for the locked AMSB v1.2.0 GA line.
+This guide documents the active CLI and Python API surface for `.kit` v1.2.3.
 
 ## Runtime Support
 
-`.kit` v1.2.0 GA supports Python `3.14.x` only.
+`.kit` v1.2.3 supports Python `3.14.x`.
 
 ## Python API
 
@@ -15,7 +15,7 @@ import kit.api as api
 api.init_kernel(Path(".kit/brain.db"))
 ```
 
-### Core functions
+### Core Functions
 
 - `init_kernel(db_path: Path | None = None) -> None`
 - `learn(uid, content, kind="observation", importance=0.5, metadata=None, layer="episodic", namespace="shared", agent_id=None, supersede_id=None, scope=None, to_global=False, symbol=None, structural_hash=None, skip_render=False) -> int`
@@ -26,7 +26,7 @@ api.init_kernel(Path(".kit/brain.db"))
 - `reflect(diff_text, scope=None) -> Any`
 - `preflight_check(commit_msg, strict=False) -> dict[str, Any]`
 
-### Assessment states
+### Assessment States
 
 - `HIGH_CONFIDENCE`
 - `AMBIGUOUS`
@@ -42,13 +42,13 @@ kit init
 kit where
 ```
 
-### Learn and recall
+### Learn and Recall
 
 ```bash
-kit learn --uid auth --tag invariant --content "Auth tokens MUST NOT be logged"
+kit learn --uid auth --tag invariant --content "Auth tokens must not be logged"
 kit learn --uid cache --tag decision --content "Use SQLite for caching" --symbol cache_layer
-kit learn --uid ui --tag note --content "Maybe prefer local file logging"
-kit learn --uid architecture_v1_2_0 --tag invariant --content "..." --no-render
+kit learn --uid ui --tag note --content "Prefer local file logging for quick diagnostics"
+kit learn --uid architecture_v1_2_3 --tag invariant --content "..." --no-render
 
 kit recall auth
 kit recall cache --here --symbol cache_layer
@@ -93,7 +93,41 @@ python scripts/run_stress_test.py
 python scripts/epoch_archive.py
 ```
 
-### Agent runtime guarantees
+## Troubleshooting
+
+### kit-agent Provider Discovery Latency
+
+Older `kit-agent` flows may experience long delays when provider discovery falls through sequential TCP checks. When that happens, use one of these supported workarounds:
+
+#### Force a Healthy Provider
+
+Bypass discovery and target a known working provider directly.
+
+```bash
+kit-agent ask "Your task" --provider gemini
+```
+
+#### Refuse Local Discovery Explicitly
+
+If you do not run a local Jan or compatible local LLM endpoint, point discovery at a refusal port so the TCP stack fails immediately instead of waiting for a timeout.
+
+```bash
+# Unix/macOS/Linux
+export JAN_BASE_URL="http://127.0.0.1:1"
+
+# Windows (PowerShell)
+$env:JAN_BASE_URL="http://127.0.0.1:1"
+```
+
+#### Verify Provider Health
+
+```bash
+kit-agent status
+```
+
+These workarounds preserve architecture lock while improving response time.
+
+### Agent Runtime Guarantees
 
 - Max repair loop attempts: `3`
 - Local fallback is preferred when healthy cloud providers are unavailable
@@ -102,14 +136,20 @@ python scripts/epoch_archive.py
 - Output contract is JSON with `decision`, `reason`, and `confidence`
 - Exit codes are standardized at the `kit-agent` surface: `PASS/WARN=0`, `BLOCK=1`, `ERROR=2`
 
-## Locked prompt export contract
+## Locked Prompt Export Contract
 
 - Maximum Top-K memories: `3`
 - Empty export returns an empty string
 - Export uses compact first-line rendering
 - Prompt budget defaults to approximately `200`
 
-## See also
+## See Also
 
-- [ARCHITECTURE.md](ARCHITECTURE.md)
-- [README.md](README.md)
+- [README.md](../README.md)
+- [architecture.md](architecture.md)
+- [playbook.md](playbook.md)
+- [integrations/vantage.md](integrations/vantage.md)
+
+---
+
+*Last Updated: 2026-03-29 | Version: v1.2.3 STABLE | Status: SEALED*

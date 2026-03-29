@@ -1,115 +1,158 @@
-# AGENT PLAYBOOK
+# Agent Playbook
 
-This playbook defines the working rules for AI agents operating in this repository.
+This document is the practical operating manual for humans and agents working in this repository.
 
-## Operating limits
+It is intentionally different from [AGENTS.md](../AGENTS.md):
 
-1. Max autonomous attempts on the same problem: `5`
-2. If progress stalls after 5 attempts, stop and surface the blocker to the human
-3. Before stopping, persist a short summary with `kit learn`
-4. Do not run silent background loops for more than 30 minutes without updating memory or progress
+- `AGENTS.md` defines mandatory behavioral rules and memory discipline
+- `playbook.md` explains how to work effectively within those rules
+- `reference.md` documents command and API details
 
-## Authority order
+## Use This File For
 
-- Generated `.kit/context` and `AGENTS.md` content are the canonical local source of truth
-- If narrative docs conflict with generated manifests, prefer the generated manifests
-- Tag authority is strict: `invariant > decision > preference > note`
-- Lower-authority memories cannot override higher-authority memories
+- Task flow
+- Decision points during execution
+- Recommended operating habits
+- Troubleshooting entry points
 
-## Required memory behavior
+Do not treat this file as the primary source for invariants. When a rule here conflicts with [AGENTS.md](../AGENTS.md), `AGENTS.md` wins.
 
-- Use `kit learn --supersede <id>` when intentionally replacing an older fact
-- Treat `HIGH_CONFIDENCE` memories as authoritative context
-- Treat `AMBIGUOUS` memories as cautionary context
-- Treat `WEAK_SIGNAL` memories as optional guidance, not hard rules
-- Treat `EMPTY` as no usable memory context
+## Recommended Workflow
 
-## Governance behavior
+### 1. Start with Recall
 
-- Use `kit reflect` before risky edits when drift is likely
-- Respect `kit preflight` as a hard gate for invariant violations
-- Do not hide invariant conflicts or invent override authority
-- Do not silently ignore failures while writing canonical manifests or memory state
+Before touching code, hydrate context:
 
-## Resilience behavior
+```bash
+kit recall
+```
 
-- Prefer healthy providers selected by the router
-- Capacity failures should fall back immediately instead of retrying the same provider blindly
-- Use `kit doctor --check-agents` for visibility into persisted agent metrics
-- Use `kit doctor --reset-cloud` when cloud provider cooldown state needs recovery
+If the task is narrow, use a targeted query:
 
-## Unix-Philosophy Locked
+```bash
+kit recall <keyword>
+kit search <keyword>
+kit context
+```
 
-Goal: preserve the Unix and Linux design posture of `.kit` and `kit-agent` so new agents and developers can understand the system quickly and operate it safely.
+For exact CLI syntax and related flags, see [reference.md](reference.md).
 
-1. Single responsibility
+### 2. Decide Whether the Work Is Risky
 
-- `.kit` is the deterministic memory kernel.
-- `kit-agent` is the orchestration, routing, fallback, and prompt-injection layer.
-- Do not expand the stable line into vector search, ANN retrieval, or automatic invariant conflict merging.
+Use the following rule of thumb:
 
-2. Text streams and composability
+- Small doc or text-only updates: proceed directly
+- Code or schema changes with possible drift: run `kit reflect`
+- Commit-time safety checks: run `kit preflight`
 
-- The CLI is stream-first: stdin in, stdout out.
-- Commands must compose cleanly with shell tools and automation.
-- Example: `git diff | kit learn --tag decision --content "..."`.
+Example:
 
-3. Determinism and predictability
+```bash
+kit reflect --mode advisory --here
+kit preflight -m "update architecture docs"
+```
 
-- Identical inputs should yield identical ranked context.
-- Compute-at-write keeps retrieval bounded and predictable.
-- Arbitration order is strict: `invariant > decision > preference > note`.
-- Assessment states are `HIGH_CONFIDENCE`, `AMBIGUOUS`, `WEAK_SIGNAL`, and `EMPTY`.
+See [reference.md](reference.md) for command syntax and [architecture.md](architecture.md) for why the L1 -> L2 -> L3 flow exists.
 
-4. Immutable and traceable memory
+### 3. Write Small, Atomic Memory Entries
 
-- The ledger is append-only.
-- `superseded_at` is used for soft-prune and dedupe instead of hidden deletion.
-- Lineage and overrides must remain explicit and reviewable.
+Persist insights in a form that is easy to reuse:
 
-5. Explicit non-goals and scope lock
+- One idea per entry
+- Keep entries short
+- Prefer deterministic wording
+- Use `--auto` for routine friction or operational learnings
 
-- No semantic inference beyond explicit metadata and deterministic scoring.
-- No embeddings, ANN indexes, or vector retrieval.
-- No auto-resolution of invariant conflicts.
-- No product-surface expansion beyond the locked AMSB v1.2.0 GA scope.
+Examples:
 
-6. Safe multi-agent concurrency
+```bash
+kit learn --auto --content "provider discovery falls through sequential TCP checks"
+kit learn --content "wrapper sets PYTHONPATH and UTF8" --kind decision
+```
 
-- SQLite WAL mode is the concurrency backbone.
-- Writes use bounded retries and immediate locking discipline.
-- Recovery paths stay explicit through `kit doctor --check-agents` and `kit doctor --reset-cloud`.
+The hard rules for memory discipline remain in [../AGENTS.md](../AGENTS.md).
 
-7. Stable API surface
+### 4. Use the Right Memory Scope
 
-- `kit.api` remains the stable integration boundary: `learn()`, `recall()`, `recall_with_assessment()`, `reflect()`, `preflight_check()`, and `export_prompt()`.
-- CLI and API behavior should stay aligned and deterministic.
+- Use local memory for repo-specific facts, paths, shims, and incidents
+- Use global memory for stable cross-repository tool behavior
 
-8. Memory hygiene and knowledge distillation (v1.2.3)
+Examples:
 
-- Runtime noise such as `task_*` and test-only facts should not dominate manifests.
-- Duplicate facts should be soft-deduped by `uid + content + tag + scope + symbol`.
-- `.kit/context` and `AGENTS.md` should expose distilled signal, not raw historical clutter.
-- **[NEW]** Key distilled facts currently include `preflight_pipe`, `cli_unicode`, `recall_binding`, and `prompt_contract`.
-- **[NEW]** Prefer `legacy` tag for mass ingestion of historical facts to maintain chronological and structural purity.
+- Local: renamed repository path broke editable install
+- Global: Vantage requires anchors to emit structural signals
 
-9. Verification and storm-proofing
+### 5. Verify Operational Health When Needed
 
-- Unit, integration, behavioral, storm, and chaos tests define the release contract.
-- Manifest and memory should reflect architectural truth directly, without requiring git archaeology.
+Use doctor commands when the system behaves inconsistently:
 
-10. ASCII and encoding safety
+```bash
+kit doctor --mode safe
+kit doctor --check-agents
+kit doctor --reset-cloud
+```
 
-- CLI output should stay ASCII-safe across Windows and Unix-like consoles.
-- Generated `.kit/context` and `AGENTS.md` content should remain encoding-safe.
-- Preflight and recall-adjacent pipelines must accept piped stdin when used in automation.
+## Practical Decision Guide
 
-11. Auto-Routing Protocol (v1.2.3 upgrade)
+### When to Use `kit learn --auto`
 
-Agents SHOULD prefer `kit learn --auto` for routine observations to invoke the v1.2.3 Governance Pipeline:
+Use it when:
 
-1. **Heuristic Sanitization**: The system will automatically drop transient chatter and block high-entropy secrets.
-2. **Deterministic Grading**: Facts are scored on a scale of 0.0 to 1.0. 
-   - `Score > 0.85`: Promoted to GLOBAL.
-   - `Score <= 0.85`: Confined to LOCAL.
-3. **No Inference**: Auto-routing is based on deterministic heuristics and scoring, NOT semantic LLM inference. The agent remains responsible for the accuracy of the `--content`.
+- you are logging friction
+- you are not fully sure whether the fact belongs in local or global memory
+- the content is short and operational
+
+Avoid it when:
+
+- you are recording a precise architectural decision with deliberate wording
+- you need explicit control over tags, scope, or destination
+
+### When to Use `kit reflect`
+
+Use it before risky edits when:
+
+- invariants may be affected
+- changes cross module boundaries
+- drift is more dangerous than speed
+
+### When to Use `kit preflight`
+
+Use it when:
+
+- a commit is about to be created
+- you want governance feedback in strict mode
+- you want a final check against architectural memory
+
+## Vantage Operating Notes
+
+Vantage is a structural sensor, not a generic file hasher.
+
+Use Vantage when:
+
+- you need structural verification for supported code files
+- you are inspecting anchored code regions
+
+Do not use Vantage when:
+
+- you only need a raw file checksum
+- you are working with unsupported formats such as `.bat` or `.ps1`
+
+For integration details, see [docs/integrations/vantage.md](integrations/vantage.md).
+
+## Troubleshooting Map
+
+- Memory and command behavior: [reference.md](reference.md)
+- Architecture and execution layers: [architecture.md](architecture.md)
+- Structural sensor integration: [integrations/vantage.md](integrations/vantage.md)
+- Hard behavioral rules: [../AGENTS.md](../AGENTS.md)
+
+## Design Principle
+
+One fact should have one authoritative home:
+
+- laws in `AGENTS.md`
+- workflows in `playbook.md`
+- command surface in `reference.md`
+- architecture in `architecture.md`
+
+That split keeps the repository easier for both humans and agents to parse quickly.
