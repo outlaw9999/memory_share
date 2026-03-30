@@ -40,3 +40,22 @@ def test_fts_trigger_sync(brain):
     # Search for old content should fail, new should succeed
     assert len(brain.search("Initial")) == 0
     assert len(brain.search("Updated")) == 1
+
+
+def test_recall_handles_entities_with_spaces_and_hyphens(brain):
+    uid = "framework full-stack"
+    brain.learn(uid, "Starter memory for a project with a spaced and hyphenated name")
+
+    results = brain.recall([uid], limit=5)
+
+    assert len(results) == 1
+    assert "Starter memory" in results[0].content
+
+
+def test_search_handles_hyphenated_literal_queries(brain):
+    brain.learn("framework full-stack", "Framework Full-Stack starter memory")
+
+    results = brain.search("Framework Full-Stack")
+
+    assert len(results) == 1
+    assert "Full-Stack" in results[0].content

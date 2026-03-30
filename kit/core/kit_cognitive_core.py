@@ -224,6 +224,21 @@ class SAMBrain:
             return 0.1
         return 0.0
 
+    @staticmethod
+    def _fts_literal(term: str) -> str:
+        """
+        Escape a raw string as an FTS5 phrase literal.
+
+        This prevents characters such as spaces, hyphens, or slashes from being
+        interpreted as FTS operators when the caller intends a literal match.
+        """
+        return f'"{term.replace(chr(34), chr(34) * 2)}"'
+
+    @staticmethod
+    def _sqlite_string_literal(value: str) -> str:
+        """Escape a Python string for safe interpolation into SQLite string literals."""
+        return value.replace("'", "''")
+
     def _scope_bonus(
         self, memory_scope: str, current_scope: str, memory_symbol: str | None, symbol: str | None
     ) -> float:
@@ -548,7 +563,7 @@ class SAMBrain:
                 o.created_at DESC
             LIMIT ?
             """
-            cur = conn.execute(sql, (query, self.current_branch, candidate_limit))
+            cur = conn.execute(sql, (self._fts_literal(query), self.current_branch, candidate_limit))
             for row in cur.fetchall():
                 memory = Memory(
                     id=row["id"],
@@ -676,7 +691,7 @@ class SAMBrain:
             if entities:
                 where_params.extend([e.lower() for e in entities])
                 if not query:
-                    where_params.append(" OR ".join(entities))
+                    where_params.append(" OR ".join(self._fts_literal(e) for e in entities))
             if here:
                 where_params.extend(scopes)
             if query:
@@ -774,7 +789,8 @@ class SAMBrain:
         with self._get_connection() as conn:
             stats["project"] = get_db_stats(conn)
             if self.global_db_path:
-                conn.execute(f"ATTACH DATABASE '{self.global_db_path}' AS g")
+                escaped_path = self._sqlite_string_literal(str(self.global_db_path))
+                conn.execute(f"ATTACH DATABASE '{escaped_path}' AS g")
                 stats["global"] = get_db_stats(conn, "g")
         return stats
 

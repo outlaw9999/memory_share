@@ -3,6 +3,11 @@ import sqlite3
 
 logger = logging.getLogger("kit.schema")
 
+
+def quote_identifier(identifier: str) -> str:
+    """Quote a SQLite identifier defensively."""
+    return f'"{identifier.replace(chr(34), chr(34) * 2)}"'
+
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS nodes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -222,7 +227,7 @@ def init_db(conn: sqlite3.Connection):
                 cols_cur = conn.execute("PRAGMA table_info(observations)")
                 cols = [col[1] for col in cols_cur.fetchall()]
                 # Filter columns that are in both old and new (to be safe)
-                cols_str = ", ".join(cols)
+                cols_str = ", ".join(quote_identifier(col) for col in cols)
                 conn.execute(f"INSERT INTO observations_new ({cols_str}) SELECT {cols_str} FROM observations")
 
                 # 3. Swap tables
