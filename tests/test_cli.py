@@ -53,6 +53,23 @@ def test_cli_init_creates_brain_and_manifest(tmp_path):
     assert (tmp_path / "docs" / "reference.md").exists()
 
 
+def test_cli_init_and_recall_work_in_hyphenated_directory(tmp_path):
+    project_dir = tmp_path / "Framework Full-Stack"
+    project_dir.mkdir()
+
+    init_res = run_kit("init", cwd=project_dir)
+
+    assert init_res.returncode == 0
+    assert (project_dir / "AGENTS.md").exists()
+    assert (project_dir / ".kit" / "brain.db").exists()
+    assert (project_dir / "docs" / "reference.md").exists()
+
+    recall_res = run_kit("recall", cwd=project_dir)
+
+    assert recall_res.returncode == 0
+    assert "kit startup begins with kit recall" in recall_res.stdout
+
+
 def test_preflight_passes_for_small_non_blocking_diff(tmp_path):
     db_path = tmp_path / "preflight_test.db"
 
