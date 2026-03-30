@@ -50,6 +50,12 @@ kit init
 kit where
 ```
 
+Startup guardrail:
+
+- In initialized projects, run `kit recall` exactly as written.
+- Do not run `python kit.py recall` unless you are inside the `memory_share_kit` source repo.
+- Do not leave an unmatched trailing quote after `kit recall`, or PowerShell may appear to hang while waiting for input.
+
 ### Learn
 
 Store project or global memory.

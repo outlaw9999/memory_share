@@ -12,6 +12,8 @@ kit recall
 ```
 
 Use `kit recall` first. Open docs only when you need more detail.
+Run `kit recall` exactly as written. Do not replace it with `python kit.py recall`.
+Do not leave a trailing quote after `kit recall`, or the shell may wait for more input.
 
 ## 2. Minimal Navigation
 
@@ -31,6 +33,7 @@ Use `kit recall` first. Open docs only when you need more detail.
 
 ```text
 kit recall -> hydrate local starter memory
+Run `kit recall` exactly, not `python kit.py recall`
 Inspect repo -> avoid blind edits
 Open reference.md only for exact syntax
 kit learn --auto -> capture friction

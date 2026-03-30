@@ -51,6 +51,9 @@ def test_cli_init_creates_brain_and_manifest(tmp_path):
     assert (tmp_path / "AGENTS.md").exists()
     assert (tmp_path / ".kit" / "brain.db").exists()
     assert (tmp_path / "docs" / "reference.md").exists()
+    agents_text = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert "Run `kit recall` exactly as written." in agents_text
+    assert "Do not replace it with `python kit.py recall`." in agents_text
 
 
 def test_cli_init_and_recall_work_in_hyphenated_directory(tmp_path):
