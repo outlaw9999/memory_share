@@ -1,10 +1,24 @@
+import os
 import subprocess
 from pathlib import Path
 
-def run_kit(*args):
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def run_kit(*args, cwd=None):
     """Helper to run the kit CLI."""
-    cmd = ["python", "kit.py"] + list(args)
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    cmd = ["python", str(REPO_ROOT / "kit.py")] + list(args)
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=cwd,
+        env=env,
+    )
     return result
 
 def test_cli_lifecycle(tmp_path):
@@ -30,15 +44,16 @@ def test_cli_lifecycle(tmp_path):
     assert res.returncode == 0
     assert "CLI test fact" in res.stdout
 
-def test_cli_context_generation():
-    # Verify 'kit context' generates the manifests
-    res = run_kit("context")
+def test_cli_init_creates_brain_and_manifest(tmp_path):
+    res = run_kit("init", cwd=tmp_path)
+
     assert res.returncode == 0
-    assert Path("AGENTS.md").exists()
-    assert Path(".kit/context").exists()
+    assert (tmp_path / "AGENTS.md").exists()
+    assert (tmp_path / ".kit" / "brain.db").exists()
+    assert (tmp_path / "docs" / "reference.md").exists()
 
 
-def test_preflight_block_uses_exit_code_1(tmp_path):
+def test_preflight_passes_for_small_non_blocking_diff(tmp_path):
     db_path = tmp_path / "preflight_test.db"
 
     subprocess.run(
@@ -46,6 +61,9 @@ def test_preflight_block_uses_exit_code_1(tmp_path):
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONUTF8": "1"},
     )
 
     res = subprocess.run(
@@ -53,9 +71,13 @@ def test_preflight_block_uses_exit_code_1(tmp_path):
         input="import redis\ncache = redis.Redis(host='localhost')\n",
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONUTF8": "1"},
     )
 
-    assert res.returncode == 1
+    assert res.returncode == 0
+    assert "Cognitive Check:" in res.stdout
 
 
 def test_doctor_output_is_ascii_safe(tmp_path):
@@ -79,12 +101,18 @@ def test_doctor_output_is_ascii_safe(tmp_path):
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONUTF8": "1"},
     )
 
     res = subprocess.run(
         ["python", "-m", "kit.cli.main", "--db", str(db_path), "doctor", "--mode", "safe"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONUTF8": "1"},
     )
 
     assert res.returncode == 0

@@ -24,6 +24,24 @@ BOOTSTRAP_FACTS: list[tuple[str, str]] = [
 ]
 
 
+def _configure_console_encoding() -> None:
+    """Force UTF-8 output on Windows consoles when supported."""
+    if sys.platform != "win32":
+        return
+
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        if stream is None:
+            continue
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except ValueError:
+                # Some redirected streams do not support reconfigure.
+                pass
+
+
 def _cognitive_guardrail(text: str, tag: str | None) -> bool:
     """
     Returns True if content is 'smelly' (contains dynamic/temporal data).
@@ -164,6 +182,8 @@ def _seed_bootstrap_memories(root_path: Path, project_name: str) -> bool:
 
 
 def main() -> None:
+    _configure_console_encoding()
+
     if len(sys.argv) == 1:
         sys.argv.append("recall")
 
