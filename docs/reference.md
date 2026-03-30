@@ -46,7 +46,9 @@ kit-agent {run,ask,recall,status,stats,reset-metrics}
 ### Initialization
 
 ```bash
+kit --version
 kit init
+kit init --force
 kit where
 ```
 
@@ -55,6 +57,8 @@ Startup guardrail:
 - In initialized projects, run `kit recall` exactly as written.
 - Do not run `python kit.py recall` unless you are inside the `memory_share_kit` source repo.
 - Do not leave an unmatched trailing quote after `kit recall`, or PowerShell may appear to hang while waiting for input.
+- `kit --version` prints the active CLI contract version.
+- `kit init --force` only resets kit-managed artifacts: `.kit/`, `AGENTS.md`, `docs/reference.md`, and `scripts/kitf.ps1`.
 
 ### Learn
 

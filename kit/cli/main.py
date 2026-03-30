@@ -10,6 +10,7 @@ from typing import Any
 from kit.core.kit_platform import DEFAULT_TIMEOUT, FAST_TIMEOUT, read_stdin_fail_fast, run_safe
 
 BOOTSTRAP_SENTINEL = ".kit/bootstrap_v1_2_3.seed"
+CLI_VERSION = "v1.2.3.2-GOLD"
 BOOTSTRAP_FACTS: list[tuple[str, str]] = [
     ("kit_startup", "kit startup begins with kit recall"),
     ("kit_recall", "kit recall reads memory for the current project"),
@@ -133,6 +134,43 @@ def _copy_if_missing(source_root: Path | None, relative_path: str, target_root: 
     return True
 
 
+def _remove_if_exists(path: Path) -> bool:
+    if not path.exists():
+        return False
+
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+    return True
+
+
+def _cleanup_empty_parent(path: Path, stop_at: Path) -> None:
+    current = path.parent
+    while current != stop_at and current.exists():
+        try:
+            current.rmdir()
+        except OSError:
+            break
+        current = current.parent
+
+
+def _reset_managed_onboarding_files(root_path: Path, print_diagnostic: Any) -> None:
+    managed_paths = [
+        root_path / ".kit",
+        root_path / "AGENTS.md",
+        root_path / "docs" / "reference.md",
+        root_path / "scripts" / "kitf.ps1",
+    ]
+
+    for path in managed_paths:
+        was_file = path.is_file()
+        if _remove_if_exists(path):
+            print_diagnostic(f"Removed {path.relative_to(root_path)}")
+            if was_file:
+                _cleanup_empty_parent(path, root_path)
+
+
 def _materialize_onboarding_files(root_path: Path, print_diagnostic: Any) -> None:
     asset_root = _packaged_asset_root()
 
@@ -194,6 +232,7 @@ def main() -> None:
         description="SAMBrain CLI v1.2.3 - The Elite AI Memory Kernel (Immortal Stability)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {CLI_VERSION}")
     parser.add_argument("--db", help="Path to the project database (overrides default)")
     parser.add_argument(
         "--isolated", action="store_true", help="Force isolation: create/use .kit in CWD, ignore parents"
@@ -202,6 +241,11 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     _init_p = subparsers.add_parser("init", help="Initialize a new .kit memory space in the current directory")
+    _init_p.add_argument(
+        "--force",
+        action="store_true",
+        help="Reinitialize only kit-managed artifacts (.kit, AGENTS.md, docs/reference.md, scripts/kitf.ps1)",
+    )
 
     learn_p = subparsers.add_parser("learn", help="Ingest a new observation")
     learn_p.add_argument("--uid", help="Node UID (node identity)")
@@ -346,6 +390,9 @@ def main() -> None:
                     sys.exit(1)
 
     args = parser.parse_args()
+
+    if args.command == "init" and getattr(args, "force", False):
+        _reset_managed_onboarding_files(Path.cwd(), lambda _msg: None)
 
     import kit.api as api
 

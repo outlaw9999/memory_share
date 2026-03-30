@@ -44,6 +44,13 @@ def test_cli_lifecycle(tmp_path):
     assert res.returncode == 0
     assert "CLI test fact" in res.stdout
 
+
+def test_cli_version_flag():
+    res = run_kit("--version")
+
+    assert res.returncode == 0
+    assert "v1.2.3.2-GOLD" in res.stdout
+
 def test_cli_init_creates_brain_and_manifest(tmp_path):
     res = run_kit("init", cwd=tmp_path)
 
@@ -54,6 +61,30 @@ def test_cli_init_creates_brain_and_manifest(tmp_path):
     agents_text = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
     assert "Run `kit recall` exactly as written." in agents_text
     assert "Do not replace it with `python kit.py recall`." in agents_text
+
+
+def test_cli_init_force_recreates_managed_files_without_touching_business_files(tmp_path):
+    (tmp_path / ".kit").mkdir()
+    (tmp_path / ".kit" / "brain.db").write_text("old brain", encoding="utf-8")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "reference.md").write_text("old ref", encoding="utf-8")
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "kitf.ps1").write_text("old script", encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text("stale manifest", encoding="utf-8")
+    (tmp_path / "core").mkdir()
+    (tmp_path / "core" / "Engine.ps1").write_text("business logic", encoding="utf-8")
+
+    res = run_kit("init", "--force", cwd=tmp_path)
+
+    assert res.returncode == 0
+    assert (tmp_path / "AGENTS.md").exists()
+    assert (tmp_path / ".kit" / "brain.db").exists()
+    assert (tmp_path / "docs" / "reference.md").exists()
+    assert (tmp_path / "scripts" / "kitf.ps1").exists()
+    assert (tmp_path / "core" / "Engine.ps1").read_text(encoding="utf-8") == "business logic"
+    assert "Run `kit recall` exactly as written." in (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert "stale manifest" not in (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert "old ref" not in (tmp_path / "docs" / "reference.md").read_text(encoding="utf-8")
 
 
 def test_cli_init_and_recall_work_in_hyphenated_directory(tmp_path):
