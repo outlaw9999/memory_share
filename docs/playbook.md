@@ -82,14 +82,36 @@ Examples:
 - Local: renamed repository path broke editable install
 - Global: Vantage requires anchors to emit structural signals
 
-### 5. Verify Operational Health When Needed
+### 5. Verify Operational Health & Metadata
 
-Use doctor commands when the system behaves inconsistently:
+Use maintenance commands to inspect, repair, or optimize the brain:
 
 ```bash
+kit stats
+kit where
 kit doctor --mode safe
 kit doctor --check-agents
-kit doctor --reset-cloud
+```
+
+### 6. Semantic Linking & Lifecycle
+
+As a project matures, shift episodic memories to semantic anchors:
+
+```bash
+kit link --src auth --dst token --rel DEPENDS_ON
+kit promote --threshold 10
+kit bump <id>
+kit label --id 42 --correct GLOBAL
+```
+
+### 7. Governance & Observability
+
+Audit the codebase against project invariants:
+
+```bash
+kit blame <symbol>
+kit render
+kit watch
 ```
 
 ## Practical Decision Guide

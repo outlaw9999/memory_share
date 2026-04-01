@@ -25,8 +25,9 @@ Do not leave a trailing quote after `kit recall`, or the shell may wait for more
 
 1. Never treat markdown as long-term memory. `.kit` is the authority.
 2. Never guess paths or structure. Inspect the repo first.
-3. Never store project business logic in this file.
-4. Log friction with `kit learn --auto` or [scripts/kitf.ps1](scripts/kitf.ps1).
+3. **Lean Policy**: Prioritize Bash/CLI/Zero-code solutions. Never propose a new Python class if a standard command or one-line script is sufficient.
+4. Never store project business logic in this file.
+5. Log friction with `kit learn --auto` or [scripts/kitf.ps1](scripts/kitf.ps1).
 5. Store decisions with short atomic entries.
 
 ## 4. Fast Start

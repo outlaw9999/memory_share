@@ -89,6 +89,11 @@ def run_preflight(
     staged_files = guard_res.staged_files
 
     # --- LAYER 2: Structural Analysis (Placeholder for L2 Sensors like Vantage) ---
+    # Shadow Signal Collection (Phase 0: Regex Sensors)
+    from kit.core.shadow import run_shadow_scan
+    for f in staged_files:
+        if f != "<stdin>":
+            run_shadow_scan(f, brain.root_path)
 
     # --- LAYER 3: Cognitive Governance ---
 

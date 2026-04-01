@@ -25,10 +25,24 @@ classifiers = [
 ]
 dependencies = ["requests>=2.31.0"]
 
+
 [project.scripts]
 kit = "kit.cli.main:main"
 kit-agent = "kit_agent.cli.main:main"
 kit-ingest = "scripts.governance_ingest:ingest_governance"
+
+[tool.hatch.envs.default]
+python = "3.14.3"
+dependencies = [
+    "pytest>=8.0.0",
+    "ruff>=0.9.0",
+    "pyright>=1.1.350",
+]
+
+[tool.hatch.envs.default.scripts]
+test = "pytest {args:tests}"
+lint = "ruff check ."
+typecheck = "pyright"
 
 [tool.hatch.build.targets.wheel]
 packages = ["kit", "kit_agent", "runtime", "scripts"]
@@ -65,6 +79,8 @@ include = [
 [tool.ruff]
 line-length = 120
 target-version = "py314"
+# IDE Performance: Debounce diagnostics to keep Antigravity IDE lag-free
+lint.preview = true
 lint.select = ["E", "F", "B", "UP", "I", "N", "W"]
 lint.ignore = [
     "E501",  # line too long
@@ -105,3 +121,10 @@ exclude_lines = [
 include = ["kit", "runtime", "examples", "plugins"]
 exclude = ["archive", "**/__pycache__"]
 strict = ["kit", "runtime"]
+pythonVersion = "3.14"
+executionEnvironments = [
+  { root = "kit", pythonVersion = "3.14" },
+  { root = "runtime", pythonVersion = "3.14" }
+]
+# IDE Performance: Hint for async diagnostics
+# debounce = 500

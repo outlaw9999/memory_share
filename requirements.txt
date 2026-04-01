@@ -1,7 +1,8 @@
-# Antigravity brain v2 — Python dependencies
+# .kit Cognitive OS Engine - Python Dependencies
+# Target Runtime: Python 3.14.3
 #
-# Python >= 3.10 required for all stdlib-only scripts
-# Python >= 3.11 required for brain_sync_watcher.py (neural-memory constraint)
+# Python >= 3.14 recommended for PEP 749 performance and generic typing semantics
+# Python >= 3.11 required for legacy neural-memory watcher
 
 # MCP server (Python 3.10+)
 mcp[cli]>=1.0.0
