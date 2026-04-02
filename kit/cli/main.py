@@ -342,7 +342,7 @@ def main() -> None:
     watch_p.add_argument("--json", action="store_true", help="Output raw JSON stream")
 
     preflight_p = subparsers.add_parser("preflight", help="Run cognitive governance checks before committing")
-    preflight_p.add_argument("-m", "--message", type=str, required=True, help="The commit message to evaluate")
+    preflight_p.add_argument("-m", "--message", type=str, help="The commit message to evaluate")
     preflight_p.add_argument("--strict", action="store_true", help="Deprecated: use --mode strict")
     preflight_p.add_argument(
         "--mode", choices=["strict", "advisory", "silent"], default="strict", help="Preflight strictness mode"
@@ -685,7 +685,7 @@ def main() -> None:
             piped_diff = None
             piped_diff = read_stdin_fail_fast(timeout=FAST_TIMEOUT)
 
-            result = api.preflight_check(args.message, args.strict, diff_text=piped_diff)
+            result = api.preflight_check(args.message or "", args.strict, diff_text=piped_diff)
 
             if args.json:
                 print(json_lib.dumps(result))

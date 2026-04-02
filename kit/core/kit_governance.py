@@ -98,21 +98,27 @@ def run_preflight(
     # --- LAYER 3: Cognitive Governance ---
 
     # Step 3.1: Semantics Rule Check (Commit Message)
-    if not commit_msg or len(commit_msg) < 10:
-        result.score -= 0.3
-        result.issues.append({"type": "commit_message", "message": "Message too short (< 10 chars)."})
-
-    generic_words = ["update", "fix", "stuff", "changes", "wip"]
-    if any(word in commit_msg.lower() for word in generic_words) and len(commit_msg) < 15:
-        result.score -= 0.3
-        result.issues.append({"type": "commit_message", "message": "Message is too generic."})
-        result.suggestions.append("Format hint: feat(scope): specific description")
-
-    match = re.search(r"^(feat|fix|docs|style|refactor|perf|test|chore)(\(.+\))?:.+$", commit_msg)
-    if not match:
-        result.score -= 0.2
-        result.issues.append({"type": "commit_message", "message": "Does not follow Conventional Commits format."})
-        result.suggestions.append("Example: feat(auth): add JWT validation")
+    # [AMSB v1.2.3] Bypass message checks if diff is provided (Git Hook mode)
+    if commit_msg:
+        if len(commit_msg) < 10:
+            result.score -= 0.3
+            result.issues.append({"type": "commit_message", "message": "Message too short (< 10 chars)."})
+    
+        generic_words = ["update", "fix", "stuff", "changes", "wip"]
+        if any(word in commit_msg.lower() for word in generic_words) and len(commit_msg) < 15:
+            result.score -= 0.3
+            result.issues.append({"type": "commit_message", "message": "Message is too generic."})
+            result.suggestions.append("Format hint: feat(scope): specific description")
+    
+        match = re.search(r"^(feat|fix|docs|style|refactor|perf|test|chore)(\(.+\))?:.+$", commit_msg)
+        if not match:
+            result.score -= 0.2
+            result.issues.append({"type": "commit_message", "message": "Does not follow Conventional Commits format."})
+            result.suggestions.append("Example: feat(auth): add JWT validation")
+    elif diff_text is None:
+        # Fallback for empty message when no diff is present
+        result.score -= 0.5
+        result.issues.append({"type": "commit_message", "message": "No commit message provided."})
 
     # Step 3.2: Cognitive Alignment Check (Retrieve Facts from Brain)
     sem_rows = brain.get_semantic_observations(limit=min(limit, 15))
