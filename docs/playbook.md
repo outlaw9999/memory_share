@@ -120,12 +120,24 @@ kit watch
 
 Use it when:
 
-- you are logging friction
+- you are logging friction (**Surgical Friction Logging**)
 - you are not fully sure whether the fact belongs in local or global memory
 - the content is short and operational
 
-Avoid it when:
+#### 🩸 Surgical Friction Logging (Hybrid v1.2.4 Mode)
 
+During the "Desert Mode" observation phase, use [kitf.ps1](file:///e:/DEV/opensource_contrib/memory_share_kit/.kit/scripts/kitf.ps1) to capture forensic metrics. If you need a refresher on the expected schema, run:
+
+```bash
+kit recall forensic_friction_schema
+```
+
+Focus on:
+- **Shim Stability**: Report any shell conflicts or execution delays.
+- **Vantage Noise**: Capture cases where structural verification yields false positives.
+- **Agent Drift**: Note when an AI agent fails to follow the mandatory startup sequence.
+
+Avoid it when:
 - you are recording a precise architectural decision with deliberate wording
 - you need explicit control over tags, scope, or destination
 
