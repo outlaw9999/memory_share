@@ -1,7 +1,7 @@
 # .kit Reference Guide (v1.2.3 STABLE)
 
 This guide documents the active CLI and Python API surface for `.kit` v1.2.3.
-Use this file when an agent needs exact command syntax after reading [../AGENTS.md](../AGENTS.md), [architecture.md](architecture.md), and [playbook.md](playbook.md).
+**Agent Navigation:** Read [../../AGENTS.md](../../AGENTS.md) first for rules (now back in the project root), then [playbook.md](playbook.md) for practical workflow, and [reference.md](reference.md) for exact command syntax.
 
 ## Runtime Support
 

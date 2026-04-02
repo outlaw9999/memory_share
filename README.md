@@ -1,6 +1,6 @@
 # .kit - Deterministic Cognitive Memory OS (v1.2.3)
 
-> **Agent Playbook:** For repository operating rules, see [AGENTS.md](AGENTS.md).
+> **Agent Navigation:** Read [../AGENTS.md](../AGENTS.md) first for rules (now back in the project root), then [playbook.md](playbook.md) for practical workflow, and [reference.md](reference.md) for exact command syntax.
 > **Technical Spec:** For architecture details, see [docs/architecture.md](docs/architecture.md).
 
 `.kit` is a deterministic memory kernel for developers and AI agents. It provides persistent memory, ranked recall, governance checks, and operational hygiene without requiring network access for core memory behavior.
@@ -25,9 +25,9 @@ kit recall
 
 `kit init` now does three onboarding steps for a fresh repository:
 
-- creates a sterile `AGENTS.md` bootloader
-- copies only `docs/reference.md` and `scripts/kitf.ps1` if they are missing
-- seeds a small local starter pack into `.kit/brain.db` so `kit recall` can teach the basic command set with low token cost
+- Creates a sterile `AGENTS.md` bootloader in the project root.
+- Copies `reference.md` and `kitf.ps1` into `.kit/docs/` and `.kit/scripts/`.
+- Seeds a small local starter pack into `.kit/brain.db`.
 
 ## What It Does
 
@@ -101,13 +101,11 @@ Record recurring friction so the system can learn from it.
 - **Zero-Footprint:** Operational data belongs in `.kit/`, not in random root files.
 - **Determinism:** The same input should produce the same stored or recalled result under the same state.
 
-## Documentation Map
+## Documentation Map (Initialized Projects)
 
-- [AGENTS.md](AGENTS.md): agent operating rules and memory discipline
-- [docs/architecture.md](docs/architecture.md): system architecture and execution layers
-- [docs/playbook.md](docs/playbook.md): practical agent workflow guidance
-- [docs/reference.md](docs/reference.md): full CLI and API reference for `kit` and `kit-agent`
-- [docs/integrations/vantage.md](docs/integrations/vantage.md): Vantage integration notes
+- `AGENTS.md`: agent operating rules and memory discipline
+- `.kit/docs/reference.md`: full CLI and API reference for `kit` and `kit-agent`
+- `.kit/scripts/kitf.ps1`: local task friction logger
 
 ---
 

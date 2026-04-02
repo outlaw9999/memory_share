@@ -74,23 +74,24 @@ def _cognitive_guardrail(text: str, tag: str | None) -> bool:
 def _bootloader_template() -> str:
     return (
         "# AGENT COGNITIVE BOOTLOADER\n\n"
-        "> **STATUS:** Kit v1.2.3 STABLE | Project Seeded\n"
+        "> **STATUS:** Kit v1.2.3 GOLD | Project Seeded\n"
         "> **WARNING:** This file is the operating constitution. `kit` is the authority.\n\n"
         "## 🧭 1. Mandatory Startup Sequence\n\n"
         "Before taking action in this repository:\n\n"
         "```bash\n"
         "kit recall\n"
         "```\n\n"
-        "1. Run `kit recall` exactly as written. Do not use `python kit.py`.\n"
+        "1. Run `kit recall` exactly as written.\n"
         "2. Only open docs for syntax/reference after memory hydration.\n"
-        "3. If `kit` is missing, check your Global PATH (Cognitive OS failure).\n\n"
+        "3. If `kit` is missing, check your Global PATH.\n\n"
         "## 🛠️ 2. Minimal Navigation\n\n"
         "1. `AGENTS.md` (Constitutional Laws)\n"
-        "2. `docs/reference.md` (Exact Syntax)\n"
-        "3. `.kit/` (The local brain and friction logs)\n\n"
+        "2. `.kit/docs/reference.md` (Exact Syntax)\n"
+        "3. `.kit/brain.db` (The local brain SQLite store)\n"
+        "4. `.kit/scripts/kitf.ps1` (Friction Logger)\n\n"
         "## 🧠 3. Iron Laws Of Memory\n\n"
-        "1. **Markdown is volatile.** `.kit` (SQLite) is the source of truth.\n"
-        "2. **Log Friction.** Use `kit learn --auto` for every decision/pattern.\n"
+        "1. **Markdown is volatile.** `.kit/brain.db` is the source of truth.\n"
+        "2. **Log Friction.** Use `.kit/scripts/kitf.ps1` or `kit learn --auto` to capture decisions.\n"
         "3. **Inspect First.** Never guess paths or symbol structure.\n\n"
         "## ⚡ 4. Fast Start\n\n"
         "- `kit recall` -> Hydrate memory\n"
@@ -151,24 +152,32 @@ def _cleanup_empty_parent(path: Path, stop_at: Path) -> None:
 
 
 def _reset_managed_onboarding_files(root_path: Path, print_diagnostic: Any) -> None:
-    managed_paths = [
-        root_path / ".kit",
-        root_path / "AGENTS.md",
+    legacy_paths = [
         root_path / "docs" / "reference.md",
         root_path / "scripts" / "kitf.ps1",
     ]
+    for path in legacy_paths:
+        if path.exists():
+            was_file = path.is_file()
+            if _remove_if_exists(path):
+                print_diagnostic(f"Cleaned legacy {path.relative_to(root_path)}")
+                if was_file:
+                    _cleanup_empty_parent(path, root_path)
 
-    for path in managed_paths:
-        was_file = path.is_file()
-        if _remove_if_exists(path):
-            print_diagnostic(f"Removed {path.relative_to(root_path)}")
-            if was_file:
-                _cleanup_empty_parent(path, root_path)
+    # 2. Reset the new homes
+    _remove_if_exists(root_path / "AGENTS.md")
+    kit_dir = root_path / ".kit"
+    if _remove_if_exists(kit_dir):
+        print_diagnostic("Reset .kit/ memory and artifacts")
 
 
 def _materialize_onboarding_files(root_path: Path, print_diagnostic: Any) -> None:
     asset_root = _packaged_asset_root()
+    kit_dir = root_path / ".kit"
+    kit_dir.mkdir(parents=True, exist_ok=True)
 
+    # 1. Migrate/Update files
+    # AGENTS.md stays in the project root for AI visibility
     agents_md = root_path / "AGENTS.md"
     if not agents_md.exists():
         if _copy_if_missing(asset_root, "AGENTS.md", root_path):
@@ -177,13 +186,27 @@ def _materialize_onboarding_files(root_path: Path, print_diagnostic: Any) -> Non
             agents_md.write_text(_bootloader_template(), encoding="utf-8")
             print_diagnostic(f"Created {agents_md.name}")
 
+    # Other technical artifacts live inside .kit/
     onboarding_files = [
         "docs/reference.md",
         "scripts/kitf.ps1",
     ]
     for relative_path in onboarding_files:
-        if _copy_if_missing(asset_root, relative_path, root_path):
-            print_diagnostic(f"Created {relative_path}")
+        if _copy_if_missing(asset_root, relative_path, kit_dir):
+            print_diagnostic(f"Created {kit_dir.name}/{relative_path}")
+
+    # 2. Automatically clean up legacy root-level technical clutter
+    legacy_tech_paths = [
+        root_path / "docs" / "reference.md",
+        root_path / "scripts" / "kitf.ps1",
+    ]
+    for path in legacy_tech_paths:
+        if path.exists():
+            was_file = path.is_file()
+            if _remove_if_exists(path):
+                print_diagnostic(f"Cleaned legacy {path.relative_to(root_path)} (Migrated to .kit/)")
+                if was_file:
+                    _cleanup_empty_parent(path, root_path)
 
 
 def _seed_bootstrap_memories(root_path: Path, project_name: str) -> bool:
@@ -239,7 +262,7 @@ def main() -> None:
     _init_p.add_argument(
         "--force",
         action="store_true",
-        help="Reinitialize only kit-managed artifacts (.kit, AGENTS.md, docs/reference.md, scripts/kitf.ps1)",
+        help="Reinitialize only kit-managed artifacts (.kit/, AGENTS.md, docs/reference.md, scripts/kitf.ps1)",
     )
 
     learn_p = subparsers.add_parser("learn", help="Ingest a new observation")

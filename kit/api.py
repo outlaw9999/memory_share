@@ -74,6 +74,7 @@ def resolve_paths(force_local: bool = False, mode: str = "auto") -> tuple[Path, 
     return global_db, project_db, root_path
 
 
+# @epistemic: init_kernel
 def init_kernel(db_path: Path | None = None, mode: str = "auto") -> None:
     """Initialize the global SAMBrain instance."""
     global _brain_instance
@@ -91,6 +92,7 @@ def get_brain() -> SAMBrain:
     return _brain_instance
 
 
+# @epistemic: learn
 def learn(
     content: str,
     tag: str = "decision",
@@ -134,6 +136,7 @@ def learn(
     )
 
 
+# @epistemic: search
 def search(
     query: str, limit: int = 15, at: str | None = None, agent_id: str | None = None, fast: bool = False
 ) -> list[Any]:
@@ -141,6 +144,7 @@ def search(
     return get_brain().search(query, limit, at_timestamp=at, agent_id=agent_id, fast=fast)
 
 
+# @epistemic: recall
 def recall(
     entities: list[str],
     limit: int = 15,
@@ -194,6 +198,7 @@ def export_prompt(entities: list[str], limit: int = 10, budget: int = 1000) -> s
     return get_brain().export_for_prompt(entities, limit, budget)
 
 
+# @epistemic: link
 def link(src: str, dst: str, rel: str, weight: float = 1.0, metadata: dict[str, Any] | None = None) -> None:
     """Create a semantic link."""
     get_brain().link(src, dst, rel, weight, metadata)
@@ -223,6 +228,7 @@ def stream_events(poll_interval: float = 0.2):
     return get_brain().stream_events(poll_interval)
 
 
+# @epistemic: preflight_check
 def preflight_check(commit_msg: str, strict: bool = False, diff_text: str | None = None) -> dict[str, Any]:
     """Run cognitive governance preflight checks."""
     import dataclasses
@@ -233,6 +239,7 @@ def preflight_check(commit_msg: str, strict: bool = False, diff_text: str | None
     return dataclasses.asdict(result)
 
 
+# @epistemic: reflect_check
 def reflect_check(diff_text: str | None = None, scope: str | None = None) -> dict[str, Any]:
     """Run cognitive reflection check."""
     import subprocess
