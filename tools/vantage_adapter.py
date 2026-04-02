@@ -10,13 +10,13 @@ import re
 from pathlib import Path
 from typing import List, Dict, Optional
 
-# --- Configuration (Standardized for v1.2.3) ---
-VANTAGE_BIN = Path("E:/DEV/opensource_contrib/Vantage/target/debug/vantage-verify.exe")
+# --- Configuration (Standardized for v1.2.4-GOLD) ---
+VANTAGE_SHIM = "kit-vantage.bat" if Path("kit-vantage.bat").exists() else "kit-vantage"
 ENCODING = "utf-8"
 TOP_K = 10
 
 def run_safe(cmd: List[str], timeout: float = 5.0) -> subprocess.CompletedProcess:
-    """Safely run a subprocess, handling common errors for the v1.2.3 sensor."""
+    """Safely run a subprocess, handling common errors for the v1.2.4 sensor."""
     try:
         return subprocess.run(
             cmd,
@@ -25,7 +25,8 @@ def run_safe(cmd: List[str], timeout: float = 5.0) -> subprocess.CompletedProces
             encoding=ENCODING,
             errors="replace",
             timeout=timeout,
-            check=False
+            check=False,
+            shell=sys.platform == "win32" # Required for calling .bat from Python on Windows
         )
     except Exception as e:
         return subprocess.CompletedProcess(cmd, returncode=1, stdout="", stderr=str(e))
@@ -35,10 +36,11 @@ def discover_signals(target_path: str) -> List[Dict]:
     Calls Vantage v1.2.3 with --json and returns a list of .kit observations.
     Implements the "Calibrated Instrument" spec.
     """
-    if not VANTAGE_BIN.exists():
-        return []
-
-    cmd = [str(VANTAGE_BIN), target_path, "--json"]
+    # We use 'kit-vantage' as the command. 
+    # On Windows, subprocess.run handles .bat if shell=True is NOT used if called correctly, 
+    # but using 'kit-vantage' usually requires shell=True or the full path.
+    # To maintain the "Magic" of the shim, we call it directly.
+    cmd = [VANTAGE_SHIM, "verify", target_path, "--json"]
     result = run_safe(cmd)
 
     if result.returncode != 0:
@@ -46,12 +48,16 @@ def discover_signals(target_path: str) -> List[Dict]:
 
     try:
         data = json.loads(result.stdout)
-        if data.get("status") != "ok":
+        signals_data = data.get("signals", [])
+        
+        # If signals is a count (from summary CLI), we can't do much. 
+        # But if it's a list (from detailed CLI/shim), we process it.
+        if not isinstance(signals_data, list):
             return []
 
         signals = []
-        for s in data.get("signals", []):
-            # Map v1.2.3 StructuralSignal to .kit Cognitive Memory
+        for s in signals_data:
+            # Map StructuralSignal to .kit Cognitive Memory
             signal_name = s.get("name", "unknown")
             signal_type = s.get("type", "observation")
             
@@ -103,7 +109,7 @@ def main():
         return
 
     target = sys.argv[1]
-    print(f"🔍 Vantage v1.2.3 scanning: {target}")
+    print(f"🔍 Vantage v1.2.4 scanning (via {VANTAGE_SHIM}): {target}")
     
     signals = discover_signals(target)
     

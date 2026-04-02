@@ -13,19 +13,21 @@ Vantage maps physical source code (L0) to structural symbols (L2) using a triple
 
 ## 2. CLI INTERFACE
 
-Vantage is invoked as a single-shot binary with no runtime dependencies.
+Vantage is invoked via the **kit-vantage** shim to ensure platform-agnostic execution and build fallback (Release/Debug).
 
 ```bash
-vantage <command> [args] [--json]
+kit-vantage <command> [args] [--json]
 ```
 
 ### Commands:
 
 - `verify <file> [--enforce]`: Parse source, extract signals, run pipeline.
-- `graph <file>`: Extract dependency edges (calls, imports).
-- `diff <file> [--seal .]`: Compare against `VANTAGE.SEAL` baseline.
-- `seal <path>`: Create forensic baseline for a directory.
 - `purge --force`: Remove local forensic artifacts.
+
+### [ROADMAP v1.2.5+]
+- `graph <file>`: [DRAFT] Extract dependency edges (calls, imports).
+- `diff <file> [--seal .]`: [DRAFT] Compare against `VANTAGE.SEAL` baseline.
+- `seal <path>`: [DRAFT] Create forensic baseline for a directory.
 
 ---
 

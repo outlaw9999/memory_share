@@ -1,4 +1,4 @@
-# .kit - Deterministic Cognitive Memory OS (v1.2.3)
+# .kit - Deterministic Cognitive Memory OS (v1.2.4-GOLD)
 
 > **Agent Navigation:** Read [../AGENTS.md](../AGENTS.md) first for rules (now back in the project root), then [playbook.md](playbook.md) for practical workflow, and [reference.md](reference.md) for exact command syntax.
 > **Technical Spec:** For architecture details, see [docs/architecture.md](docs/architecture.md).
@@ -80,10 +80,10 @@ kit recall concurrency
 
 ### 3. Structural Mapping
 
-Use the Vantage shim to inspect repository structure.
+Use the Vantage shim for high-fidelity AST verification.
 
 ```bash
-.\kit-vantage.bat
+kit-vantage verify .
 ```
 
 ### 4. Friction Logging
@@ -109,4 +109,4 @@ Record recurring friction so the system can learn from it.
 
 ---
 
-*Last Updated: 2026-03-29 | Version: v1.2.3 STABLE | Status: SEALED*
+*Last Updated: 2026-04-02 | Version: v1.2.4-GOLD | Status: SEALED*
