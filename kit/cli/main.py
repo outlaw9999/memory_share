@@ -10,7 +10,7 @@ from typing import Any
 from kit.core.kit_platform import DEFAULT_TIMEOUT, FAST_TIMEOUT, read_stdin_fail_fast, run_safe
 
 BOOTSTRAP_SENTINEL = ".kit/bootstrap_v1_2_3.seed"
-CLI_VERSION = "v1.2.3.2-GOLD"
+CLI_VERSION = "v1.2.3.3-GOLD"
 BOOTSTRAP_FACTS: list[tuple[str, str]] = [
     ("kit_startup", "kit startup begins with kit recall"),
     ("kit_recall", "kit recall reads memory for the current project"),
@@ -75,7 +75,7 @@ def _cognitive_guardrail(text: str, tag: str | None) -> bool:
 def _bootloader_template() -> str:
     return (
         "# AGENT COGNITIVE BOOTLOADER\n\n"
-        "> **STATUS:** Kit v1.2.3 GOLD | Project Seeded\n"
+        "> **STATUS:** Kit v1.2.3.3 GOLD | Project Seeded\n"
         "> **WARNING:** This file is the operating constitution. `kit` is the authority.\n\n"
         "Before taking action in this repository:\n\n"
         "```bash\n"
@@ -247,7 +247,7 @@ def main() -> None:
         sys.argv.append("recall")
 
     parser = argparse.ArgumentParser(
-        description="SAMBrain CLI v1.2.3 - The Elite AI Memory Kernel (Immortal Stability)",
+        description="SAMBrain CLI v1.2.3.3 - The Elite AI Memory Kernel (Immortal Stability)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {CLI_VERSION}")
@@ -273,7 +273,7 @@ def main() -> None:
     learn_p.add_argument("--supersede", type=int, help="ID of the observation to supersede")
     learn_p.add_argument(
         "--tag",
-        choices=["invariant", "decision", "preference", "note", "legacy"],
+        choices=["invariant", "decision", "preference", "note", "legacy", "friction"],
         default="decision",
         help="Fact alignment tag",
     )

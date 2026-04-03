@@ -19,6 +19,7 @@ class FactTag(str, Enum):
     DECISION = "decision"
     PREFERENCE = "preference"
     NOTE = "note"
+    FRICTION = "friction"
 
 
 class SAMBrainError(Exception):
@@ -67,7 +68,7 @@ class SAMBrain:
     SQLITE_TIMEOUT_SECONDS = 1.0  # Fail-fast v1.2.2
     SQLITE_MAX_RETRIES = 3
     SQLITE_RETRY_BASE_DELAY_SECONDS = 0.1
-    TAG_PRIORITY = {"invariant": 3, "decision": 2, "preference": 1, "note": 0}
+    TAG_PRIORITY = {"invariant": 3, "decision": 2, "preference": 1, "note": 0, "friction": 0}
     AMBIGUITY_THRESHOLD = 0.2
     HIGH_CONFIDENCE_THRESHOLD = 0.5
 
@@ -210,7 +211,7 @@ class SAMBrain:
         return importance * freq_factor * recency_factor
 
     def _tag_bonus(self, tag: str) -> float:
-        return {"invariant": 0.3, "decision": 0.2, "preference": 0.1, "note": 0.0}.get(tag, 0.0)
+        return {"invariant": 0.3, "decision": 0.2, "preference": 0.1, "note": 0.0, "friction": 0.0}.get(tag, 0.0)
 
     def _namespace_factor(self, namespace: str, agent_id: str | None) -> float:
         if agent_id and namespace == agent_id:
@@ -426,7 +427,7 @@ class SAMBrain:
         normalized_tag = str(tag).strip().lower()
 
         # 🔥 VALIDATION (Phòng ngừa Agent / User truyền bậy)
-        VALID_TAGS = {"invariant", "decision", "preference", "note", "legacy"}
+        VALID_TAGS = {"invariant", "decision", "preference", "note", "legacy", "friction"}
         if normalized_tag not in VALID_TAGS:
             raise ValueError(f"[POLICY ENGINE] REJECTED: Invalid tag '{normalized_tag}'. Must be one of {VALID_TAGS}")
 

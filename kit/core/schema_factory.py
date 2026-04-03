@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS observations (
     node_id INTEGER NOT NULL,
     content TEXT NOT NULL,
     layer TEXT CHECK(layer IN ('working', 'episodic', 'semantic', 'procedural')) DEFAULT 'episodic',
-    tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference', 'note', 'legacy')) DEFAULT 'decision',
+    tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference', 'note', 'legacy', 'friction')) DEFAULT 'decision',
     importance REAL DEFAULT 1.0,
     materialized_score REAL NOT NULL DEFAULT 1.0,
     access_count INTEGER DEFAULT 0,
@@ -187,8 +187,8 @@ def init_db(conn: sqlite3.Connection):
         row = cur.fetchone()
         if row:
             schema_sql = row[0]
-            if "legacy" not in schema_sql or "note" not in schema_sql:
-                logger.info("Migrating observations table to expand tag constraints...")
+            if "legacy" not in schema_sql or "note" not in schema_sql or "friction" not in schema_sql:
+                logger.info("Migrating observations table to expand tag constraints (v1.2.3.3)...")
                 # Standard SQLite table migration pattern
                 conn.execute("PRAGMA foreign_keys=OFF")
 
@@ -201,7 +201,7 @@ def init_db(conn: sqlite3.Connection):
                     node_id INTEGER NOT NULL,
                     content TEXT NOT NULL,
                     layer TEXT CHECK(layer IN ('working', 'episodic', 'semantic', 'procedural')) DEFAULT 'episodic',
-                    tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference', 'note', 'legacy')) DEFAULT 'decision',
+                    tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference', 'note', 'legacy', 'friction')) DEFAULT 'decision',
                     importance REAL DEFAULT 1.0,
                     materialized_score REAL NOT NULL DEFAULT 1.0,
                     access_count INTEGER DEFAULT 0,
