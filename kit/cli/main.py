@@ -20,6 +20,7 @@ BOOTSTRAP_FACTS: list[tuple[str, str]] = [
     ("kit_preflight", "kit preflight checks commits against memory"),
     ("kit_doctor", "kit doctor checks system health"),
     ("kit_agent", "kit-agent runs orchestrated tasks with memory"),
+    ("kit_vantage", "kit-vantage (v1.2.4) monitors structural signals and guards the fort"),
     ("kit_reference", "docs/reference.md contains exact command syntax"),
     ("kit_local_global", "local memory is project specific and global memory is machine wide"),
 ]
@@ -76,10 +77,9 @@ def _bootloader_template() -> str:
         "# AGENT COGNITIVE BOOTLOADER\n\n"
         "> **STATUS:** Kit v1.2.3 GOLD | Project Seeded\n"
         "> **WARNING:** This file is the operating constitution. `kit` is the authority.\n\n"
-        "## 🧭 1. Mandatory Startup Sequence\n\n"
         "Before taking action in this repository:\n\n"
         "```bash\n"
-        "kit recall\n"
+        "kit recall && kit-vantage verify .\n"
         "```\n\n"
         "1. Run `kit recall` exactly as written.\n"
         "2. Only open docs for syntax/reference after memory hydration.\n"
