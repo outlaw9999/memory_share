@@ -39,14 +39,14 @@ def resolve_paths(force_local: bool = False, mode: str = "auto") -> tuple[Path, 
     project_db = None
     root_path = cwd
 
-    # 🔥 Step 1: Find Repo Boundary (.git)
+    # !!! Step 1: Find Repo Boundary (.git)
     repo_root = None
     for parent in [cwd] + list(cwd.parents):
         if (parent / ".git").exists():
             repo_root = parent
             break
 
-    # 🔥 Step 2: Walk parent tree but STOP at repo boundary
+    # !!! Step 2: Walk parent tree but STOP at repo boundary
     for parent in [cwd] + list(cwd.parents):
         # PRIORITY 1: Existing brain database (Marker of an active project)
         if (parent / ".kit" / "brain.db").exists():

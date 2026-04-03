@@ -1,6 +1,6 @@
 # AGENT COGNITIVE BOOTLOADER
 
-> **STATUS:** Kit v1.2.3 GOLD | Project Seeded
+> **STATUS:** Kit v1.2.3.3 GOLD | Project Seeded
 > **WARNING:** This file is the operating constitution. `kit` is the authority.
 
 ## 🧭 1. Mandatory Startup Sequence
@@ -8,7 +8,7 @@
 Before taking action in this repository:
 
 ```bash
-kit recall && kit-vantage verify .
+kit recall ; kit-vantage verify kit/cli/main.py
 ```
 
 1. Run the startup sequence above exactly as written.

@@ -14,7 +14,7 @@ def run_trainer():
         print("No telemetry found. Start dogfooding first.")
         return
 
-    print("🚀 v1.2.4 Adaptive Scorer Trainer Initialized")
+    print("[TRAINER] v1.2.4 Adaptive Scorer Trainer Initialized")
 
     stats: defaultdict[str, int] = defaultdict(int)
     feedback_count = 0

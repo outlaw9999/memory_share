@@ -1,19 +1,19 @@
 import re
 from dataclasses import dataclass, field
 
-# 🛡️ LAYER 3: REGEX OPTIMIZATION (Pre-compiled & Global)
+# [LAYER 3]: REGEX OPTIMIZATION (Pre-compiled & Global)
 STRING_PATTERN = re.compile(r'"[^"]*"|\'[^\']*\'')
 COMMENT_PATTERN = re.compile(r"#.*|//.*")
 MULTILINE_PATTERN = re.compile(r"/\*.*?\*/", re.DOTALL)
 WHITESPACE_PATTERN = re.compile(r"\s+")
 
-# 🛡️ LAYER 1: ARTIFACT FILTER (Strict folder boundaries)
+# [LAYER 1]: ARTIFACT FILTER (Strict folder boundaries)
 EXCLUDED_PATTERNS = [
-    re.compile(r"(^|[\\/])dist([\\/]|$)"),  # Bắt cả root dist/ và nested /dist/
+    re.compile(r"(^|[\\/])dist([\\/]|$)"),  # Catch root dist/ and nested /dist/
     re.compile(r"\.egg-info([\\/]|$)"),
     re.compile(r"\.whl$"),
     re.compile(r"\.lock$"),
-    re.compile(r"\.db(-wal|-shm)?$"),  # Bắt luôn cả SQLite WAL/SHM
+    re.compile(r"\.db(-wal|-shm)?$"),  # Catch SQLite WAL/SHM
     re.compile(r"\.pyc$"),
 ]
 
@@ -28,7 +28,7 @@ def _empty_staged() -> list[str]:
 
 @dataclass
 class GuardResult:
-    """Kết quả trả về từ lính gác L1"""
+    """Result from L1 Guard"""
 
     passed: bool
     is_hard_block: bool = False
@@ -44,7 +44,7 @@ def is_excluded(file_path: str) -> bool:
 
 def normalize_content(code: str) -> str:
     """Heuristic to remove common comments, strings, and normalize whitespace."""
-    # 🛡️ LAYER 2: SIZE CIRCUIT BREAKER (50KB limit)
+    # [LAYER 2]: SIZE CIRCUIT BREAKER (50KB limit)
     if len(code) > 50000:
         return code[:20000].lower().strip()
 
@@ -84,7 +84,7 @@ def execute_l1_guard(diff_output: str, staged_files: list[str]) -> GuardResult:
                 "message": "[WARN] Large diff (>200KB). Deep analysis truncated to protect CPU.",
             }
         )
-        # Tối ưu chấn động: Chỉ quét những dòng code MỚI THÊM VÀO (+)
+        # CRITICAL OPTIMIZATION: SCAN ADDED LINES ONLY (+)
         added_lines = [
             line[1:] for line in diff_output.splitlines() if line.startswith("+") and not line.startswith("+++")
         ][:1000]  # Hard cap 1000 lines
