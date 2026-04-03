@@ -1,0 +1,68 @@
+[
+  {
+    "uid": "arch_lighthouse",
+    "tag": "invariant",
+    "to_global": true,
+    "content": "ARCHITECTURE: AGENTS.md (Root Lighthouse) is the AI entry point. .kit/ (Cognitive Vault) is private. Disk Reality > Git History. L1 (Regex) -> L2 (Vantage) -> L3 (SQLite)."
+  },
+  {
+    "uid": "arch_vantage_contract",
+    "tag": "invariant",
+    "to_global": true,
+    "content": "VANTAGE LAW: Vantage (v1.2.4) is a strict structural sensor. Verifies files, NOT directories (.). Rejects non-AST noise. 5ms latency target. Never guess structural hashes."
+  },
+  {
+    "uid": "ops_ritual_daily",
+    "tag": "invariant",
+    "to_global": false,
+    "content": "DAILY RITUAL: 1. 'kit recall' (Hydrate). 2. 'kit-vantage verify' (Physical Truth). 3. 'kit-agent ask' (Pre-match). 4. 'kit learn --tag friction' (Log anomalies)."
+  },
+  {
+    "uid": "ops_ritual_weekly",
+    "tag": "decision",
+    "to_global": false,
+    "content": "WEEKLY REFLECTION: 1. 'kit stats' (Density). 2. 'kit doctor --mode safe' (Hygiene). 3. 'kit context' (Drift). Prune useless invariants. Ingest friction as patterns."
+  },
+  {
+    "uid": "ops_ritual_monthly",
+    "tag": "decision",
+    "to_global": false,
+    "content": "MONTHLY SYNTHESIS: 1. Identify Top-10 failure modes. 2. Promote episodic to semantic. 3. 'kit-vantage seal' to freeze version structure."
+  },
+  {
+    "uid": "syntax_expert_tips",
+    "tag": "note",
+    "to_global": true,
+    "content": "EXPERT COMMANDS: Use 'kit recall | fzf' for discovery. Use 'kit learn --auto' for routine ingestion. Use 'kit reflect --here' before risky edits."
+  },
+  {
+    "uid": "governance_strictness",
+    "tag": "invariant",
+    "to_global": true,
+    "content": "GOVERNANCE: Fail fast. Mandatory 'kit preflight -m' before commits. Zero-tolerance for non-ASCII in core library (Diamond Shield)."
+  },
+  {
+    "uid": "token_optimization",
+    "tag": "invariant",
+    "to_global": true,
+    "content": "TOKEN LAW: Zero static docs. Rely on 'kit --help' for syntax and 'kit recall' for rituals. Every token saved is a token for reasoning."
+  },
+  {
+    "uid": "arch_memory_routing",
+    "tag": "invariant",
+    "to_global": true,
+    "content": "AUTO-ROUTING LAW: 'kit learn --auto' blocks secrets (sk-, passwords), drops noise, skips duplicates. Abstract concepts -> Global; Project-specific -> Local."
+  },
+  {
+    "uid": "agent_output_contract",
+    "tag": "invariant",
+    "to_global": true,
+    "content": "OUTPUT CONTRACT: Agents MUST return JSON: { 'decision': 'PASS|WARN|BLOCK', 'reason': 'str', 'confidence': float }. Exit codes: PASS=0, BLOCK=1, ERROR=2."
+  },
+  {
+    "uid": "arch_storage_mechanics",
+    "tag": "invariant",
+    "to_global": true,
+    "content": "STORAGE: SQLite in STRICT + WAL Mode. Enables concurrent multi-agent access and 60FPS IDE experience during heavy RAG operations."
+  }
+]

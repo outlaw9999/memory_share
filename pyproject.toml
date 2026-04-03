@@ -4,9 +4,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "memory-share-kit"
-version = "1.2.3.3"
+version = "1.2.3.3.1"
 description = "Deterministic memory and governance for developers and AI agents."
-readme = "README.md"
+readme = "AGENTS.md"
 requires-python = ">=3.14,<3.15"
 license = {text = "MIT"}
 authors = [
@@ -58,11 +58,6 @@ include = [
 
 [tool.hatch.build.targets.wheel.shared-data]
 "AGENTS.md" = "share/memory_share_kit/AGENTS.md"
-"README.md" = "share/memory_share_kit/README.md"
-"docs/architecture.md" = "share/memory_share_kit/docs/architecture.md"
-"docs/playbook.md" = "share/memory_share_kit/docs/playbook.md"
-"docs/reference.md" = "share/memory_share_kit/docs/reference.md"
-"docs/integrations/vantage.md" = "share/memory_share_kit/docs/integrations/vantage.md"
 "scripts/kitf.ps1" = "share/memory_share_kit/scripts/kitf.ps1"
 
 [tool.hatch.build.targets.sdist]
@@ -71,9 +66,7 @@ include = [
     "kit_agent/",
     "runtime/",
     "scripts/",
-    "docs/",
     "AGENTS.md",
-    "README.md",
     "pyproject.toml"
 ]
 
