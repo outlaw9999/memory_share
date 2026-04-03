@@ -29,6 +29,7 @@ dependencies = ["requests>=2.31.0"]
 [project.scripts]
 kit = "kit.cli.main:main"
 kit-agent = "kit_agent.cli.main:main"
+kit-vantage = "scripts.vantage_shim:main"
 kit-ingest = "scripts.governance_ingest:ingest_governance"
 
 [tool.hatch.envs.default]

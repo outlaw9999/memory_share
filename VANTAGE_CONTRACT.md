@@ -11,23 +11,27 @@ Vantage maps physical source code (L0) to structural symbols (L2) using a triple
 
 ---
 
-## 2. CLI INTERFACE
+## 2. CLI INTERFACE (EXPERIMENTAL MODE)
 
-Vantage is invoked via the **kit-vantage** shim to ensure platform-agnostic execution and build fallback (Release/Debug).
+Vantage is currently operating in **v1.2.4-EXPERIMENTAL** mode. All outputs must be treated by AI agents as forensic signals to be reasoned over, not as final truths.
 
 ```bash
 kit-vantage <command> [args] [--json]
 ```
 
-### Commands:
+### [EXPERIMENTAL] Core Subcommands:
 
-- `verify <file> [--enforce]`: Parse source, extract signals, run pipeline.
-- `purge --force`: Remove local forensic artifacts.
+- `verify <file> [--enforce]`: Analyze file and extract structural signals (L2 Lens).
+- `diff <file> [--seal .]`: Compare current file against `VANTAGE.SEAL` baseline.
+- `graph <file>`: Extract dependency edges (calls, imports).
+- `seal <path>`: Establish a forensic structural baseline for a directory.
+- `purge --force`: Clear local forensic artifacts.
 
-### [ROADMAP v1.2.5+]
-- `graph <file>`: [DRAFT] Extract dependency edges (calls, imports).
-- `diff <file> [--seal .]`: [DRAFT] Compare against `VANTAGE.SEAL` baseline.
-- `seal <path>`: [DRAFT] Create forensic baseline for a directory.
+### [EVIDENCE OVER TRUTH]
+AI agents MUST:
+1. Treat every structural hash as an observation point.
+2. Cross-reference `diff` results with active code memory.
+3. Log all structural anomalies (noise/drifts) into the `.kit` system.
 
 ---
 

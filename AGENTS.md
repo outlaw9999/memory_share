@@ -27,6 +27,7 @@ kit recall && kit-vantage verify .
 1. **Markdown is volatile.** `.kit/brain.db` is the source of truth.
 2. **Log Friction.** Use `.kit/scripts/kitf.ps1` or `kit learn --auto` to capture decisions.
 3. **Inspect First.** Never guess paths or symbol structure.
+4. **Evidence over Truth.** In v1.2.4-EXPERIMENTAL mode, treat structural signals as observations to be reasoned over, not as final truths. Log all structural noise or drifts into the `.kit` system.
 
 ## ⚡ 4. Fast Start
 
