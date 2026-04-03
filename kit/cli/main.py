@@ -23,6 +23,8 @@ BOOTSTRAP_FACTS: list[tuple[str, str]] = [
     ("kit_vantage", "kit-vantage (v1.2.4) monitors structural signals and guards the fort"),
     ("kit_reference", "docs/reference.md contains exact command syntax"),
     ("kit_local_global", "local memory is project specific and global memory is machine wide"),
+    ("inv_hybrid_balance", "Architectural Invariant: AGENTS.md is the root lighthouse; .kit/ is the private cognitive vault."),
+    ("dec_kit_scan_dominance", "Structural Position: Physical reality (disk) overrides Git history; kit-vantage verify is the truth."),
 ]
 
 
@@ -185,6 +187,20 @@ def _materialize_onboarding_files(root_path: Path, print_diagnostic: Any) -> Non
         else:
             agents_md.write_text(_bootloader_template(), encoding="utf-8")
             print_diagnostic(f"Created {agents_md.name}")
+    else:
+        # Smart Upgrade: Update version status if present
+        try:
+            content = agents_md.read_text(encoding="utf-8-sig")
+            # Match "Kit v1.2.3" or "Kit v1.2.4-EXPERIMENTAL" or similar
+            version_pattern = r"Kit v\d+\.\d+\.\d+(?:\.\d+)?(?:-[A-Z]+)?"
+            new_status = f"Kit {CLI_VERSION}"
+            if re.search(version_pattern, content):
+                new_content = re.sub(version_pattern, new_status, content)
+                if new_content != content:
+                    agents_md.write_text(new_content, encoding="utf-8")
+                    print_diagnostic(f"Upgraded {agents_md.name} status to {new_status}")
+        except Exception as e:
+             print_diagnostic(f"Warning: Could not check {agents_md.name} for upgrade: {e}")
 
     # Other technical artifacts live inside .kit/
     onboarding_files = [
@@ -199,45 +215,60 @@ def _materialize_onboarding_files(root_path: Path, print_diagnostic: Any) -> Non
     legacy_tech_paths = [
         root_path / "docs" / "reference.md",
         root_path / "scripts" / "kitf.ps1",
+        root_path / "brain.db",
+        root_path / "brain.db-wal",
+        root_path / "brain.db-shm",
+        root_path / ".kit_metadata",
     ]
     for path in legacy_tech_paths:
         if path.exists():
             was_file = path.is_file()
+            # If it's the brain, move it to .kit/ if .kit/brain.db doesn't exist?
+            # For now, just clean it up if it's junk; but better to be safe.
+            if path.name.startswith("brain.db") and not (kit_dir / "brain.db").exists():
+                 shutil.copy2(path, kit_dir / path.name)
+                 print_diagnostic(f"Migrated rogue {path.name} to {kit_dir.name}/")
+
             if _remove_if_exists(path):
-                print_diagnostic(f"Cleaned legacy {path.relative_to(root_path)} (Migrated to .kit/)")
+                print_diagnostic(f"Cleaned legacy {path.relative_to(root_path)} (Hybrid Balance Protection)")
                 if was_file:
                     _cleanup_empty_parent(path, root_path)
 
 
 def _seed_bootstrap_memories(root_path: Path, project_name: str) -> bool:
     sentinel = root_path / BOOTSTRAP_SENTINEL
-    if sentinel.exists():
-        return False
+    is_upgrade = sentinel.exists()
 
     import kit.api as api
 
+    # 1. Update project identity (Idempotent)
     api.learn(
         uid="project_identity",
-        content=f"Project '{project_name}' initialized and integrated into .kit cognitive system.",
+        content=f"Project '{project_name}' initialized and integrated into .kit cognitive system (v{CLI_VERSION}).",
         tag="decision",
         importance=1.0,
         kind="arch",
         skip_render=True,
     )
 
-    for uid, content in BOOTSTRAP_FACTS:
+    # 2. Seed/Relink bootstrap facts
+    seeded_count = 0
+    for uid, _content in BOOTSTRAP_FACTS:
         api.learn(
             uid=project_name,
-            content=content,
+            content=_content,
             tag="decision",
             importance=1.0,
             kind="arch",
             namespace="bootstrap",
             skip_render=True,
         )
+        seeded_count += 1
 
-    sentinel.write_text("seeded\n", encoding="utf-8")
-    return True
+    if not is_upgrade:
+        sentinel.write_text(f"seeded at {datetime.now(UTC)}\n", encoding="utf-8")
+        return True
+    return False
 
 
 def main() -> None:
