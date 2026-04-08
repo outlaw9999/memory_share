@@ -9,6 +9,7 @@ DEFAULT_TIMEOUT = 1.0
 FAST_TIMEOUT = 0.2
 LONG_TIMEOUT = 10.0  # Reserved for heavy operations like 'build' or 'ingest-all'
 NETWORK_TIMEOUT = 0.5
+GIT_TIMEOUT = 5.0  # Git operations need more time (index parsing, large repos)
 
 
 def run_safe(

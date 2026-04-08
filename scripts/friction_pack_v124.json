@@ -1,0 +1,50 @@
+[
+  {
+    "uid": "friction_2126_ingestion_bloat",
+    "tag": "friction",
+    "severity": "CRITICAL",
+    "pattern": "LLM repetition failure during 'kit learn --auto' causes exponential DB growth.",
+    "lesson": "Never ingest high-entropy non-ASCII strings without L1 filtering. 1.2MB bloat recovered by VACUUM.",
+    "action": "Implement strict length-limit and repetition-penalty checks in kit.gate.Gatekeeper."
+  },
+  {
+    "uid": "friction_2127_vantage_path_blindness",
+    "tag": "friction",
+    "severity": "HIGH",
+    "pattern": "Vantage 'verify .' fails to detect extension-less or non-AST files (e.g., .ps1, .cs) at root.",
+    "lesson": "Sensor is stateless; it is NOT a discovery layer. Root scanning requires framework-level mapping.",
+    "action": "Design 'kit scan' (Discovery Layer) for v1.2.4 to provide target lists to Vantage."
+  },
+  {
+    "uid": "friction_2128_unicode_encoding_drift",
+    "tag": "friction",
+    "severity": "MEDIUM",
+    "pattern": "Vietnamese accents in .ps1/Python comments break execution in vanilla CMD/PS5.1.",
+    "lesson": "Resilience > Aesthetics. Use Diamond Shield (ASCII-only) for core operational drivers.",
+    "action": "Enforce ASCII-check in kit-vantage pre-commit hooks."
+  },
+  {
+    "uid": "friction_2129_ci_grep_determinism",
+    "tag": "friction",
+    "severity": "LOW",
+    "pattern": "Regex 'grep .kit' falsely matches 'kit' in status checks.",
+    "lesson": "Implicit patterns are dangerous in security/status layers. Prefer Fixed Strings (-F).",
+    "action": "Audit all shell scripts for deterministic exit-code checking."
+  },
+  {
+    "uid": "friction_2130_ux_monolith_collision",
+    "tag": "friction",
+    "severity": "MEDIUM",
+    "pattern": "Deleting README.md nukes GitHub landing page UX.",
+    "lesson": "Git (History) != GitHub (Presentation). Frameworks require README; Projects require AGENTS.",
+    "action": "Standardize 'kit init' to generate AGENTS.md + .kit/ solely."
+  },
+  {
+    "uid": "friction_2131_agent_solution_hallucination",
+    "tag": "friction",
+    "severity": "HIGH",
+    "pattern": "AI attempts to refactor core Rust logic to fix ritual-path errors.",
+    "lesson": "Agents take path of least resistance (code change) over best path (rule change).",
+    "action": "Strengthen Constitutional Invariants in AGENTS.md to explicitly lock logic-layers during Phase 1."
+  }
+]

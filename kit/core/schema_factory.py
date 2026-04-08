@@ -8,6 +8,7 @@ def quote_identifier(identifier: str) -> str:
     """Quote a SQLite identifier defensively."""
     return f'"{identifier.replace(chr(34), chr(34) * 2)}"'
 
+
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS nodes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -278,6 +279,7 @@ def init_db(conn: sqlite3.Connection):
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_obs_active_score ON observations(is_active, materialized_score DESC)"
         )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_hash ON observations(structural_hash)")
 
         # Ensure metrics table exists for existing DBs
         conn.execute("""

@@ -1,4 +1,4 @@
-# memory-share-kit (v1.2.3.3.1-ULTRA-GOLD)
+# memory-share-kit (v1.2.3.3.4-TITANIUM)
 
 Deterministic memory and governance for developers and AI agents.
 
