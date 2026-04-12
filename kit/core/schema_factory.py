@@ -269,6 +269,7 @@ def init_db(conn: sqlite3.Connection):
         pass
 
     try:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_nodes_uid ON nodes(uid)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_node ON observations(node_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_commit ON observations(commit_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_branch ON observations(branch)")

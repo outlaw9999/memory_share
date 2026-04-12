@@ -782,6 +782,18 @@ def main() -> None:
                         if not p.exists():
                             continue
                         try:
+                            # HYBRID REFLECT: Inject structural signals from Vantage if available
+                            # This eliminates the "blindness" of name-only diffs.
+                            try:
+                                v_res = run_safe(["kit-vantage", "verify", str(p), "--json"], timeout=GIT_TIMEOUT)
+                                if v_res.returncode == 0:
+                                    import json
+                                    v_data = json.loads(v_res.stdout)
+                                    for sig in v_data.get("signals", []):
+                                        pseudo_diff += f"# VANTAGE SIGNAL: {sig.get('type','observation')}:{sig.get('name')}\n"
+                            except Exception:
+                                pass # Vantage not available or failed; fallback to raw text
+
                             content = p.read_text(encoding="utf-8", errors="ignore")
                             for line in content.splitlines()[:500]:
                                 pseudo_diff += f"+ {line}\n"

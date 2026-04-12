@@ -242,21 +242,18 @@ def preflight_check(commit_msg: str, strict: bool = False, diff_text: str | None
 # @epistemic: reflect_check
 def reflect_check(diff_text: str | None = None, scope: str | None = None) -> dict[str, Any]:
     """Run cognitive reflection check."""
-    import subprocess
-
+    from kit.core.kit_platform import GIT_TIMEOUT, run_safe
     from kit.core.kit_reflect import run_reflect
 
     if diff_text is None:
         try:
             # Check for staged changes first
-            diff_text = subprocess.check_output(
-                ["git", "diff", "--cached"], text=True, timeout=3.0, stderr=subprocess.DEVNULL
-            )
+            res = run_safe(["git", "diff", "--cached"], timeout=GIT_TIMEOUT)
+            diff_text = res.stdout
             if not diff_text:
                 # Fallback to current changes
-                diff_text = subprocess.check_output(
-                    ["git", "diff", "HEAD"], text=True, timeout=3.0, stderr=subprocess.DEVNULL
-                )
+                res = run_safe(["git", "diff", "HEAD"], timeout=GIT_TIMEOUT)
+                diff_text = res.stdout
         except Exception:
             # FALLBACK: Return empty diff to prevent IDE freeze if git hangs or fails
             diff_text = ""

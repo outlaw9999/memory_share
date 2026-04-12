@@ -4,7 +4,7 @@ import sys
 from collections.abc import Sequence
 from typing import Optional
 
-# Fail-Fast Doctrine Invariants (v1.2.2)
+# Fail-Fast Doctrine Invariants (v1.2.3-ULTRA-GOLD)
 # NO OPERATION MAY BLOCK > 1 SECOND WITHOUT EXPLICIT USER CONSENT
 DEFAULT_TIMEOUT = 1.0
 FAST_TIMEOUT = 0.2
