@@ -3,6 +3,7 @@ import sys
 from dataclasses import dataclass, field
 
 from kit.core.kit_cognitive_core import Memory, SAMBrain
+from kit.models.signal import Signal
 
 # Standard library modules to ignore in gap detection
 STDLIB_MODULES = set(sys.builtin_module_names) | {
@@ -57,9 +58,7 @@ class Resolution:
 class ReflectReport:
     score: float = 1.0
     status: str = "PASS"
-    gaps: list[str] = field(default_factory=lambda: [])
-    drifts: list[str] = field(default_factory=lambda: [])
-    violations: list[str] = field(default_factory=lambda: [])
+    signals: list[Signal] = field(default_factory=lambda: [])
     confirmations: list[str] = field(default_factory=lambda: [])
     suggestions: list[str] = field(default_factory=lambda: [])
     resolutions: dict[str, Resolution] = field(default_factory=lambda: {})
@@ -83,8 +82,6 @@ def extract_signals(diff_text: str) -> list[str]:
     signals: set[str] = set()
     lines = diff_text.splitlines()
 
-    # We only care about added lines (+) or the first 500 lines of a full file
-    # For now, let's assume it's a diff or a snippet.
     for line in lines:
         if line.startswith("-"):
             continue
@@ -93,7 +90,6 @@ def extract_signals(diff_text: str) -> list[str]:
         for pattern in IMPORT_PATTERNS:
             match = re.search(pattern, clean_line)
             if match:
-                # Get root module, handling both Python '.' and Rust '::'
                 raw_signal = match.group(1)
                 signal = re.split(r"[\.::]+", raw_signal)[0]
                 if signal not in STDLIB_MODULES:
@@ -103,6 +99,55 @@ def extract_signals(diff_text: str) -> list[str]:
             break
 
     return sorted(list(signals))
+
+
+def detect_vulnerabilities(diff_text: str) -> list[Signal]:
+    """
+    v1.2.4: Detect high-impact vulnerability patterns (SQLi, etc).
+    Expanded Phase A Sensors: SQL_01, SQL_04, SQL_05, SQL_06.
+    Anchor-Aware: High confidence if @epistemic SQL_DYNAMIC is present.
+    """
+    signals: list[Signal] = []
+    lines = diff_text.splitlines()
+
+    # Anchor-Aware Detection (The Architect's Insight)
+    is_anchor_aware = "@epistemic SQL_DYNAMIC" in diff_text
+    base_confidence = "high" if is_anchor_aware else "medium"
+
+    # Refined v1.2.4 TITANIUM Sensors (Phase A: 11/12 target)
+    patterns = [
+        # SQL_01: f-string interpolation
+        re.compile(r"(?i)(SELECT|INSERT|UPDATE|DELETE).*{.*}"),
+        # SQL_04: String Concatenation (+)
+        re.compile(r"(?i)(SELECT|INSERT|UPDATE|DELETE).*\"\s*\+\s*\w+"),
+        # SQL_05: .format() usage
+        re.compile(r"(?i)(SELECT|INSERT|UPDATE|DELETE).*\.format\s*\("),
+        # SQL_06: Percent (%) formatting
+        re.compile(r"(?i)(SELECT|INSERT|UPDATE|DELETE).*%\s*\w+"),
+    ]
+
+    for i, line in enumerate(lines):
+        if line.startswith("-"):
+            continue
+        clean_line = line.lstrip("+").strip()
+
+        for pattern in patterns:
+            if pattern.search(clean_line):
+                signals.append(
+                    Signal(
+                        uid="sql.interpolation",
+                        kind="vulnerability",
+                        tag="sensor",
+                        content=f"Detected potential SQL injection pattern: {clean_line}",
+                        importance=1.0,
+                        confidence=base_confidence,
+                        line=i + 1,
+                        source="regex_vulnerability_sensor"
+                    )
+                )
+                break  # Only one signal per line
+
+    return signals
 
 
 def calculate_adaptive_score(m: Memory, current_scope: str) -> float:
@@ -199,20 +244,63 @@ def resolve_cognitive_conflict(memories: list[Memory], current_scope: str, signa
     )
 
 
-def run_reflect(brain: SAMBrain, diff_text: str, scope: str | None = None) -> ReflectReport:
+def run_reflect(
+    brain: SAMBrain, 
+    diff_text: str, 
+    scope: str | None = None, 
+    external_signals: list[Signal] | None = None,
+    file_path: Path | None = None,
+    deep: bool = False
+) -> ReflectReport:
     """
     Main reflection pipeline with Calibration (Consistency Engine v2).
+    v1.2.4-TITANIUM: Integrated Structural Drift Detection.
     """
     report = ReflectReport()
-    signals = extract_signals(diff_text)
+    raw_signals = extract_signals(diff_text)
+    
+    # v1.2.4: Integrated Vulnerability Sensor
+    vulnerability_signals = detect_vulnerabilities(diff_text)
+    for v_sig in vulnerability_signals:
+        report.signals.append(v_sig)
 
-    if not signals:
+    # v1.2.4: Hybrid Activation Gate (Structural Sensing)
+    # Invoke Vantage if requested explicitly OR if Regex hit a vulnerability
+    if (deep or vulnerability_signals) and file_path:
+        from kit.core.kit_vantage import invoke_vantage
+        v_deep_signals = invoke_vantage(file_path)
+        
+        for d_sig in v_deep_signals:
+            # MEC v1: Compare with Brain for Structural Drift
+            old_hash = brain.lookup_hash(d_sig.symbol)
+            
+            if old_hash is None:
+                # GAP: New structural symbol found
+                d_sig.uid = "GAP:STRUCTURAL"
+                d_sig.evidence = f"New structural anchor: {d_sig.symbol}"
+                report.signals.append(d_sig)
+            elif old_hash != d_sig.structural_hash:
+                # DRIFT: AST-level structural variation detected
+                d_sig.uid = "DRIFT:STRUCTURAL"
+                d_sig.confidence = "high"
+                d_sig.evidence = f"Structural drift detected for {d_sig.symbol}"
+                report.signals.append(d_sig)
+            else:
+                # INTEGRITY: Structural fingerprint matches
+                report.confirmations.append(f"STRUCTURAL:{d_sig.symbol}")
+
+    if external_signals:
+        for sig in external_signals:
+            # MEC v1: All external signals degrade trust unless explicitly cleared.
+            report.signals.append(sig)
+
+    if not raw_signals and not report.signals:
         return report
 
     current_scope = scope or brain.get_normalized_scope()
-    processed_signals = signals[:20]
+    processed_raw = raw_signals[:20]
 
-    for signal in processed_signals:
+    for signal in processed_raw:
         memories = brain.recall([signal], limit=10, fast=True)
 
         # Arbitrate conflicts
@@ -220,19 +308,33 @@ def run_reflect(brain: SAMBrain, diff_text: str, scope: str | None = None) -> Re
         report.resolutions[signal] = res
 
         if res.is_violation:
-            report.violations.append(signal)
+            report.signals.append(
+                Signal(
+                    uid=f"VIOLATION:{signal}",
+                    confidence="high",
+                    line=0,
+                    source="cognitive_core",
+                    evidence=res.reason,
+                )
+            )
             report.suggestions.append(SUGGESTION_TEMPLATES["BLOCK"].format(id=res.winner_id))
             continue
 
         if res.winner_id is None:
-            report.gaps.append(signal)
+            report.signals.append(
+                Signal(
+                    uid=f"GAP:{signal}",
+                    confidence="medium",
+                    line=0,
+                    source="cognitive_core",
+                    evidence=f"No memory for symbol '{signal}'",
+                )
+            )
             report.suggestions.append(SUGGESTION_TEMPLATES["GAP"].format(signal=signal))
             continue
 
         if memories:
             winner_memory = next((m for m in memories if m.id == res.winner_id), None)
-            # Scope mismatch is treated as drift when the winning memory is scoped elsewhere
-            # and does not represent a global/shared rule.
             if winner_memory and current_scope:
                 winner_scope = winner_memory.scope or ""
                 if (
@@ -240,27 +342,47 @@ def run_reflect(brain: SAMBrain, diff_text: str, scope: str | None = None) -> Re
                     and winner_scope != current_scope
                     and not current_scope.startswith(winner_scope)
                 ):
-                    report.drifts.append(signal)
+                    report.signals.append(
+                        Signal(
+                            uid=f"DRIFT:{signal}",
+                            confidence="medium",
+                            line=0,
+                            source="cognitive_core",
+                            evidence=f"Scope drift: {winner_scope} vs {current_scope}",
+                        )
+                    )
                     report.suggestions.append(SUGGESTION_TEMPLATES["DRIFT"].format(scope=current_scope))
                     continue
 
         if res.confidence < 0.3:  # Threshold for Ambiguity (v1.1)
-            report.drifts.append(signal)
+            report.signals.append(
+                Signal(
+                    uid=f"AMBIGUITY:{signal}",
+                    confidence="low",
+                    line=0,
+                    source="cognitive_core",
+                    evidence=res.reason,
+                )
+            )
             report.suggestions.append(SUGGESTION_TEMPLATES["WARN"].format(count=len(memories), margin=res.confidence))
         else:
             report.confirmations.append(signal)
 
-    # Calculate cognitive score (Deterministic Penalty Model)
-    total = len(processed_signals)
-    if total > 0:
-        penalty = (len(report.gaps) * 0.1) + (len(report.drifts) * 0.2) + (len(report.violations) * 0.5)
-        report.score = max(0.0, 1.0 - penalty)
-
-    if report.violations:
-        report.status = "BLOCK"
-    elif report.score < 0.8:
-        report.status = "WARN"
+    # v1.2.4 Decision Discipline: Hard Penalty Model
+    # 100% Trust (1.0) is only possible with ZERO signals.
+    if report.signals:
+        # P0: Fix False Sense Reporting - If any smell/signal exists, score can NEVER be 1.0
+        # This is the "Safety Math" mandated by the Architect.
+        report.score = 0.6
+        
+        # Determine status (legacy field, will be superseded by kit_decision)
+        has_high = any(s.confidence == "high" for s in report.signals)
+        if has_high:
+            report.status = "BLOCK"
+        else:
+            report.status = "WARN"
     else:
+        report.score = 1.0
         report.status = "PASS"
 
     return report

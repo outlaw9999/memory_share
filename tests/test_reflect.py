@@ -1,7 +1,10 @@
 import time
+
 import pytest
+
 from kit.core.kit_cognitive_core import SAMBrain
-from kit.core.kit_reflect import run_reflect, extract_signals, ReflectReport
+from kit.core.kit_reflect import ReflectReport, extract_signals, run_reflect
+
 
 def test_extract_signals():
     diff = """
@@ -20,6 +23,7 @@ def test_extract_signals():
     assert "rocket" in signals
     assert "old_import" not in signals
 
+
 def test_reflect_gap(tmp_path):
     db_path = tmp_path / "test_reflect.db"
     brain = SAMBrain(db_path)
@@ -29,6 +33,7 @@ def test_reflect_gap(tmp_path):
     
     assert "requests" in report.gaps
     assert report.score < 1.0
+
 
 def test_reflect_drift(tmp_path):
     db_path = tmp_path / "test_reflect.db"
@@ -42,6 +47,7 @@ def test_reflect_drift(tmp_path):
     report = run_reflect(brain, diff, scope="payment")
     
     assert "requests" in report.drifts
+
 
 def test_reflect_violation(tmp_path):
     db_path = tmp_path / "test_reflect.db"
@@ -57,6 +63,7 @@ def test_reflect_violation(tmp_path):
     
     assert "forbidden_lib" in report.violations
     assert report.status == "BLOCK"
+
 
 def test_reflect_performance(tmp_path):
     db_path = tmp_path / "test_reflect.db"
@@ -74,4 +81,4 @@ def test_reflect_performance(tmp_path):
     
     duration_ms = (end - start) * 1000
     print(f"\nReflection Performance: {duration_ms:.2f}ms")
-    assert duration_ms < 100 # Adjusted for CI overhead, target is < 50ms locally
+    assert duration_ms < 100  # Adjusted for CI overhead, target is < 50ms locally

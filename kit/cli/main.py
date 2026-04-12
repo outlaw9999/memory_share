@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from kit.core.kit_decision import Action, decide
 from kit.core.kit_platform import DEFAULT_TIMEOUT, FAST_TIMEOUT, GIT_TIMEOUT, read_stdin_fail_fast, run_safe
 
 BOOTSTRAP_SENTINEL = ".kit/bootstrap_v1_2_3.seed"
@@ -354,6 +355,7 @@ def main() -> None:
         "--mode", choices=["strict", "advisory", "silent"], default="advisory", help="Reflection strictness mode"
     )
     reflect_p.add_argument("--json", action="store_true", help="Structured JSON output")
+    reflect_p.add_argument("--deep", action="store_true", help="Deep scan: invoke Vantage AST sensors for logic smells")
     reflect_p.add_argument("--scope", help="Optional explicit scope (folder path)")
     reflect_p.add_argument("--here", action="store_true", help="Filter by current directory scope")
 
@@ -759,12 +761,15 @@ def main() -> None:
 
         elif args.command == "reflect":
             diff_text = ""
+            external_signals: list[Any] = []
+            files_to_process = []
+            
             if args.file:
-                if not Path(args.file).exists():
+                p = Path(args.file)
+                if not p.exists():
                     print_diagnostic(f"Error: File {args.file} not found.")
                     sys.exit(1)
-                with open(args.file, encoding="utf-8") as f:
-                    diff_text = f.read()
+                files_to_process = [p]
             else:
                 try:
                     diff_res = run_safe(["git", "diff", "--cached", "--name-only"], timeout=GIT_TIMEOUT)
@@ -773,37 +778,29 @@ def main() -> None:
                     if not changed_files:
                         diff_res = run_safe(["git", "diff", "HEAD", "--name-only"], timeout=GIT_TIMEOUT)
                         changed_files = [f.strip() for f in diff_res.stdout.splitlines() if f.strip()]
-
-                    pseudo_diff = ""
-                    for filepath in changed_files:
-                        p = Path(filepath)
-                        if p.suffix not in (".py", ".rs", ".js", ".ts", ".go"):
-                            continue
-                        if not p.exists():
-                            continue
-                        try:
-                            # HYBRID REFLECT: Inject structural signals from Vantage if available
-                            # This eliminates the "blindness" of name-only diffs.
-                            try:
-                                v_res = run_safe(["kit-vantage", "verify", str(p), "--json"], timeout=GIT_TIMEOUT)
-                                if v_res.returncode == 0:
-                                    import json
-                                    v_data = json.loads(v_res.stdout)
-                                    for sig in v_data.get("signals", []):
-                                        pseudo_diff += f"# VANTAGE SIGNAL: {sig.get('type','observation')}:{sig.get('name')}\n"
-                            except Exception:
-                                pass # Vantage not available or failed; fallback to raw text
-
-                            content = p.read_text(encoding="utf-8", errors="ignore")
-                            for line in content.splitlines()[:500]:
-                                pseudo_diff += f"+ {line}\n"
-                        except Exception:
-                            continue
-
-                    diff_text = pseudo_diff
+                    
+                    files_to_process = [Path(f) for f in changed_files]
                 except (RuntimeError, FileNotFoundError):
                     print_diagnostic("Error: No file provided and no staged git changes found.")
                     sys.exit(1)
+
+            pseudo_diff = ""
+            main_file_path = files_to_process[0] if files_to_process else None
+            
+            for p in files_to_process:
+                if p.suffix not in (".py", ".rs", ".js", ".ts", ".go", ".rb"):
+                    continue
+                if not p.exists():
+                    continue
+                
+                try:
+                    content = p.read_text(encoding="utf-8", errors="ignore")
+                    for line in content.splitlines()[:500]:
+                        pseudo_diff += f"+ {line}\n"
+                except Exception:
+                    continue
+
+            diff_text = pseudo_diff
 
             if not diff_text:
                 print_diagnostic("No changes detected for reflection.")
@@ -813,68 +810,59 @@ def main() -> None:
             if getattr(args, "here", False):
                 scope = api.get_brain().get_normalized_scope()
 
-            report = api.reflect(diff_text, scope=scope)
+            result = api.reflect_check(
+                diff_text, 
+                scope=scope, 
+                external_signals=external_signals,
+                file_path=main_file_path,
+                deep=getattr(args, "deep", False)
+            )
+
+            # v1.2.4 Decision Discipline: Seal the Judge (L3)
+            decision = decide(result.get("signals", []))
+            final_status = decision["action"]
+            exit_code = decision["exit_code"]
 
             if args.json:
                 import json
-
-                print(json.dumps(vars(report), indent=2))
+                print(json.dumps(result, indent=2))
             else:
-                print("\nCognitive Reflection")
-                color = "OK" if report.score > 0.8 else "WARN"
-                if report.status == "BLOCK":
-                    color = "BLOCK"
-
-                print(f"\nScore: {report.score:.1f} ({report.status}) {color}")
-
-                if report.confirmations:
+                score = result.get("score", 1.0)
+                color = "SUCCESS"
+                if final_status == Action.BLOCK: color = "BLOCK"
+                elif final_status == Action.WARN: color = "WARN"
+                
+                print(f"\nScore: {score:.1f} ({final_status}) {color}")
+                
+                if result.get("confirmations"):
                     print("\nConfirmations:")
-                    for confirmation in report.confirmations:
-                        res = report.resolutions.get(confirmation)
-                        if res and "Overrides" in res.reason:
-                            print(
-                                f"  - {confirmation} aligns with previous decisions (Arbitrated: {res.reason} [Conf: {res.confidence:.1f}])"
-                            )
-                        else:
-                            print(f"  - {confirmation} aligns with previous decisions")
-
-                if report.gaps:
-                    print("\nGaps (Missing from memory):")
-                    for gap in report.gaps:
-                        print(f"  - {gap}")
-
-                if report.drifts:
-                    print("\nDrifts (Scope mismatch):")
-                    for drift in report.drifts:
-                        res = report.resolutions.get(drift)
-                        reason = f" ({res.reason})" if res else ""
-                        print(f"  - {drift}{reason}")
-
-                if report.violations:
-                    print("\nViolations (Invariant broken):")
-                    for violation in report.violations:
-                        res = report.resolutions.get(violation)
-                        if res and "CONSTITUTIONAL" in res.reason:
-                            print(f"  - {violation} -> BLOCK {res.reason}")
-                        else:
-                            reason = f" -> {res.reason}" if res else ""
-                            print(f"  - {violation}{reason}")
-
-                if report.suggestions:
+                    for c in result["confirmations"]: print(f"  - {c}")
+                
+                signals = result.get("signals", [])
+                if signals:
+                    print(f"\nSignals detected ({len(signals)}):")
+                    for s in signals:
+                        # Handle both Signal objects and dicts from API
+                        uid = s.get("uid") if isinstance(s, dict) else getattr(s, "uid", "Unknown")
+                        src = s.get("source") if isinstance(s, dict) else getattr(s, "source", "core")
+                        line = s.get("line") if isinstance(s, dict) else getattr(s, "line", 0)
+                        print(f"  - [{uid}] {src} (line {line})")
+                
+                if result.get("suggestions"):
                     print("\nSuggestions:")
-                    for suggestion in report.suggestions:
-                        print(f"  - {suggestion}")
-
-                print("")
+                    for s in result["suggestions"]: print(f"  - {s}")
 
             mode = args.mode
             if args.strict:
                 mode = "strict"
 
-            if mode == "strict" and report.status == "BLOCK":
-                sys.exit(1)
-            if mode == "advisory" and report.status == "BLOCK":
+            if mode == "strict" and exit_code != 0:
+                sys.exit(exit_code)
+            
+            if mode == "advisory" and final_status == Action.BLOCK:
                 print_diagnostic("System is in ADVISORY mode: Block bypassed.")
+
+            sys.exit(0)
 
         elif args.command == "label":
             from kit.cli import auto_route

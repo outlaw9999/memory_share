@@ -1,7 +1,7 @@
 # Python >= 3.14 (code-py-314 compliant)
 import json
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Add kit to path
@@ -12,17 +12,19 @@ import kit.cli.auto_route as auto_route
 TEST_FILE: Path = Path("tests/test_cases.jsonl")
 SEEN_HASHES: set[str] = set()
 
+
 def is_duplicate_mock(h: str) -> bool:
     if h in SEEN_HASHES:
         return True
     SEEN_HASHES.add(h)
     return False
 
+
 def evaluate_case(text: str, check_dup=False) -> str:
     # 0. Strip / Clean
-    # (Optional: auto_route already does this inside detect_secret, 
+    # (Optional: auto_route already does this inside detect_secret,
     # but we follow the logic flow of handle())
-    
+
     # 1. Noise
     if auto_route.detect_noise(text):
         return "DROP"
@@ -38,7 +40,7 @@ def evaluate_case(text: str, check_dup=False) -> str:
 
     if check_dup and is_duplicate_mock(h):
         return "SKIP"
-    
+
     # If not check_dup, we still "seed" the mock for idempotency tests
     if not check_dup:
         is_duplicate_mock(h)
@@ -53,6 +55,7 @@ def evaluate_case(text: str, check_dup=False) -> str:
 
     return decision
 
+
 def run_precision_test() -> None:
     print("\n=== PRECISION REPORT ===")
     total = 0
@@ -64,7 +67,8 @@ def run_precision_test() -> None:
 
     with TEST_FILE.open("r", encoding="utf-8") as f:
         for line in f:
-            if not line.strip(): continue
+            if not line.strip():
+                continue
             item = json.loads(line)
             result = evaluate_case(item["input"])
 
@@ -80,16 +84,18 @@ def run_precision_test() -> None:
     print("-" * 30)
     print(f"Final Accuracy: {accuracy:.2f}% ({correct}/{total})")
 
+
 def run_idempotency_test() -> None:
     print("\n=== IDEMPOTENCY TEST (Fixed Hallucination) ===")
     text = "All systems MUST enforce strict typing and follow architecture patterns."
-    
+
     # Reset seen hashes for clean test
     SEEN_HASHES.clear()
 
     for i in range(1, 6):
         result = evaluate_case(text, check_dup=True)
         print(f"Run {i}: {result}")
+
 
 if __name__ == "__main__":
     os.environ["PYTHONUTF8"] = "1"

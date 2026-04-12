@@ -58,9 +58,9 @@ def test_local_provider_ask_success(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_local_provider_connection_error_message(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_post(url: str, json: dict[str, Any], headers: dict[str, str], timeout: float) -> DummyResponse:
         raise requests.exceptions.ConnectionError("[WinError 10061] Connection refused")
-    
+
     def fake_get(url: str, timeout: float, headers: dict[str, str]) -> DummyResponse:
-         return DummyResponse(200, payload={"data": [{"id": "phi-3-mini:latest"}]})
+        return DummyResponse(200, payload={"data": [{"id": "phi-3-mini:latest"}]})
 
     monkeypatch.setattr(requests, "post", fake_post)
     monkeypatch.setattr(requests, "get", fake_get)

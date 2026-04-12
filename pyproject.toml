@@ -80,14 +80,10 @@ lint.ignore = [
     "E501",  # line too long
     "W291",  # trailing whitespace (allowed in SQL for readability)
     "W293",  # blank line contains whitespace (allowed in SQL for readability)
-    "UP035",  # deprecated typing.Dict (legacy code)
-    "UP006",  # deprecated typing.Dict (legacy code)
-    "UP045",  # deprecated X | None syntax (legacy code)
     "F401",  # unused imports (legacy code)
     "F811",  # redefined (legacy code)
     "E402",  # module level import not at top (legacy code)
     "N806",  # variable naming (legacy code)
-    "E741",  # ambiguous variable (legacy code)
 ]
 exclude = [
     ".git",

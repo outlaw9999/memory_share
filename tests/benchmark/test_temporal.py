@@ -1,14 +1,15 @@
-import sys
 import os
-import time
 import sqlite3
-from pathlib import Path
+import sys
+import time
 from datetime import datetime, timedelta
+from pathlib import Path
 
 # Add project root to sys.path
 sys.path.append(os.getcwd())
 
 from kit import api
+
 
 def temporal_test():
     db_path = Path("temporal.db")
@@ -66,6 +67,7 @@ def temporal_test():
         print("\n✅ TEMPORAL TRUTH VERIFIED: Snapshot logic works perfectly.")
     else:
         print("\n❌ TEMPORAL LOGIC FAIL: Data leakage detected between timelines.")
+
 
 if __name__ == "__main__":
     temporal_test()

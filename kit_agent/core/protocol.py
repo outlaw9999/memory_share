@@ -1,19 +1,19 @@
 import time
-from typing import Any, Dict
+from typing import Any
 
 import kit.api as kit_api
-from kit_agent.utils.process import safe_run
-from kit_agent.core.router import ModelRouter
 from kit_agent.core.cache import SemanticCache
 from kit_agent.core.output_contract import (
     OutputContractError,
     normalize_output_contract,
     serialize_output_contract,
 )
+from kit_agent.core.router import ModelRouter
+from kit_agent.utils.process import safe_run
 
 
 class AMSBProtocol:
-    def __init__(self, router: ModelRouter, providers: Dict[str, Any], cache: SemanticCache):
+    def __init__(self, router: ModelRouter, providers: dict[str, Any], cache: SemanticCache):
         self.router = router
         self.providers = providers
         self.cache = cache

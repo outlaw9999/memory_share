@@ -1,7 +1,6 @@
 import json
 from typing import Any
 
-
 VALID_DECISIONS = {"PASS", "WARN", "BLOCK"}
 
 

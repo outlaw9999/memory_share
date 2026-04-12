@@ -68,5 +68,6 @@ exit 0
         
     print(f"✅ Successfully installed AMSB v1.2.3 hook at {pre_commit_path}")
 
+
 if __name__ == "__main__":
     main()

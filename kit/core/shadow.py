@@ -1,6 +1,6 @@
-import re
-import json
 import datetime
+import json
+import re
 import sys
 from pathlib import Path
 
@@ -11,6 +11,7 @@ SENSORS = {
     "UNSAFE_PATH_USAGE": r"(?i)(open|read|write|os\.path|fs\.).*[\"'](\/|[A-Z]:\\)",
     "AUTH_BYPASS_RISK": r"app\.(get|post|put|delete)\s*\(\s*[\"'][^\"']+[\"']\s*,\s*(?!.*auth)"
 }
+
 
 def run_shadow_scan(filepath: str, root_path: Path):
     """
@@ -25,7 +26,7 @@ def run_shadow_scan(filepath: str, root_path: Path):
         if not abs_path.exists():
             return
 
-        with open(abs_path, 'r', encoding='utf-8', errors='replace') as f:
+        with open(abs_path, encoding='utf-8', errors='replace') as f:
             content = f.read()
         
         now = datetime.datetime.now(datetime.UTC).isoformat() + "Z"
@@ -47,6 +48,7 @@ def run_shadow_scan(filepath: str, root_path: Path):
     except Exception:
         # Zero-friction: Silent failure to protect the main workflow
         pass
+
 
 if __name__ == "__main__":
     # Standalone execution for testing or hooks

@@ -1,14 +1,20 @@
 import random
-from typing import Dict, List, Optional
-from kit_agent.core.metrics import ModelMetrics, MetricsPersistence
+from typing import Optional
+
+from kit_agent.core.metrics import MetricsPersistence, ModelMetrics
+
 
 class ModelRouter:
-    def __init__(self, models: Dict[str, ModelMetrics], persistence: MetricsPersistence | None = None, epsilon: float = 0.1):
+    def __init__(
+        self, models: dict[str, ModelMetrics], persistence: MetricsPersistence | None = None, epsilon: float = 0.1
+    ):
         self.models = models
         self.persistence = persistence
-        self.epsilon = epsilon # 10% Exploration
+        self.epsilon = epsilon  # 10% Exploration
 
-    def update_model(self, name: str, success: bool, latency: float, error_type: str | None = None, is_block: bool = False):
+    def update_model(
+        self, name: str, success: bool, latency: float, error_type: str | None = None, is_block: bool = False
+    ):
         if name in self.models:
             updated = self.models[name].with_update(success, latency, error_type, is_block)
             self.models[name] = updated
@@ -26,11 +32,8 @@ class ModelRouter:
         """
         Adaptive Selection with Patch 4 (Exploration)
         """
-        candidates = [
-            name for name, m in self.models.items() 
-            if not m.cooldown_active()
-        ]
-        
+        candidates = [name for name, m in self.models.items() if not m.cooldown_active()]
+
         if not candidates:
             if "local" in self.models:
                 return "local"

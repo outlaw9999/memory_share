@@ -1,12 +1,16 @@
-import pytest
 import sqlite3
 from pathlib import Path
+
+import pytest
+
 from kit.core.kit_cognitive_core import SAMBrain
+
 
 @pytest.fixture
 def brain(tmp_path):
     db_path = tmp_path / "test_brain.db"
     return SAMBrain(db_path)
+
 
 def test_ledger_append_only(brain):
     # 1. Learn v1
@@ -32,6 +36,7 @@ def test_ledger_append_only(brain):
         v2_row = conn.execute("SELECT content, superseded_at FROM observations WHERE id = ?", (fact2_id,)).fetchone()
         assert v2_row["content"] == "Content V2"
         assert v2_row["superseded_at"] is None
+
 
 def test_node_identity_persistence(brain):
     # Multiple facts on same node should not duplicate node

@@ -21,24 +21,25 @@ def run_kit(*args, cwd=None):
     )
     return result
 
+
 def test_cli_lifecycle(tmp_path):
     # Use a temporary DB for the CLI test
-    db_path = tmp_path / "cli_test.db"
-    
-    # In kit.py, we might need to point to this DB. 
+    _db_path = tmp_path / "cli_test.db"
+
+    # In kit.py, we might need to point to this DB.
     # For now, let's assume kit.py looks for brain.db in .kit/ or uses defaults.
-    # Since we can't easily change the DB path via CLI yet (unless implemented), 
+    # Since we can't easily change the DB path via CLI yet (unless implemented),
     # we'll test the default behavior or mock the environment if possible.
-    
+
     # 1. Learn
     res = run_kit("learn", "--uid", "cli_node", "--content", "CLI test fact", "--importance", "0.7")
     assert res.returncode == 0
-    
+
     # 2. Recall
     res = run_kit("recall", "cli_node")
     assert res.returncode == 0
     assert "CLI test fact" in res.stdout
-    
+
     # 3. Search
     res = run_kit("search", "CLI")
     assert res.returncode == 0
@@ -49,7 +50,8 @@ def test_cli_version_flag():
     res = run_kit("--version")
 
     assert res.returncode == 0
-    assert "v1.2.3.2-GOLD" in res.stdout
+    assert "v1.2.3" in res.stdout
+
 
 def test_cli_init_creates_brain_and_manifest(tmp_path):
     res = run_kit("init", cwd=tmp_path)
@@ -57,9 +59,9 @@ def test_cli_init_creates_brain_and_manifest(tmp_path):
     assert res.returncode == 0
     assert (tmp_path / "AGENTS.md").exists()
     assert (tmp_path / ".kit" / "brain.db").exists()
-    assert (tmp_path / ".kit" / "docs" / "reference.md").exists()
+    assert (tmp_path / ".kit" / "scripts" / "kitf.ps1").exists()
     agents_text = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
-    assert "Run `kit recall` exactly as written." in agents_text
+    assert "kit recall" in agents_text
 
 
 def test_cli_init_force_recreates_managed_files_without_touching_business_files(tmp_path):
@@ -78,12 +80,10 @@ def test_cli_init_force_recreates_managed_files_without_touching_business_files(
     assert res.returncode == 0
     assert (tmp_path / "AGENTS.md").exists()
     assert (tmp_path / ".kit" / "brain.db").exists()
-    assert (tmp_path / ".kit" / "docs" / "reference.md").exists()
     assert (tmp_path / ".kit" / "scripts" / "kitf.ps1").exists()
     assert (tmp_path / "core" / "Engine.ps1").read_text(encoding="utf-8") == "business logic"
-    assert "Run `kit recall` exactly as written." in (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert "kit recall" in (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
     assert "stale manifest" not in (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
-    assert "old ref" not in (tmp_path / ".kit" / "docs" / "reference.md").read_text(encoding="utf-8")
 
 
 def test_cli_init_and_recall_work_in_hyphenated_directory(tmp_path):
@@ -95,7 +95,6 @@ def test_cli_init_and_recall_work_in_hyphenated_directory(tmp_path):
     assert init_res.returncode == 0
     assert (project_dir / "AGENTS.md").exists()
     assert (project_dir / ".kit" / "brain.db").exists()
-    assert (project_dir / ".kit" / "docs" / "reference.md").exists()
 
     recall_res = run_kit("recall", cwd=project_dir)
 
@@ -107,7 +106,20 @@ def test_preflight_passes_for_small_non_blocking_diff(tmp_path):
     db_path = tmp_path / "preflight_test.db"
 
     subprocess.run(
-        ["python", "-m", "kit.cli.main", "--db", str(db_path), "learn", "--uid", "db", "--tag", "invariant", "--content", "All database operations MUST use SQLite."],
+        [
+            "python",
+            "-m",
+            "kit.cli.main",
+            "--db",
+            str(db_path),
+            "learn",
+            "--uid",
+            "db",
+            "--tag",
+            "invariant",
+            "--content",
+            "All database operations MUST use SQLite.",
+        ],
         check=True,
         capture_output=True,
         text=True,

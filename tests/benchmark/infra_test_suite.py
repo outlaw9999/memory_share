@@ -1,14 +1,15 @@
-import sys
 import os
-import time
 import random
 import sqlite3
+import sys
+import time
 from pathlib import Path
 
 # Add project root to sys.path
 sys.path.append(os.getcwd())
 
 from kit import api
+
 
 def high_stakes_test():
     db_path = Path("million_facts.db")
@@ -25,7 +26,7 @@ def high_stakes_test():
     start_ingest = time.perf_counter()
     
     with brain._get_connection() as conn:
-        conn.execute("PRAGMA synchronous = OFF") # Turbo mode for ingestion
+        conn.execute("PRAGMA synchronous = OFF")  # Turbo mode for ingestion
         conn.execute("BEGIN TRANSACTION")
         
         # Create 100,000 nodes
@@ -91,6 +92,7 @@ def high_stakes_test():
 
     # Cleanup (Optional)
     # db_path.unlink()
+
 
 if __name__ == "__main__":
     high_stakes_test()

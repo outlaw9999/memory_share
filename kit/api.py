@@ -240,8 +240,14 @@ def preflight_check(commit_msg: str, strict: bool = False, diff_text: str | None
 
 
 # @epistemic: reflect_check
-def reflect_check(diff_text: str | None = None, scope: str | None = None) -> dict[str, Any]:
-    """Run cognitive reflection check."""
+def reflect_check(
+    diff_text: str | None = None, 
+    scope: str | None = None, 
+    external_signals: list[Any] | None = None,
+    file_path: Path | None = None,
+    deep: bool = False
+) -> dict[str, Any]:
+    """Run cognitive reflection check (v1.2.4 TITANIUM)."""
     from kit.core.kit_platform import GIT_TIMEOUT, run_safe
     from kit.core.kit_reflect import run_reflect
 
@@ -258,39 +264,35 @@ def reflect_check(diff_text: str | None = None, scope: str | None = None) -> dic
             # FALLBACK: Return empty diff to prevent IDE freeze if git hangs or fails
             diff_text = ""
 
-    report = run_reflect(get_brain(), diff_text, scope=scope)
+    report = run_reflect(
+        get_brain(), 
+        diff_text, 
+        scope=scope, 
+        external_signals=external_signals,
+        file_path=file_path,
+        deep=deep
+    )
 
-    # Map ReflectReport fields to the list-of-issues format the CLI likes
+    # MEC v1: Map unified signals to legacy issue format for backward compatibility
     issues: list[dict[str, str]] = []
-    for g in report.gaps:
-        issues.append(
-            {"type": "gap", "message": f"'{g}' not found in memory (New signal)", "suggestion": f"kit learn --uid {g}"}
-        )
-    for d in report.drifts:
+    for sig in report.signals:
         issues.append(
             {
-                "type": "drift",
-                "message": f"'{d}' found but not verified in this scope",
-                "suggestion": f"kit learn --uid {d} --scope {scope or 'here'}",
+                "type": "signal",
+                "uid": sig.uid,
+                "message": sig.evidence or f"Signal detected: {sig.uid}",
+                "confidence": sig.confidence,
+                "source": sig.source
             }
         )
-    for v in report.violations:
-        issues.append(
-            {
-                "type": "violation",
-                "message": f"'{v}' violates an architectural invariant",
-                "suggestion": f"kit blame {v}",
-            }
-        )
-
-    matched_signals = report.confirmations + report.drifts + report.violations
 
     return {
         "score": report.score,
         "status": report.status,
+        "signals": [s.model_dump() if hasattr(s, "model_dump") else s for s in report.signals],
         "issues": issues,
-        "matched_signals": matched_signals,
         "suggestions": report.suggestions,
+        "confirmations": report.confirmations
     }
 
 

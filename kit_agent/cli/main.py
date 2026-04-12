@@ -4,7 +4,7 @@ import socket
 import sys
 from pathlib import Path
 
-from kit.core.kit_platform import read_stdin_fail_fast, FAST_TIMEOUT
+from kit.core.kit_platform import FAST_TIMEOUT, read_stdin_fail_fast
 
 
 def is_port_open(host: str, port: int, timeout: float = 0.2) -> bool:
@@ -12,15 +12,15 @@ def is_port_open(host: str, port: int, timeout: float = 0.2) -> bool:
     try:
         with socket.create_connection((host, port), timeout=timeout):
             return True
-    except (ConnectionRefusedError, socket.timeout, socket.error):
+    except (TimeoutError, OSError, ConnectionRefusedError):
         return False
 
 
 from kit_agent.core.cache import SemanticCache
 from kit_agent.core.metrics import MetricsPersistence, ModelMetrics
+from kit_agent.core.output_contract import normalize_output_contract
 from kit_agent.core.protocol import AMSBProtocol
 from kit_agent.core.router import ModelRouter
-from kit_agent.core.output_contract import normalize_output_contract
 from kit_agent.providers.gemini import GeminiProvider
 from kit_agent.providers.local import LocalLLMProvider
 from kit_agent.providers.mock import MockChaosProvider

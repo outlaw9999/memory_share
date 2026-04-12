@@ -1,13 +1,13 @@
 import re
 import subprocess
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from kit.core.kit_cognitive_core import SAMBrain
 from kit.guard.fast_guard import execute_l1_guard
 
 
-class ConflictLevel(str, Enum):
+class ConflictLevel(StrEnum):
     HARD = "hard"
     SOFT = "soft"
 
@@ -91,6 +91,7 @@ def run_preflight(
     # --- LAYER 2: Structural Analysis (Placeholder for L2 Sensors like Vantage) ---
     # Shadow Signal Collection (Phase 0: Regex Sensors)
     from kit.core.shadow import run_shadow_scan
+
     for f in staged_files:
         if f != "<stdin>":
             run_shadow_scan(f, brain.root_path)
@@ -103,13 +104,13 @@ def run_preflight(
         if len(commit_msg) < 10:
             result.score -= 0.3
             result.issues.append({"type": "commit_message", "message": "Message too short (< 10 chars)."})
-    
+
         generic_words = ["update", "fix", "stuff", "changes", "wip"]
         if any(word in commit_msg.lower() for word in generic_words) and len(commit_msg) < 15:
             result.score -= 0.3
             result.issues.append({"type": "commit_message", "message": "Message is too generic."})
             result.suggestions.append("Format hint: feat(scope): specific description")
-    
+
         match = re.search(r"^(feat|fix|docs|style|refactor|perf|test|chore)(\(.+\))?:.+$", commit_msg)
         if not match:
             result.score -= 0.2

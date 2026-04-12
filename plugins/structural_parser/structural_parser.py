@@ -1,39 +1,41 @@
-import re
 import hashlib
+import re
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Optional
+
 
 class ASTMarkdownParser:
     """
     Antigravity AST-lite Parser (The "Lean Surgeon").
     Identifies knowledge nodes via stable anchors: <!-- node:id=... -->
     """
+
     def __init__(self, file_path: Path):
         self.file_path = file_path
         self.content = self._load_file()
         self.node_regex = r"<!--\s*node:id=([\w-]+)\s*-->"
 
     def _load_file(self) -> str:
-        if not self.file_path.exists(): 
+        if not self.file_path.exists():
             return ""
         return self.file_path.read_text(encoding="utf-8")
 
     def get_hash(self) -> str:
         """Returns SHA256 of current content for OCC check."""
-        return hashlib.sha256(self.content.encode('utf-8')).hexdigest()
+        return hashlib.sha256(self.content.encode("utf-8")).hexdigest()
 
-    def _get_node_range(self, node_id: str) -> Tuple[int, int]:
+    def _get_node_range(self, node_id: str) -> tuple[int, int]:
         """Finds the line boundaries of a node based on its ID anchor."""
         lines = self.content.splitlines()
         start_idx = -1
         anchor = f"node:id={node_id}"
-        
+
         for i, line in enumerate(lines):
             if anchor in line:
                 start_idx = i
                 break
-        
-        if start_idx == -1: 
+
+        if start_idx == -1:
             return (-1, -1)
 
         # Node ends when the next node anchor is found or at EOF
@@ -47,16 +49,16 @@ class ASTMarkdownParser:
     def update_node(self, node_id: str, new_body: str) -> bool:
         """Updates Node content while preserving the anchor and its title."""
         start, end = self._get_node_range(node_id)
-        if start == -1: 
+        if start == -1:
             return False
-        
+
         lines = self.content.splitlines()
         # Preserve the anchor/header line (the first line of the node block)
         anchor_line = lines[start]
-        
+
         # Build the new block: Anchor + New Body
         new_block = [anchor_line] + new_body.strip().splitlines()
-        
+
         lines[start:end] = new_block
         self.content = "\n".join(lines)
         return True
@@ -70,20 +72,21 @@ class ASTMarkdownParser:
     def delete_node(self, node_id: str) -> bool:
         """Deletes a knowledge node completely."""
         start, end = self._get_node_range(node_id)
-        if start == -1: 
+        if start == -1:
             return False
         lines = self.content.splitlines()
         del lines[start:end]
         self.content = "\n".join(lines)
         return True
 
-    def commit(self, shadow_path: Optional[Path] = None):
+    def commit(self, shadow_path: Path | None = None):
         """Atomic write via Shadow Paging / Atomic Replace."""
         path = shadow_path or self.file_path
         path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Atomic rename implementation
         tmp_path = path.with_suffix(".tmp")
         tmp_path.write_text(self.content, encoding="utf-8")
         import os
+
         os.replace(tmp_path, path)

@@ -4,7 +4,7 @@ import sqlite3
 import time
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +14,7 @@ from kit.core.schema_factory import enable_wal, init_db
 logger = logging.getLogger("kit.core")
 
 
-class FactTag(str, Enum):
+class FactTag(StrEnum):
     INVARIANT = "invariant"
     DECISION = "decision"
     PREFERENCE = "preference"
@@ -794,6 +794,26 @@ class SAMBrain:
                 conn.execute(f"ATTACH DATABASE '{escaped_path}' AS g")
                 stats["global"] = get_db_stats(conn, "g")
         return stats
+
+    def lookup_hash(self, symbol: str) -> str | None:
+        """
+        Retrieve the latest active structural hash for a given symbol identity (UUID).
+        Implementation of Phase B Drift Detection (v1.2.4).
+        """
+        if not symbol:
+            return None
+            
+        with self._get_connection() as conn:
+            # We look for the most recent active observation anchored to this symbol
+            sql = """
+            SELECT structural_hash 
+            FROM observations 
+            WHERE symbol = ? AND is_active = 1 
+            ORDER BY created_at DESC 
+            LIMIT 1
+            """
+            row = conn.execute(sql, (symbol,)).fetchone()
+            return row["structural_hash"] if row else None
 
     def touch_fact(self, fact_id: int) -> None:
         """Increment access count and refresh recency (v3.14 compliant)."""

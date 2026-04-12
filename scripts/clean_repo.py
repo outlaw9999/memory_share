@@ -1,5 +1,5 @@
-import shutil
 import os
+import shutil
 from pathlib import Path
 
 # Target list for deletion
@@ -8,6 +8,7 @@ TRASH_PATTERNS = [
     ".tmp_pkgtest", ".tmp_pkgtest_run", ".tmp_pkgtest_run2",
     ".tmp_pkgtest2", ".tmp_pkgtest3", "dist", "build", "__pycache__"
 ]
+
 
 def nuclear_cleanup():
     root = Path(__file__).parent.parent
@@ -25,6 +26,7 @@ def nuclear_cleanup():
                     print(f"[PURGED] Deleted file: {path.relative_to(root)}")
             except Exception as e:
                 print(f"[REJECTED] Cannot touch {path.name}: {e}")
+
 
 if __name__ == "__main__":
     nuclear_cleanup()

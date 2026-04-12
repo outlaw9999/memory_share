@@ -1,7 +1,8 @@
-import sys
-import subprocess
 import os
+import subprocess
+import sys
 from pathlib import Path
+
 
 def main():
     # AMSB v1.2.3 - The Vantage Protocol Shim (Python version)
@@ -48,6 +49,7 @@ def main():
     except Exception as e:
         print(f"[kit-vantage] Runtime error: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

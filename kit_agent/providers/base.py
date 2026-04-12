@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Any
+
 
 class BaseProvider(ABC):
     @abstractmethod
-    def ask(self, prompt: str) -> Dict[str, Any]:
+    def ask(self, prompt: str) -> dict[str, Any]:
         """
         Return dict with:
         {

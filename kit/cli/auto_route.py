@@ -11,7 +11,7 @@ import sys
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any
 
 # =========================
 # CONFIG
@@ -64,7 +64,7 @@ def strip_markdown(text: str) -> str:
     return text.strip()
 
 
-def detect_secret(text: str) -> Tuple[bool, str]:
+def detect_secret(text: str) -> tuple[bool, str]:
     # Clean markdown
     clean_text = strip_markdown(text)
 
@@ -138,7 +138,7 @@ def has_code(text: str) -> bool:
     )
 
 
-def score(text: str) -> Dict[str, float]:
+def score(text: str) -> dict[str, float]:
     t = text.lower()
     g = s = r = 0.0
 
@@ -159,7 +159,7 @@ def score(text: str) -> Dict[str, float]:
     return {"generality": min(g, 1.0), "specificity": min(s, 1.0), "reusability": min(r, 1.0)}
 
 
-def decide(scores: Dict[str, float]) -> Tuple[str, float]:
+def decide(scores: dict[str, float]) -> tuple[str, float]:
     g = scores["generality"]
     s = scores["specificity"]
 
@@ -207,7 +207,7 @@ def is_duplicate(hash_val: str) -> bool:
 # =========================
 
 
-def route_content(text: str) -> Dict[str, Any]:
+def route_content(text: str) -> dict[str, Any]:
     """Official Routing Logic for kit learn --auto"""
 
     # 1. Firewall

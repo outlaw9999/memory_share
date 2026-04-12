@@ -1,14 +1,18 @@
-import pytest
 import sqlite3
 import time
 from pathlib import Path
-from kit.core.kit_cognitive_core import SAMBrain, FactTag
+
+import pytest
+
+from kit.core.kit_cognitive_core import FactTag, SAMBrain
 from kit.core.kit_reflect import run_reflect
+
 
 @pytest.fixture
 def brain(tmp_path):
     db_path = tmp_path / "test_amsb.db"
     return SAMBrain(db_path)
+
 
 def test_authority_hierarchy(brain):
     """
@@ -16,19 +20,20 @@ def test_authority_hierarchy(brain):
     """
     # Learn facts with different tags
     brain.learn("db_choice", "Use PostgreSQL", tag="decision", importance=1.0)
-    brain.learn("db_choice", "MUST use SQLite", tag="invariant", importance=0.5) # Lower importance but higher tag
+    brain.learn("db_choice", "MUST use SQLite", tag="invariant", importance=0.5)  # Lower importance but higher tag
     brain.learn("db_choice", "Maybe use Redis", tag="note", importance=1.0)
     
     # Recall
     results = brain.recall(["db_choice"])
     
     for i, r in enumerate(results):
-        print(f"  {i+1}. [{r.tag}] Score: {r.score:.4f} - {r.content}")
+        print(f"  {i + 1}. [{r.tag}] Score: {r.score:.4f} - {r.content}")
     
     # Invariant should be top despite lower importance because of primary sort by tag
     assert results[0].tag == "invariant", f"Expected 'invariant' but got '{results[0].tag}'"
     assert "SQLite" in results[0].content
     assert results[1].tag == "decision"
+
 
 def test_immutable_ledger_supersede(brain):
     """
@@ -51,6 +56,7 @@ def test_immutable_ledger_supersede(brain):
         assert row2["superseded_at"] is None
         assert row2["supersedes_id"] == id1
 
+
 def test_compute_at_write_materialized_score(brain):
     """
     Test 3: Compute-at-Write (Score precomputation)
@@ -62,6 +68,7 @@ def test_compute_at_write_materialized_score(brain):
         assert row["materialized_score"] > 0
         # Formula: 0.8 * log10(0+2) * (1/sqrt(0+1)) = 0.8 * 0.301 * 1 = 0.2408
         assert pytest.approx(row["materialized_score"], 0.01) == 0.2408
+
 
 def test_preflight_blocks_invariant_violation(brain):
     """
@@ -84,6 +91,7 @@ def test_preflight_blocks_invariant_violation(brain):
     assert report.status == "BLOCK"
     assert "security" in report.violations
 
+
 def test_full_cognitive_loop(brain):
     """
     Test 5: Full Cognitive Loop (learn -> recall -> reflect)
@@ -104,6 +112,7 @@ def test_full_cognitive_loop(brain):
     assert report.status == "PASS"
     assert "auth_service" in report.confirmations
 
+
 def test_hard_authority_invariant_wins(brain):
     """
     Test 6: Hard Authority (Invariant wins even if decision has higher score)
@@ -123,6 +132,7 @@ def test_hard_authority_invariant_wins(brain):
     assert report.status == "BLOCK"
     assert "violation" in report.suggestions[0].lower()
 
+
 def test_stdlib_ignored_in_gaps(brain):
     """
     Test 7: Stdlib noise reduction
@@ -133,6 +143,7 @@ def test_stdlib_ignored_in_gaps(brain):
     # None of these should be in gaps
     assert len(report.gaps) == 0
     assert report.status == "PASS"
+
 
 def test_invariant_conflict_blocks(brain):
     """

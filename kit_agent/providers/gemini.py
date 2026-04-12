@@ -1,13 +1,13 @@
 import os
 import subprocess
 import time
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 from kit_agent.providers.base import BaseProvider
 
 
 class GeminiProvider(BaseProvider):
-    def __init__(self, api_key: str = None, cli_path: str = None):
+    def __init__(self, api_key: str | None = None, cli_path: str | None = None):
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
         self.cli_path = cli_path or os.environ.get("GEMINI_CLI_PATH", "gemini")
         self._version_checked = False
@@ -24,7 +24,7 @@ class GeminiProvider(BaseProvider):
             print(f"\033[93m[WARN] [GEMINI] Could not verify CLI version: {e}\033[0m")
         self._version_checked = True
 
-    def ask(self, prompt: str) -> Dict[str, Any]:
+    def ask(self, prompt: str) -> dict[str, Any]:
         """
         Calls the real Gemini CLI to execute a task.
         Supports simulation overrides for testing.
@@ -37,28 +37,25 @@ class GeminiProvider(BaseProvider):
 
         self._check_version()
 
-        start_time = time.time()
         try:
             # We use 'task' command as standard for Gemini agentic CLI
             # Note: This command structure might vary based on the specific CLI version/tooling
-            cmd = [self.cli_path, "ask", prompt] # fallback to 'ask' if 'task' is not standard
-            
+            cmd = [self.cli_path, "ask", prompt]  # fallback to 'ask' if 'task' is not standard
+
             # If the user mentioned 'task --prompt', we can try that too if 'ask' fails.
             # But let's start with a standard subprocess call.
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
-
-            latency = time.time() - start_time
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
 
             if result.returncode != 0:
                 error_msg = result.stderr.strip()
                 if "503" in error_msg or "rate limit" in error_msg.lower():
                     return {"ok": False, "error": f"GEMINI_CAPACITY: {error_msg}", "text": "", "error_type": "CAPACITY"}
-                return {"ok": False, "error": f"GEMINI_CLI_ERROR ({result.returncode}): {error_msg}", "text": "", "error_type": "TRANSIENT"}
+                return {
+                    "ok": False,
+                    "error": f"GEMINI_CLI_ERROR ({result.returncode}): {error_msg}",
+                    "text": "",
+                    "error_type": "TRANSIENT",
+                }
 
             return {
                 "ok": True,

@@ -1,7 +1,8 @@
+import json
 import os
 import subprocess
-import json
 import time
+
 
 def scan_repo_chunked():
     print("--- [CHUNKED COGNITIVE SCAN] ---")
@@ -13,7 +14,7 @@ def scan_repo_chunked():
     reports = []
     for f in files:
         print(f"Scanning {f}...")
-        with open(f, 'r') as file:
+        with open(f) as file:
             content = file.read()
         
         # Pipe file content to agent for ephemeral scan
@@ -34,6 +35,7 @@ def scan_repo_chunked():
     
     print("\n--- FINAL REPORT ---")
     print(final_report)
+
 
 if __name__ == "__main__":
     scan_repo_chunked()

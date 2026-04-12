@@ -1,6 +1,8 @@
 import pytest
+
 from kit.core.kit_cognitive_core import SAMBrain
 from kit.core.kit_reflect import run_reflect
+
 
 def test_invariant_sanctity(tmp_path):
     """VERIFY: Global Invariant CANNOT be overridden by Local Decision."""
@@ -22,6 +24,7 @@ def test_invariant_sanctity(tmp_path):
     res = report.resolutions["vantage"]
     assert "CONSTITUTIONAL VIOLATION" in res.reason
 
+
 def test_scoped_invariant_override(tmp_path):
     """VERIFY: Multiple Invariants conflict triggers BLOCK (Hard Governance)."""
     db_path = tmp_path / "test_calibration.db"
@@ -41,6 +44,7 @@ def test_scoped_invariant_override(tmp_path):
     res = report.resolutions["db"]
     assert "CONSTITUTIONAL CONFLICT" in res.reason
 
+
 def test_parent_vs_child_decision(tmp_path):
     """VERIFY: Child scope decision beats parent scope decision (Additive Scoring)."""
     db_path = tmp_path / "test_calibration.db"
@@ -59,6 +63,7 @@ def test_parent_vs_child_decision(tmp_path):
     res = report.resolutions["logger"]
     assert "Plain logger" in res.winner_content
     assert "Scoped refinement wins" in res.reason
+
 
 def test_confidence_margin(tmp_path):
     """VERIFY: Confidence reflects the margin between candidates."""
