@@ -1,7 +1,8 @@
 import os
 import subprocess
 import sys
-from typing import Optional, Sequence
+from collections.abc import Sequence
+from typing import Optional
 
 # Fail-Fast Doctrine Invariants (v1.2.2)
 # NO OPERATION MAY BLOCK > 1 SECOND WITHOUT EXPLICIT USER CONSENT
@@ -64,7 +65,7 @@ def is_stdin_ready(timeout: float = FAST_TIMEOUT) -> bool:
             return False
 
 
-def read_stdin_fail_fast(timeout: float = FAST_TIMEOUT) -> Optional[str]:
+def read_stdin_fail_fast(timeout: float = FAST_TIMEOUT) -> str | None:
     """
     Reads from STDIN only if data is immediately available or appears within timeout.
     Uses threading on Windows to avoid blocking the main thread.

@@ -248,7 +248,7 @@ def _seed_bootstrap_memories(root_path: Path, project_name: str) -> bool:
 
     # 2. Seed/Relink bootstrap facts
     seeded_count = 0
-    for uid, _content in BOOTSTRAP_FACTS:
+    for _uid, _content in BOOTSTRAP_FACTS:
         api.learn(
             uid=project_name,
             content=_content,
