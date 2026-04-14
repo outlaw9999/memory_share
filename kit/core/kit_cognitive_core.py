@@ -72,6 +72,9 @@ class SAMBrain:
     AMBIGUITY_THRESHOLD = 0.2
     HIGH_CONFIDENCE_THRESHOLD = 0.5
 
+    # ECL v1: Kernel Context
+    active_frame: Optional[Any] = None # Will hold ExecutionFrame from kernel_fsm
+
     def __init__(self, db_path: Path, root_path: Path | None = None) -> None:
         self.db_path = db_path
         self.root_path = root_path or self._resolve_root(db_path.parent)
@@ -432,7 +435,14 @@ class SAMBrain:
             clean_metadata = sanitize_global_metadata(metadata or {})
         else:
             normalized_scope = scope if scope is not None else self.get_normalized_scope()
-            clean_metadata = metadata or {}
+            clean_metadata = (metadata or {}).copy()
+
+        # ECL v1: Authorize and Inject Frame Traceability
+        from kit.core.kernel_fsm import StateMutationContract
+        frame_id = StateMutationContract.authorize_mutation(self.active_frame)
+        clean_metadata["_kernel_frame"] = frame_id
+        if self.active_frame and hasattr(self.active_frame, "session_id"):
+             clean_metadata["_kernel_session"] = self.active_frame.session_id
 
         # 🔥 CHUẨN HÓA TAG TRƯỚC KHI VÀO LÒ LUYỆN (Zero-Trust Boundary)
         normalized_tag = str(tag).strip().lower()
@@ -626,8 +636,14 @@ class SAMBrain:
         query: str | None = None,
         with_global: bool = False,
         fast: bool = False,
-    ) -> list[Memory]:
-        """Ranked recall with support for symbol anchoring."""
+        include_profile: bool = False,
+    ) -> tuple[list[Memory], dict[str, float] | None]:
+        """Ranked recall with support for symbol anchoring and stage profiling."""
+        import time
+        from kit.core.kit_cognitive_core import Memory
+
+        profile = {"sql": 0.0, "ranking": 0.0, "hydration": 0.0, "total": 0.0} if include_profile else None
+        start_total = time.perf_counter()
         memories: list[Memory] = []
         candidate_limit = max(limit * 5, limit)
 
@@ -638,52 +654,38 @@ class SAMBrain:
             p = f"{prefix}." if prefix else ""
             current_scope = self.get_normalized_scope() if here else ""
 
-            # Symbol clause for WHERE and ORDER BY
+            # ... (Existing logic for where clauses)
             symbol_where_clause = "OR o.symbol = ?" if symbol else ""
-
-            # Ambient filter logic (sub-folders inherit memory)
             scope_filter_clause = ""
             scopes = []
             if here:
-                # Find all parent scopes (e.g., src/auth/jwt -> [src/auth/jwt, src/auth, src, ''])
                 parts = current_scope.split("/") if current_scope else []
                 scopes = ["/".join(parts[:i]) for i in range(len(parts) + 1)]
                 scope_placeholders = ",".join(["?"] * len(scopes))
                 scope_filter_clause = f"(o.scope IN ({scope_placeholders}) OR o.scope = '')"
 
-            # Query filter logic (Explicit FTS)
             query_filter_clause = ""
             if query:
                 query_filter_clause = (
                     f"o.id IN (SELECT rowid FROM {p}observations_fts WHERE {p}observations_fts MATCH ?)"
                 )
 
-            # Entity filter logic (Hybrid UID or FTS)
             entity_filter_clause = ""
             if entities:
                 placeholders = ",".join(["?"] * len(entities))
                 uid_clause = f"n.uid IN ({placeholders})"
-
-                # Also treat entities as FTS search terms if no specific query is provided
                 if not query:
                     entity_filter_clause = f"({uid_clause} OR o.id IN (SELECT rowid FROM {p}observations_fts WHERE {p}observations_fts MATCH ?))"
                 else:
                     entity_filter_clause = uid_clause
 
-            # Combine WHERE clauses
             where_clauses: list[str] = []
-            if entity_filter_clause:
-                where_clauses.append(entity_filter_clause)
-            if scope_filter_clause:
-                where_clauses.append(scope_filter_clause)
-            if query_filter_clause:
-                where_clauses.append(query_filter_clause)
-            if symbol_where_clause:
-                where_clauses.append(f"(1=0 {symbol_where_clause})")
-
+            if entity_filter_clause: where_clauses.append(entity_filter_clause)
+            if scope_filter_clause: where_clauses.append(scope_filter_clause)
+            if query_filter_clause: where_clauses.append(query_filter_clause)
+            if symbol_where_clause: where_clauses.append(f"(1=0 {symbol_where_clause})")
             final_where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
 
-            # Base Query
             sql = f"""
             SELECT o.*, n.uid as node_uid
             FROM {p}observations o
@@ -691,30 +693,27 @@ class SAMBrain:
             WHERE {final_where_clause}
               AND (o.branch = ?)
               AND o.is_active = 1
-            ORDER BY 
-                o.materialized_score DESC,
-                o.created_at DESC
+            ORDER BY o.materialized_score DESC, o.created_at DESC
             LIMIT ?
             """
-
-            # Parameters must follow the exact clause order in final_where_clause:
-            # entity filter -> scope filter -> symbol filter -> branch -> limit.
             where_params: list[str] = []
             if entities:
                 where_params.extend([e.lower() for e in entities])
-                if not query:
-                    where_params.append(" OR ".join(self._fts_literal(e) for e in entities))
-            if here:
-                where_params.extend(scopes)
-            if query:
-                where_params.append(query)
-            if symbol:
-                where_params.append(symbol)
-
+                if not query: where_params.append(" OR ".join(self._fts_literal(e) for e in entities))
+            if here: where_params.extend(scopes)
+            if query: where_params.append(query)
+            if symbol: where_params.append(symbol)
             all_params: list[Any] = where_params + [self.current_branch, candidate_limit]
 
+            # !!! STAGE 1: SQL EXECTION
+            s_sql = time.perf_counter()
             cur = conn.execute(sql, all_params)
-            for row in cur.fetchall():
+            rows = cur.fetchall()
+            if profile is not None: profile["sql"] += (time.perf_counter() - s_sql)
+
+            # !!! STAGE 2: HYDRATION & INITIAL RANKING
+            for row in rows:
+                s_hyd = time.perf_counter()
                 memory = Memory(
                     id=row["id"],
                     node_uid=row["node_uid"],
@@ -733,24 +732,25 @@ class SAMBrain:
                     supersedes_id=row["supersedes_id"],
                     materialized_score=row["materialized_score"],
                 )
-                memories.append(
-                    replace(
+                if profile is not None: profile["hydration"] += (time.perf_counter() - s_hyd)
+
+                s_rank = time.perf_counter()
+                scored_memory = replace(
+                    memory,
+                    score=self.calculate_runtime_score(
                         memory,
-                        score=self.calculate_runtime_score(
-                            memory,
-                            current_scope=current_scope,
-                            symbol=symbol,
-                            agent_id=agent_id,
-                            source_priority=priority,
-                        ),
-                    )
+                        current_scope=current_scope,
+                        symbol=symbol,
+                        agent_id=agent_id,
+                        source_priority=priority,
+                    ),
                 )
+                if profile is not None: profile["ranking"] += (time.perf_counter() - s_rank)
+                memories.append(scored_memory)
 
         with self._get_connection() as conn:
-            # Phase 1: Local Context First
             _recall_from(conn, priority=1.5, source="project")
 
-        # Phase 2: Global Awareness (Separate query to avoid FTS ATTACH issues)
         if with_global and self.global_db_path:
             try:
                 if self.global_db_path.exists():
@@ -759,9 +759,16 @@ class SAMBrain:
             except sqlite3.Error as e:
                 logger.warning(f"Global Brain recall failed: {e}")
 
-        # Sort combined results: Tag Priority first, then Score
+        # !!! STAGE 3: FINAL SORTING
+        s_sort = time.perf_counter()
         memories.sort(key=lambda x: (self.TAG_PRIORITY.get(x.tag, 0), x.score, x.created_at), reverse=True)
-        return memories[:limit]
+        final_memories = memories[:limit]
+        if profile is not None: profile["ranking"] += (time.perf_counter() - s_sort)
+
+        if profile is not None: 
+            profile["total"] = time.perf_counter() - start_total
+
+        return final_memories, profile
 
     def recall_with_assessment(
         self,

@@ -9,10 +9,13 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from kit.core import kit_env # ECL v2: Runtime Shield
+from kit.core.kit_baking import trigger_async_bake # v1.2.3-STABLE Async Bake
 
 from kit.core.file_system import EncodingError, read_text_safe
 from kit.core.kit_decision import Action, decide
 from kit.core.kit_platform import DEFAULT_TIMEOUT, FAST_TIMEOUT, GIT_TIMEOUT, read_stdin_fail_fast, run_safe
+from kit.core.kit_replay_tracer import tracer
 
 BOOTSTRAP_SENTINEL = ".kit/bootstrap_v1_2_4.seed"
 CLI_VERSION = "v1.2.4-TITANIUM"
@@ -271,7 +274,38 @@ def _seed_bootstrap_memories(root_path: Path, project_name: str) -> bool:
     return False
 
 
+def _normalize_signal(s):
+    if isinstance(s, dict):
+        return s
+
+    if isinstance(s, (list, tuple)):
+        return {
+            "uid": s[0] if len(s) > 0 else None,
+            "source": s[1] if len(s) > 1 else None,
+            "line": s[2] if len(s) > 2 else 0,
+            "tag": s[3] if len(s) > 3 else None,
+        }
+
+    # fallback safety
+    return {
+        "uid": str(s),
+        "source": "unknown",
+        "line": 0,
+        "tag": None,
+    }
+
+
 def main() -> None:
+    # --- ECL v2: Runtime Shield Warning ---
+    substrate = kit_env.get_substrate_report()
+    if not substrate["is_locked"]:
+        # Only warn on commands that mutate or analyze deeply
+        # Skip warning for stats/help/init to avoid friction
+        if len(sys.argv) > 1 and sys.argv[1] not in ["stats", "status", "init", "--help", "-h"]:
+             print(f"\033[93m[RUNTIME WARNING] Drift detected. Interpreter is NOT the project .venv.\033[0m", file=sys.stderr)
+             print(f"  Current: {substrate['interpreter']}", file=sys.stderr)
+             print(f"  Target:  {substrate['venv_discovered']}\n", file=sys.stderr)
+
     _configure_console_encoding()
 
     if len(sys.argv) == 1:
@@ -342,6 +376,7 @@ def main() -> None:
     recall_p.add_argument("--query", help="Keyword search within recalled context")
     recall_p.add_argument("--with-global", action="store_true", help="Include Global Brain facts in recall")
     recall_p.add_argument("--fast", action="store_true", help="Fast mode (skip heavy ranking)")
+    recall_p.add_argument("--profile", action="store_true", help="Show recall performance breakdown (v1.2.4-EXPERIMENTAL)")
 
     context_p = subparsers.add_parser("context", help="Alias for recall --here (Project context awareness)")
     context_p.add_argument("--limit", type=int, default=15)
@@ -351,6 +386,7 @@ def main() -> None:
     context_p.add_argument("--query", help="Keyword search within context")
     context_p.add_argument("--with-global", action="store_true", help="Include Global Brain facts in recall")
     context_p.add_argument("--fast", action="store_true", help="Fast mode (skip heavy ranking)")
+    context_p.add_argument("--profile", action="store_true", help="Show recall performance breakdown (v1.2.4-EXPERIMENTAL)")
 
     reflect_p = subparsers.add_parser("reflect", help="Cognitive awareness: detect gaps and drift in diff")
     reflect_p.add_argument("file", nargs="?", help="File to reflect on (or use staged changes)")
@@ -376,6 +412,7 @@ def main() -> None:
 
     stats_p = subparsers.add_parser("stats", aliases=["status"], help="Show AI Kernel statistics (Hybrid)")
     stats_p.add_argument("--verbose", "-v", action="store_true", help="Show detailed system info and Vantage handshake")
+    stats_p.add_argument("--status", action="store_true", help="Alias for verbose status report")
 
     bump_p = subparsers.add_parser("bump", help="Reinforce a memory (increment access count)")
     bump_p.add_argument("id", type=int, help="Observation ID")
@@ -469,6 +506,11 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    tracer.log_command({
+        "cmd": args.command,
+        "args": vars(args)
+    })
+
     if args.command == "init" and getattr(args, "force", False):
         _reset_managed_onboarding_files(Path.cwd(), lambda _msg: None)
 
@@ -521,8 +563,15 @@ def main() -> None:
 
         elif args.command == "learn":
             import json as json_lib
+            from functools import partial
+            from kit.core.kernel_engine import DeterministicKernel
+            from kit.core.kernel_fsm import ExecutionFrame
 
             observations: list[dict[str, Any]] = []
+            
+            # Initialize Deterministic Kernel for this session
+            kernel = DeterministicKernel(session_id=os.getenv("KIT_SESSION_ID"))
+            kernel.bind_brain(api.get_brain())
 
             if args.file:
                 file_path = Path(args.file)
@@ -593,19 +642,15 @@ def main() -> None:
 
                     # --- Cognitive Friction ---
                     if _cognitive_guardrail(content, tag):
-                        # (Omitted diagnostic prints for brevity in batch mode if desired, but keeping them for now)
                         if not args.file:
                             print("\n" + "!" * 60, file=sys.stderr)
                             print("COGNITIVE FRICTION WARNING: DYNAMIC DATA DETECTED", file=sys.stderr)
-                            # ... (rest of warning) ...
 
                     # --- v1.2.3 Auto-Routing ---
                     if getattr(args, "auto", False):
                         from kit.cli import auto_route
-
                         res = auto_route.route_content(content)
                         status = res["status"]
-
                         if status == "BLOCK":
                             print_diagnostic(f"[{i}/{total_obs}] FIREWALL: Secret detected. Entry BLOCKED.")
                             continue
@@ -615,11 +660,12 @@ def main() -> None:
                         if status == "SKIP":
                             print_diagnostic(f"[{i}/{total_obs}] IDEMPOTENCY: Duplicate detected. Entry SKIPPED.")
                             continue
-
                         struct_hash = res["hash"]
                         to_global = res["route"] == "GLOBAL"
-
-                    fact_id = api.get_brain().learn(
+                    
+                    # ECL v1: Wrap in Frame
+                    action_call = partial(
+                        api.get_brain().learn,
                         uid=uid,
                         kind=kind,
                         content=content,
@@ -635,23 +681,31 @@ def main() -> None:
                         tag=tag,
                         skip_render=args.no_render,
                     )
+                    
+                    frame = ExecutionFrame(
+                        action=action_call,
+                        command=f"kit.api:learn(uid='{uid}', tag='{tag}')"
+                    )
+                    kernel.submit(frame)
                     success_count += 1
-
-                    if total_obs > 1:
-                        if i % 100 == 0 or i == total_obs:
-                            print_diagnostic(f"Progress: {i}/{total_obs} ingested...")
-                    else:
-                        target = "Global" if to_global else "Project"
-                        print_diagnostic(f"Learned: [{uid}] -> {target} Brain (ID: {fact_id})")
 
                 except Exception as e:
                     print_diagnostic(f"Error at index {i}: {e}")
                     continue
 
+            # 🔥 BURN: Execute Governing Kernel
+            kernel_success = kernel.run()
+            if not kernel_success:
+                 print_diagnostic("[Kernel] Execution partially failed.")
+                 sys.exit(1)
+
             if total_obs > 1:
-                print_diagnostic(
-                    f"\nCOMPLETED: {success_count}/{total_obs} observations successfully 'breathed' into memory."
-                )
+                print_diagnostic(f"\nCOMPLETED: {success_count}/{total_obs} observations successfully ingested.")
+            else:
+                print_diagnostic(f"Learned: [{uid}] successfully ingested via Deterministic Kernel.")
+
+            # v1.2.3-STABLE: Trigger background graduation (Bake)
+            trigger_async_bake(api.get_brain())
 
         elif args.command == "search":
             is_fast = getattr(args, "fast", False)
@@ -672,7 +726,8 @@ def main() -> None:
 
             is_here = getattr(args, "here", False) or args.command == "context"
             is_fast = getattr(args, "fast", False)
-            memories = api.recall(
+            is_prof = getattr(args, "profile", False)
+            memories, profile = api.recall(
                 entities,
                 limit=args.limit,
                 at=args.at,
@@ -682,6 +737,7 @@ def main() -> None:
                 query=args.query,
                 with_global=args.with_global,
                 fast=args.fast or (args.query is not None),
+                include_profile=is_prof,
             )
 
             if is_tty:
@@ -696,6 +752,13 @@ def main() -> None:
                     print(
                         f"* {source_tag}[ID:{m.id}][{m.node_uid}][{m.layer}:{m.namespace}][{m.created_at}][{m.importance:.1f}] {m.content}"
                     )
+
+            if is_prof and profile:
+                print_diagnostic("\nRECALL PROFILE:")
+                print_diagnostic(f"  * SQL Query:    {profile['sql']*1000:6.2f}ms")
+                print_diagnostic(f"  * Hydration:    {profile['hydration']*1000:6.2f}ms")
+                print_diagnostic(f"  * Ranking:      {profile['ranking']*1000:6.2f}ms")
+                print_diagnostic(f"  * Total:        {profile['total']*1000:6.2f}ms")
 
         elif args.command == "bump":
             if api.touch(args.id):
@@ -712,63 +775,50 @@ def main() -> None:
             print_diagnostic(f"Linked: {args.src} --({args.rel})--> {args.dst}")
 
         elif args.command in ("stats", "status"):
+            from kit.core import rmil # MEC v2: Neural Priming status
+            substrate = kit_env.get_substrate_report()
+            rmil_status = rmil.get_rmil_status()
             stats = api.get_brain().get_stats()
             brain = api.get_brain()
+            
+            # Auto-verbose if --status flag used (v1.2.4-LOCK ergonomics)
+            is_verbose = args.verbose or (hasattr(args, "status") and args.status)
 
-            # --- Substrate Reporting ---
-            py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-            is_ft = " (Free-threading)" if hasattr(sys, "_is_gil_enabled") and not sys._is_gil_enabled() else ""
-            in_venv = hasattr(sys, 'real_prefix') or (sys.base_prefix != sys.prefix)
-            venv_status = "active" if in_venv else "missing"
+            print(f"KIT STATUS ({CLI_VERSION})")
+            print(f"\n[Environment]")
+            print(f"  Substrate: {substrate['interpreter']}")
+            print(f"  Locked:    {'✅ YES' if substrate['is_locked'] else '⚠️ NO (Drift Detected!)'}")
+            print(f"  Venv:      {substrate['venv_discovered']}")
+            
+            if is_verbose:
+                print(f"  Vantage:   {substrate['vantage_bin']}")
+                print(f"  Prefix:    {substrate['prefix']}")
+                print(f"  RMIL Lat:  {rmil_status['latency_ms']:.2f}ms")
 
-            # --- Governance (Vantage) Reporting ---
-            # Generalization: Use env or standard relative path
-            vantage_base = Path(os.getenv("VANTAGE_HOME", r"E:\DEV\opensource_contrib\Vantage"))
-            vantage_bin = vantage_base / "target" / "release" / "vantage.exe"
-            v_status = "present" if vantage_bin.exists() else "missing"
-
-            # Seal Status
-            seal_file = brain.root_path / "VANTAGE.SEAL"
-            if seal_file.exists() and seal_file.stat().st_size > 0:
-                seal_status = "SEALED"
-            else:
-                seal_status = "UNSEALED"
-
-            # --- Memory Stats Refinement ---
-            project_stats = stats.get("project", {})
-            total_obs = project_stats.get("observations", 0)
-            baked_obs = project_stats.get("baked", 0)
-            baked_ratio = (baked_obs / total_obs * 100) if total_obs > 0 else 100.0
-
-            print(f"KIT STATUS ({CLI_VERSION})\n")
-
-            print("[Environment]")
-            print(f"  Substrate: Python {py_ver}{is_ft} [{sys.platform}]")
-            print(f"  Venv:      {venv_status}")
-            print(f"  Vantage:   {v_status}")
-            print(f"  Seal:      {seal_status}")
-
-            if args.verbose and v_status == "present":
-                try:
-                    res = run_safe([str(vantage_bin), "--version"], timeout=2)
-                    if res.returncode == 0:
-                        print(f"  Vantage CLI: {res.stdout.strip()}")
-                except Exception as e:
-                    print(f"  Vantage CLI error: {e}")
-
-            print("\n[Memory]")
+            print(f"\n[Memory]")
             for scope in ["project", "global"]:
                 data = stats.get(scope, {})
                 nodes = data.get("nodes", 0)
                 obs = data.get("observations", 0)
                 skills = data.get("skills", 0)
                 print(f"  {scope.capitalize()} Brain (nodes: {nodes}, observations: {obs}, skills: {skills})")
+            
+            # RMIL Working Memory Report
+            if rmil_status["loaded"]:
+                print(f"  Working:   {len(rmil_status['skills'])} skills, {len(rmil_status['facts'])} facts (Neural Primed)")
 
-            print("\n[Execution Boundary]")
-            print(f"  Baked Ratio: {baked_ratio:.1f}% ({baked_obs}/{total_obs})")
-            print(f"  Skills (L3): {stats.get('project', {}).get('skills', 0)}")
-            print("  Status:      STABLE" if baked_ratio > 90 else "  Status:      STABILIZING")
+            # Calculate bake ratio for the project brain
+            p_data = stats.get("project", {})
+            t_obs = p_data.get("observations", 0)
+            b_obs = p_data.get("baked", 0)
+            ratio = (b_obs / t_obs * 100) if t_obs > 0 else 100.0
+
+            print(f"\n[Execution Boundary]")
+            print(f"  Baked Ratio: {ratio:.1f}% ({b_obs}/{t_obs})")
+            print(f"  Skills (L3): {p_data.get('skills', 0)}")
+            print("  Status:      STABLE" if ratio > 90 else "  Status:      STABILIZING")
             print("")
+            sys.exit(0)
 
         elif args.command == "compile":
             path = Path(args.file)
@@ -1008,7 +1058,14 @@ def main() -> None:
             )
 
             # v1.2.4 Decision Discipline: Seal the Judge (L3)
-            decision = decide(result.get("signals", []))
+            raw_signals = result.get("signals", [])
+            signals = [_normalize_signal(s) for s in raw_signals]
+            for s in signals:
+                tracer.log_signal({"phase": "pre", "signal": s})
+            result["signals"] = signals # normalize within the structure
+            decision = decide(signals)
+            for s in signals:
+                tracer.log_signal({"phase": "post", "signal": s})
             final_status = decision["action"]
             exit_code = decision["exit_code"]
 
@@ -1034,10 +1091,9 @@ def main() -> None:
                 if signals:
                     print(f"\nSignals detected ({len(signals)}):")
                     for s in signals:
-                        # Handle both Signal objects and dicts from API
-                        uid = s.get("uid") if isinstance(s, dict) else getattr(s, "uid", "Unknown")
-                        src = s.get("source") if isinstance(s, dict) else getattr(s, "source", "core")
-                        line = s.get("line") if isinstance(s, dict) else getattr(s, "line", 0)
+                        uid = s.get("uid", "Unknown")
+                        src = s.get("source", "core")
+                        line = s.get("line", 0)
                         print(f"  - [{uid}] {src} (line {line})")
 
                 if result.get("suggestions"):
@@ -1046,12 +1102,12 @@ def main() -> None:
                         print(f"  - {s}")
 
             mode = args.mode
-            sys.exit(0)
 
             if mode == "advisory" and final_status == Action.BLOCK:
                 print_diagnostic("System is in ADVISORY mode: Block bypassed.")
+                sys.exit(0)
 
-            sys.exit(0)
+            sys.exit(exit_code)
 
         elif args.command == "bake":
             # v1.2.4-LOCK: Explicit structural graduation pass.

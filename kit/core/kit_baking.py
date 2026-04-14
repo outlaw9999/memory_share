@@ -9,6 +9,8 @@ State machine:
                                                      \\-> is_baked=-1 (Toxic: unanalyzable)
 """
 import logging
+import threading
+from typing import Any
 
 from kit.core.kit_cognitive_core import SAMBrain
 
@@ -112,6 +114,27 @@ def run_baking_pass(brain: SAMBrain, timeout: int = 10) -> dict:
         f"baked={stats['baked']} skipped={stats['skipped']} toxic={stats['toxic']}"
     )
     return stats
+
+
+# --- Async Bake Worker (v1.2.3-STABLE) ---
+_BAKE_LOCK = threading.Lock()
+
+def trigger_async_bake(brain: SAMBrain, timeout: int = 5) -> None:
+    """
+    Launch a background pass to graduate observations.
+    Non-blocking: returns immediately.
+    """
+    def _worker():
+        # Prevent multiple concurrent bake passes in the same process
+        if not _BAKE_LOCK.acquire(blocking=False):
+            return
+        try:
+            run_baking_pass(brain, timeout=timeout)
+        finally:
+            _BAKE_LOCK.release()
+
+    thread = threading.Thread(target=_worker, daemon=True)
+    thread.start()
 
 
 def _mark_observation(brain: SAMBrain, obs_id: int, is_baked: int) -> None:

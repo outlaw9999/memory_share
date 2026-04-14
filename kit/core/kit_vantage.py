@@ -4,12 +4,13 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from kit.core import kit_env
 from kit.models.signal import Signal
 
 logger = logging.getLogger("kit.vantage")
 
-# Path to the Vantage binary - determined at runtime or via environment
-VANTAGE_BIN = Path(r"E:\DEV\opensource_contrib\Vantage\target\release\vantage.exe")
+# v1.2.4-TITANIUM: Unified Binary Discovery
+VANTAGE_BIN = kit_env.get_vantage_bin()
 
 
 def invoke_vantage(path: Path, timeout: int = 10, strict: bool = False) -> list[Signal]:
@@ -17,8 +18,8 @@ def invoke_vantage(path: Path, timeout: int = 10, strict: bool = False) -> list[
     Invoke the Vantage AST Sensor (Rust) and map its output to standardized Signals.
     Implementation of Phase B 'Neural Wiring' (v1.2.4-TITANIUM).
     """
-    if not VANTAGE_BIN.exists():
-        msg = f"Vantage binary not found at {VANTAGE_BIN}"
+    if not VANTAGE_BIN or not VANTAGE_BIN.exists():
+        msg = f"Vantage binary missing. Please set VANTAGE_HOME or install to project root."
         if strict:
             raise RuntimeError(msg)
         logger.error(msg)

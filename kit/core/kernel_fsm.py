@@ -10,10 +10,12 @@ ExecutionState = Literal["queued", "running", "success", "failed", "rolled_back"
 class ExecutionFrame:
     """
     The atomic unit of execution in the KIT Deterministic Kernel.
-    Encapsulates command, state, and results for a single operation.
+    Encapsulates command (or internal action), state, and results.
     """
-    command: str
+    command: Optional[str] = None
+    action: Optional[Any] = None # For internal Python calls (ECL v1)
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    session_id: Optional[str] = None
     rollback_command: Optional[str] = None
     state: ExecutionState = "queued"
     retry_count: int = 0
@@ -39,9 +41,9 @@ class ExecutionContract:
     ALLOWED_TRANSITIONS: Dict[str, List[ExecutionState]] = {
         "queued": ["running"],
         "running": ["success", "failed"],
-        "failed": ["queued", "rolled_back"], # 'queued' for retry, 'rolled_back' if terminal
-        "success": ["rolled_back"],         # Success can be rolled back if later steps fail
-        "rolled_back": []                    # Terminal state
+        "failed": ["queued", "rolled_back"],
+        "success": ["rolled_back"],
+        "rolled_back": []
     }
 
     @staticmethod
@@ -51,8 +53,25 @@ class ExecutionContract:
 
     @staticmethod
     def validate_frame(frame: ExecutionFrame):
-        if not frame.command.strip():
-            raise ValueError("ExecutionFrame command cannot be empty or whitespace.")
+        if not frame.command and not frame.action:
+            raise ValueError("ExecutionFrame must have either a command or an internal action.")
+
+class StateMutationContract:
+    """
+    ECL v1: Deterministic State Mutation Contract.
+    Ensures every mutation to SAMBrain is governed by a Frame.
+    """
+    @staticmethod
+    def authorize_mutation(frame: Optional[ExecutionFrame]):
+        if frame is None:
+            # v1.2.4 Mode: Allow but Logan telemetry as 'UNGOVERNED'
+            # (In v2.0 TITANIUM, this will raise an error)
+            return "UNGOVERNED"
+        
+        if frame.state != "running":
+            raise RuntimeError(f"Mutation unauthorized: Frame {frame.id} is in state '{frame.state}', not 'running'.")
+        
+        return frame.id
 
 class ExecutionQueue:
     """

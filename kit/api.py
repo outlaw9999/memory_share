@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from kit.core.kit_cognitive_core import RankingAssessment, SAMBrain, SAMBrainError
+from kit.core.rmil import warmup_memory # RMIL v1.0
 
 # v1.2.4-LOCK: Vantage is external-binary-only; called from kit_baking, NOT from learn().
 
@@ -11,6 +12,8 @@ from kit.core.kit_cognitive_core import RankingAssessment, SAMBrain, SAMBrainErr
 # This file is the primary entry point for community forks and IDE integrations.
 
 _brain_instance: SAMBrain | None = None
+
+from kit.core.kit_replay_tracer import traced
 
 
 def resolve_paths(force_local: bool = False, mode: str = "auto") -> tuple[Path, Path, Path]:
@@ -84,6 +87,10 @@ def init_kernel(db_path: Path | None = None, mode: str = "auto") -> None:
     target_project_db = db_path if db_path else project_db
     _brain_instance = SAMBrain(target_project_db, root_path=root_path)
     _brain_instance.attach_global(global_db)
+    
+    # --- RMIL v1.0: Warmup working memory ---
+    from kit import api
+    warmup_memory(api)
 
 
 def get_brain() -> SAMBrain:
@@ -95,6 +102,7 @@ def get_brain() -> SAMBrain:
 
 
 # @epistemic: learn
+@traced("api.learn")
 def learn(
     content: str,
     tag: str = "decision",
@@ -142,15 +150,49 @@ def learn(
     )
 
 
+import functools
+
+@functools.lru_cache(maxsize=32)
+def _cached_search(query: str, limit: int, at: str | None, agent_id: str | None, fast: bool) -> list[Any]:
+    return get_brain().search(query, limit, at_timestamp=at, agent_id=agent_id, fast=fast)
+
 # @epistemic: search
+@traced("api.search")
 def search(
     query: str, limit: int = 15, at: str | None = None, agent_id: str | None = None, fast: bool = False
 ) -> list[Any]:
-    """Hybrid FTS Search."""
-    return get_brain().search(query, limit, at_timestamp=at, agent_id=agent_id, fast=fast)
+    """Hybrid FTS Search with LRU Cache (v1.2.3-STABLE)."""
+    return _cached_search(query, limit, at, agent_id, fast)
 
+
+@functools.lru_cache(maxsize=32)
+def _cached_recall(
+    entities_t: tuple[str, ...],
+    limit: int,
+    at: str | None,
+    agent_id: str | None,
+    here: bool,
+    symbol: str | None,
+    query: str | None,
+    with_global: bool,
+    fast: bool,
+    include_profile: bool,
+) -> tuple[list[Any], dict[str, float] | None]:
+    return get_brain().recall(
+        list(entities_t),
+        limit,
+        at=at,
+        agent_id=agent_id,
+        here=here,
+        symbol=symbol,
+        query=query,
+        with_global=with_global,
+        fast=fast,
+        include_profile=include_profile,
+    )
 
 # @epistemic: recall
+@traced("api.recall")
 def recall(
     entities: list[str],
     limit: int = 15,
@@ -161,19 +203,24 @@ def recall(
     query: str | None = None,
     with_global: bool = False,
     fast: bool = False,
-) -> list[Any]:
-    """Ranked recall context awareness."""
-    return get_brain().recall(
-        entities,
+    include_profile: bool = False,
+) -> list[Any] | tuple[list[Any], dict[str, float] | None]:
+    """Ranked recall context awareness with LRU Cache (v1.2.3-STABLE)."""
+    memories, profile = _cached_recall(
+        tuple(entities),
         limit,
-        at=at,
-        agent_id=agent_id,
-        here=here,
-        symbol=symbol,
-        query=query,
-        with_global=with_global,
-        fast=fast,
+        at,
+        agent_id,
+        here,
+        symbol,
+        query,
+        with_global,
+        fast,
+        include_profile
     )
+    if include_profile:
+        return memories, profile
+    return memories
 
 
 def recall_with_assessment(
@@ -241,6 +288,7 @@ def preflight_check(commit_msg: str, strict: bool = False, diff_text: str | None
 
 
 # @epistemic: reflect_check
+@traced("api.reflect_check")
 def reflect_check(
     diff_text: str | None = None,
     scope: str | None = None,

@@ -13,6 +13,7 @@ class DeterministicKernel:
     def __init__(self, session_id: Optional[str] = None):
         self.queue = ExecutionQueue()
         self.session_id = session_id or str(hash(time.time()))
+        self.brain: Optional[Any] = None # Will hold SAMBrain instance
         
         # Idempotency Lock: Commands that succeeded in this session
         self._idempotency_set: Set[str] = set()
@@ -20,7 +21,11 @@ class DeterministicKernel:
         # Mapping of Frame ID to Frame for lookup
         self._frame_index: Dict[str, ExecutionFrame] = {}
 
+    def bind_brain(self, brain: Any):
+        self.brain = brain
+
     def submit(self, frame: ExecutionFrame):
+        frame.session_id = self.session_id
         self.queue.push(frame)
         self._frame_index[frame.id] = frame
 
@@ -47,6 +52,11 @@ class DeterministicKernel:
             # 2. Transition to Running
             ExecutionContract.validate_transition(frame.state, "running")
             frame.update_state("running")
+            
+            # ECL v1: Bind frame to brain context for side-effect tracking
+            if self.brain:
+                self.brain.active_frame = frame
+                
             print(f"  [Kernel] Running Frame: {frame.command[:50]}...")
 
             # 3. Execution
@@ -78,6 +88,16 @@ class DeterministicKernel:
 
     def _execute_frame(self, frame: ExecutionFrame) -> bool:
         try:
+            # ECL v1: Handle Internal Actions (Python)
+            if frame.action:
+                result = frame.action()
+                # Action should return True/False or a result object with .returncode
+                if hasattr(result, "returncode"):
+                     frame.return_code = result.returncode
+                     return result.returncode == 0
+                return bool(result)
+
+            # Standard Shell Execution
             # Note: We use shell=True for complex Windows commands/pip logic
             result = subprocess.run(
                 frame.command,
@@ -90,8 +110,15 @@ class DeterministicKernel:
             frame.stdout = result.stdout
             frame.stderr = result.stderr
             frame.return_code = result.returncode
+            
+            # ECL v1: Clear context after primary execution
+            if self.brain:
+                self.brain.active_frame = None
+                
             return result.returncode == 0
         except Exception as e:
+            if self.brain:
+                self.brain.active_frame = None
             frame.stderr = str(e)
             frame.return_code = -1
             return False
