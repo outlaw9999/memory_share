@@ -87,22 +87,46 @@ def execute_skill(skill: dict[str, Any], dry_run: bool = False) -> bool:
         print("[kit] Execution cancelled.")
         return False
 
-    # 3. Execution Phase
+    # 3. Execution Phase (v1.2.4 Deterministic Kernel)
+    from kit.core.kernel_fsm import ExecutionFrame
+    from kit.core.kernel_engine import DeterministicKernel
+
     # Set depth for subprocesses
     os.environ[DEPTH_ENV_VAR] = str(current_depth + 1)
 
-    try:
-        for cmd in commands:
-            print(f"\n[kit] Running: {cmd}")
-            # Use shell=True to support the full command string defined in YAML
-            result = subprocess.run(cmd, shell=True)
+    kernel = DeterministicKernel(session_id=f"session-{name}")
 
-            if result.returncode != 0:
-                print(f"\n[kit] ERROR: Step failed with exit code {result.returncode}")
-                return False
+    # Map reified commands back to frames
+    for i, cmd in enumerate(commands):
+        # We try to get rollback_command if defined in the original step
+        # Note: step indices match commands indices if we skip empties correctly
+        # But it's safer to just iterate workflow and reify again or store them
+        
+        # Finding the original step for rollback info
+        # (This is a bit naive but works for the current linear structure)
+        original_step = {}
+        target_raw = cmd
+        for s in workflow:
+             if s.get("command", "").strip() in cmd: # Reification check
+                 original_step = s
+                 break
+        
+        frame = ExecutionFrame(
+            command=cmd,
+            rollback_command=original_step.get("rollback"),
+            max_retries=int(original_step.get("retries", 3))
+        )
+        kernel.submit(frame)
+
+    try:
+        success = kernel.run()
     finally:
         # Restore depth (though process usually exits)
         os.environ[DEPTH_ENV_VAR] = str(current_depth)
 
-    print(f"\n[kit] Skill '{name}' executed successfully.")
-    return True
+    if success:
+        print(f"\n[kit] Skill '{name}' executed successfully.")
+    else:
+        print(f"\n[kit] Skill '{name}' FAILED or ROLLED BACK.")
+    
+    return success
