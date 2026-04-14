@@ -1,10 +1,11 @@
-from enum import Enum
-from kit.models.signal import Signal
+from enum import StrEnum
 
-class Action(str, Enum):
+
+class Action(StrEnum):
     PASS = "PASS"
     WARN = "WARN"
     BLOCK = "BLOCK"
+
 
 def decide(signals: list) -> dict:
     """

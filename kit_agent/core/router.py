@@ -1,5 +1,4 @@
 import random
-from typing import Optional
 
 from kit_agent.core.metrics import MetricsPersistence, ModelMetrics
 

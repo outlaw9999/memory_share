@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS observations (
     metadata TEXT DEFAULT '{}',
     commit_id TEXT,
     is_active BOOLEAN DEFAULT 1,
+    is_baked BOOLEAN DEFAULT 0,
     supersedes_id INTEGER DEFAULT NULL,
     FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE,
     FOREIGN KEY (commit_id) REFERENCES commits(id),
@@ -296,6 +297,17 @@ def init_db(conn: sqlite3.Connection):
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_metrics_event ON metrics(event_type)")
+    except sqlite3.OperationalError:
+        pass
+
+    # v1.2.4-LOCK: Perception-Cognition split.
+    # is_baked=0: Raw Perception | is_baked=1: Verified Truth | is_baked=-1: Toxic/Unanalyzable
+    try:
+        conn.execute("ALTER TABLE observations ADD COLUMN is_baked INTEGER DEFAULT 0")
+        # Backfill: legacy observations are Trusted Legacy Truth.
+        conn.execute("UPDATE observations SET is_baked = 1 WHERE is_baked = 0")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_baked ON observations(is_baked)")
+        logger.info("Migrated: Added is_baked; backfilled legacy records as baked.")
     except sqlite3.OperationalError:
         pass
 

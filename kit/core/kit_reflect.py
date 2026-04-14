@@ -1,7 +1,9 @@
 import re
 import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 
+from kit.analysis.security_lens import apply_security_lens
 from kit.core.kit_cognitive_core import Memory, SAMBrain
 from kit.models.signal import Signal
 
@@ -101,55 +103,6 @@ def extract_signals(diff_text: str) -> list[str]:
     return sorted(list(signals))
 
 
-def detect_vulnerabilities(diff_text: str) -> list[Signal]:
-    """
-    v1.2.4: Detect high-impact vulnerability patterns (SQLi, etc).
-    Expanded Phase A Sensors: SQL_01, SQL_04, SQL_05, SQL_06.
-    Anchor-Aware: High confidence if @epistemic SQL_DYNAMIC is present.
-    """
-    signals: list[Signal] = []
-    lines = diff_text.splitlines()
-
-    # Anchor-Aware Detection (The Architect's Insight)
-    is_anchor_aware = "@epistemic SQL_DYNAMIC" in diff_text
-    base_confidence = "high" if is_anchor_aware else "medium"
-
-    # Refined v1.2.4 TITANIUM Sensors (Phase A: 11/12 target)
-    patterns = [
-        # SQL_01: f-string interpolation
-        re.compile(r"(?i)(SELECT|INSERT|UPDATE|DELETE).*{.*}"),
-        # SQL_04: String Concatenation (+)
-        re.compile(r"(?i)(SELECT|INSERT|UPDATE|DELETE).*\"\s*\+\s*\w+"),
-        # SQL_05: .format() usage
-        re.compile(r"(?i)(SELECT|INSERT|UPDATE|DELETE).*\.format\s*\("),
-        # SQL_06: Percent (%) formatting
-        re.compile(r"(?i)(SELECT|INSERT|UPDATE|DELETE).*%\s*\w+"),
-    ]
-
-    for i, line in enumerate(lines):
-        if line.startswith("-"):
-            continue
-        clean_line = line.lstrip("+").strip()
-
-        for pattern in patterns:
-            if pattern.search(clean_line):
-                signals.append(
-                    Signal(
-                        uid="sql.interpolation",
-                        kind="vulnerability",
-                        tag="sensor",
-                        content=f"Detected potential SQL injection pattern: {clean_line}",
-                        importance=1.0,
-                        confidence=base_confidence,
-                        line=i + 1,
-                        source="regex_vulnerability_sensor"
-                    )
-                )
-                break  # Only one signal per line
-
-    return signals
-
-
 def calculate_adaptive_score(m: Memory, current_scope: str) -> float:
     """
     AMSB v1.1: Calculate pure 'Relevance' score (ignoring tag authority).
@@ -245,9 +198,9 @@ def resolve_cognitive_conflict(memories: list[Memory], current_scope: str, signa
 
 
 def run_reflect(
-    brain: SAMBrain, 
-    diff_text: str, 
-    scope: str | None = None, 
+    brain: SAMBrain,
+    diff_text: str,
+    scope: str | None = None,
     external_signals: list[Signal] | None = None,
     file_path: Path | None = None,
     deep: bool = False
@@ -258,36 +211,61 @@ def run_reflect(
     """
     report = ReflectReport()
     raw_signals = extract_signals(diff_text)
-    
-    # v1.2.4: Integrated Vulnerability Sensor
-    vulnerability_signals = detect_vulnerabilities(diff_text)
-    for v_sig in vulnerability_signals:
-        report.signals.append(v_sig)
 
-    # v1.2.4: Hybrid Activation Gate (Structural Sensing)
-    # Invoke Vantage if requested explicitly OR if Regex hit a vulnerability
-    if (deep or vulnerability_signals) and file_path:
+    # v1.2.4-SEMANTIC: Semantic Overlay Layer Activation (Physical + Cognitive)
+    # v1.2.4: Invoke Vantage (Physics) first to get Anchors, then apply Security Lens (Cognition)
+    if file_path and deep:
+        from kit.core.contract import normalize_vantage_signal
         from kit.core.kit_vantage import invoke_vantage
-        v_deep_signals = invoke_vantage(file_path)
-        
+
+        # 1. Structural Fingerprinting (Drift Detection & Persistence)
+        v_deep_signals = invoke_vantage(file_path, strict=False)
+
         for d_sig in v_deep_signals:
-            # MEC v1: Compare with Brain for Structural Drift
             old_hash = brain.lookup_hash(d_sig.symbol)
-            
+
             if old_hash is None:
-                # GAP: New structural symbol found
-                d_sig.uid = "GAP:STRUCTURAL"
-                d_sig.evidence = f"New structural anchor: {d_sig.symbol}"
+                # GAP: New structural symbol found -> Persist as Identity Anchor via Contract
+                norm = normalize_vantage_signal({
+                    "type": d_sig.uid.split(":")[-1],
+                    "id": d_sig.symbol,
+                    "normalized_hash": d_sig.structural_hash,
+                    "uuid": d_sig.evidence
+                })
+
+                brain.learn(
+                    uid=norm["uid"],
+                    content=norm["content"],
+                    tag=norm["tag"],
+                    kind=norm["kind"],
+                    importance=norm["importance"],
+                    symbol=d_sig.symbol,
+                    structural_hash=d_sig.structural_hash,
+                    metadata=norm["metadata"]
+                )
                 report.signals.append(d_sig)
             elif old_hash != d_sig.structural_hash:
                 # DRIFT: AST-level structural variation detected
                 d_sig.uid = "DRIFT:STRUCTURAL"
-                d_sig.confidence = "high"
-                d_sig.evidence = f"Structural drift detected for {d_sig.symbol}"
+                # We don't automatically 'learn' drift during reflect to prevent auto-baseline churn,
+                # we just report the violation of the historical invariant.
                 report.signals.append(d_sig)
             else:
-                # INTEGRITY: Structural fingerprint matches
                 report.confirmations.append(f"STRUCTURAL:{d_sig.symbol}")
+
+        # 2. Semantic Risk Detection (Security Lens & Semi-Persistence)
+        semantic_signals = apply_security_lens(file_path, v_deep_signals)
+        for s_sig in semantic_signals:
+            # v1.2.4: Risk Logging with 'friction' tag for longitudinal tracking
+            brain.learn(
+                uid=f"risk:{s_sig.uid}",
+                content=s_sig.evidence or s_sig.uid,
+                tag="friction",
+                symbol=s_sig.symbol,
+                importance=0.5,
+                scope=scope or brain.get_normalized_scope(file_path)
+            )
+            report.signals.append(s_sig)
 
     if external_signals:
         for sig in external_signals:
@@ -374,7 +352,7 @@ def run_reflect(
         # P0: Fix False Sense Reporting - If any smell/signal exists, score can NEVER be 1.0
         # This is the "Safety Math" mandated by the Architect.
         report.score = 0.6
-        
+
         # Determine status (legacy field, will be superseded by kit_decision)
         has_high = any(s.confidence == "high" for s in report.signals)
         if has_high:

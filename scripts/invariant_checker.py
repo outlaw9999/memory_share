@@ -1,7 +1,6 @@
 # scripts/invariant_checker.py
 # v1.2.3 Invariant and Corruption Auditor
 
-import os
 import sqlite3
 from pathlib import Path
 

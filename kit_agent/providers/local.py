@@ -4,7 +4,7 @@ from typing import Any
 
 import requests
 from requests import Response
-from requests.exceptions import ConnectionError, RequestException, Timeout
+from requests.exceptions import RequestException, Timeout
 
 from kit_agent.providers.base import BaseProvider
 

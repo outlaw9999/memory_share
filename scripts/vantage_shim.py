@@ -1,4 +1,3 @@
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -8,40 +7,37 @@ def main():
     # AMSB v1.2.3 - The Vantage Protocol Shim (Python version)
     # Delegates 'kit vantage ...' to the Vantage CLI binary
     
-    # Define paths (matching the .bat file logic)
     vantage_base = Path(r"E:\DEV\opensource_contrib\Vantage")
     vantage_exe_release = vantage_base / "target" / "release" / "vantage.exe"
-    vantage_verify_release = vantage_base / "target" / "release" / "vantage-verify.exe"
     vantage_exe_debug = vantage_base / "target" / "debug" / "vantage.exe"
-    vantage_verify_debug = vantage_base / "target" / "debug" / "vantage-verify.exe"
-
+    
     args = sys.argv[1:]
     
-    if len(args) > 0 and args[0] == "verify":
-        # Handle verification mode
-        if vantage_verify_release.exists():
-            cmd = str(vantage_verify_release)
-        elif vantage_verify_debug.exists():
-            cmd = str(vantage_verify_debug)
-        else:
-            print("[kit-vantage] Error: Vantage-verify binary not found.")
-            print(f"Please build it: cd {vantage_base / 'cli'} & cargo build --release")
-            sys.exit(1)
-        
-        # Shift args for verify (first arg was 'verify')
-        run_args = [cmd] + args[1:]
+    # Handle command routing
+    if vantage_exe_release.exists():
+        engine = str(vantage_exe_release)
+    elif vantage_exe_debug.exists():
+        engine = str(vantage_exe_debug)
     else:
-        # Handle normal mode
-        if vantage_exe_release.exists():
-            cmd = str(vantage_exe_release)
-        elif vantage_exe_debug.exists():
-            cmd = str(vantage_exe_debug)
+        print("[kit-vantage] Error: Vantage binary not found.")
+        print(f"Please build it: cd {vantage_base / 'cli'} & cargo build --release")
+        sys.exit(1)
+
+    if args and args[0] == "verify":
+        # Check if legacy split binary exists
+        v_verify_release = vantage_base / "target" / "release" / "vantage-verify.exe"
+        v_verify_debug = vantage_base / "target" / "debug" / "vantage-verify.exe"
+        
+        if v_verify_release.exists():
+            run_args = [str(v_verify_release)] + args[1:]
+        elif v_verify_debug.exists():
+            run_args = [str(v_verify_debug)] + args[1:]
         else:
-            print("[kit-vantage] Error: Vantage binary not found.")
-            print(f"Please build it: cd {vantage_base / 'cli'} & cargo build --release")
-            sys.exit(1)
-            
-        run_args = [cmd] + args
+            # v1.2.4-LOCK: New unified binary handles 'verify' command directly
+            run_args = [engine] + args
+    else:
+        # Standard engine command
+        run_args = [engine] + args
 
     try:
         result = subprocess.run(run_args)

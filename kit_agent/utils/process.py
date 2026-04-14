@@ -1,5 +1,4 @@
 import subprocess
-from typing import Optional
 
 from kit.core.kit_platform import DEFAULT_TIMEOUT
 

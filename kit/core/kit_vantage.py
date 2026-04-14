@@ -1,6 +1,7 @@
 import json
 import logging
 import subprocess
+import tempfile
 from pathlib import Path
 
 from kit.models.signal import Signal
@@ -8,20 +9,27 @@ from kit.models.signal import Signal
 logger = logging.getLogger("kit.vantage")
 
 # Path to the Vantage binary - determined at runtime or via environment
-VANTAGE_BIN = Path(r"E:\DEV\opensource_contrib\Vantage\target\release\vantage-verify.exe")
+VANTAGE_BIN = Path(r"E:\DEV\opensource_contrib\Vantage\target\release\vantage.exe")
 
 
-def invoke_vantage(path: Path, timeout: int = 10) -> list[Signal]:
+def invoke_vantage(path: Path, timeout: int = 10, strict: bool = False) -> list[Signal]:
     """
     Invoke the Vantage AST Sensor (Rust) and map its output to standardized Signals.
     Implementation of Phase B 'Neural Wiring' (v1.2.4-TITANIUM).
     """
+    if not VANTAGE_BIN.exists():
+        msg = f"Vantage binary not found at {VANTAGE_BIN}"
+        if strict:
+            raise RuntimeError(msg)
+        logger.error(msg)
+        return []
+
     if not path.exists():
         logger.error(f"Vantage invocation failed: Path not found {path}")
         return []
 
-    cmd = [str(VANTAGE_BIN), str(path), "--json"]
-    
+    cmd = [str(VANTAGE_BIN), "verify", str(path), "--json"]
+
     try:
         # v1.2.4: Fast-failure with strict timeout to prevent IDE/CLI hang
         result = subprocess.run(
@@ -31,7 +39,7 @@ def invoke_vantage(path: Path, timeout: int = 10) -> list[Signal]:
             timeout=timeout,
             check=False
         )
-        
+
         if result.returncode != 0:
             logger.warning(f"Vantage returned non-zero status ({result.returncode}) for {path.name}")
             return []
@@ -40,7 +48,7 @@ def invoke_vantage(path: Path, timeout: int = 10) -> list[Signal]:
             return []
 
         data = json.loads(result.stdout)
-        
+
         signals = []
         for v_sig in data.get("signals", []):
             # Mapping Identity (UUID) and Fingerprint (Normalized Hash)
@@ -49,14 +57,14 @@ def invoke_vantage(path: Path, timeout: int = 10) -> list[Signal]:
                 Signal(
                     uid=f"STRUCTURAL:{v_sig['type'].upper()}",
                     confidence="high",
-                    line=0,  # Vantage currently returns 0-indexed or block-level targets
+                    line=v_sig.get("line", 0),
                     source="vantage",
                     evidence=v_sig.get("id"),  # Store UUID as evidence for L3 reasoning
                     symbol=v_sig.get("id"),     # Identity
-                    structural_hash=v_sig.get("normalized_hash") # AST-stable fingerprint
+                    structural_hash=v_sig.get("norm_hash")  # AST-stable fingerprint
                 )
             )
-        
+
         return signals
 
     except subprocess.TimeoutExpired:
@@ -68,6 +76,33 @@ def invoke_vantage(path: Path, timeout: int = 10) -> list[Signal]:
     except Exception as e:
         logger.exception(f"Unexpected error during Vantage invocation: {e}")
         return []
+
+
+def invoke_vantage_on_text(code: str, suffix: str = ".py", timeout: int = 5, strict: bool = False) -> list[Signal]:
+    """
+    Analyzes raw code text by writing to a temporary shadow file and invoking Vantage.
+    Critical for 'learn' flow enrichment where code might not be on disk yet.
+    """
+    try:
+        # Normalize line endings to LF before sending to Vantage to ensure consistent hashing
+        normalized_code = code.replace("\r\n", "\n")
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False, encoding="utf-8") as tmp:
+            tmp.write(normalized_code)
+            tmp_name = tmp.name
+
+        tmp_path = Path(tmp_name)
+        try:
+            return invoke_vantage(tmp_path, timeout=timeout, strict=strict)
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+    except Exception as e:
+        if strict:
+            raise
+        logger.error(f"Failed to analyze text via Vantage: {e}")
+        return []
+
 
 if __name__ == "__main__":
     # Internal diagnostic mode

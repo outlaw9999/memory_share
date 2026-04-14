@@ -5,6 +5,8 @@ from typing import Any
 
 from kit.core.kit_cognitive_core import RankingAssessment, SAMBrain, SAMBrainError
 
+# v1.2.4-LOCK: Vantage is external-binary-only; called from kit_baking, NOT from learn().
+
 # --- Stable API Boundary Definitions ---
 # This file is the primary entry point for community forks and IDE integrations.
 
@@ -110,14 +112,18 @@ def learn(
     structural_hash: str | None = None,
     skip_render: bool = False,
 ) -> int:
-    """Learn a fact with optional symbol anchoring and cognitive metadata."""
+    """
+    Learn a fact. v1.2.4-LOCK: Pure O(1) write. No Vantage. No structural analysis.
+    Structural graduation happens via `kit bake` (explicit baking pass) or `kit reflect`.
+    """
+    brain = get_brain()
     meta = {"source": "cli", "actor": "human", "agent": "antigravity"}
     if metadata:
         meta.update(metadata)
 
     resolved_uid = uid if uid else str(uuid.uuid4())
 
-    return get_brain().learn(
+    return brain.learn(
         uid=resolved_uid,
         content=content,
         tag=tag,
@@ -193,11 +199,6 @@ def recall_with_assessment(
     )
 
 
-def export_prompt(entities: list[str], limit: int = 10, budget: int = 1000) -> str:
-    """Renders memory for LLM."""
-    return get_brain().export_for_prompt(entities, limit, budget)
-
-
 # @epistemic: link
 def link(src: str, dst: str, rel: str, weight: float = 1.0, metadata: dict[str, Any] | None = None) -> None:
     """Create a semantic link."""
@@ -241,8 +242,8 @@ def preflight_check(commit_msg: str, strict: bool = False, diff_text: str | None
 
 # @epistemic: reflect_check
 def reflect_check(
-    diff_text: str | None = None, 
-    scope: str | None = None, 
+    diff_text: str | None = None,
+    scope: str | None = None,
     external_signals: list[Any] | None = None,
     file_path: Path | None = None,
     deep: bool = False
@@ -265,9 +266,9 @@ def reflect_check(
             diff_text = ""
 
     report = run_reflect(
-        get_brain(), 
-        diff_text, 
-        scope=scope, 
+        get_brain(),
+        diff_text,
+        scope=scope,
         external_signals=external_signals,
         file_path=file_path,
         deep=deep
@@ -296,11 +297,44 @@ def reflect_check(
     }
 
 
-def reflect(diff_text: str, scope: str | None = None) -> Any:
-    """Run cognitive reflection on a code diff."""
-    from kit.core.kit_reflect import run_reflect
+# --- Procedural Skill Layer (L3) ---
 
-    return run_reflect(get_brain(), diff_text, scope)
+def list_procedural_skills() -> list[dict[str, Any]]:
+    """List all compiled YAML-based skills in the brain."""
+    from kit.skills.matcher import list_procedural_skills
+    return list_procedural_skills()
+
+
+def trigger_skill(message: str, dry_run: bool = False) -> bool:
+    """
+    Match an input message against procedural skill triggers and execute if matched.
+    """
+    from kit.skills.executor import execute_skill
+    from kit.skills.matcher import match_trigger
+
+    matches = match_trigger(message)
+    if not matches:
+        return False
+
+    # v0.1: We only handle the first match or top match for simplicity
+    # If multiple matches exist, we could prompt to choose, but v0.1 follows the keyword rule.
+    match = matches[0]
+    return execute_skill(match, dry_run=dry_run)
+
+
+def run_procedural_skill(name: str, dry_run: bool = False) -> bool:
+    """Directly execute a procedural skill by name."""
+    from kit.skills.executor import execute_skill
+    from kit.skills.matcher import list_procedural_skills
+
+    skills = list_procedural_skills()
+    target = next((s for s in skills if s.get("name") == name), None)
+
+    if not target:
+        print(f"[kit] ERROR: Procedural skill '{name}' not found.")
+        return False
+
+    return execute_skill(target, dry_run=dry_run)
 
 
 if __name__ == "__main__":

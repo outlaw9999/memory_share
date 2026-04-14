@@ -8,7 +8,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from kit.core.kit_invariants import InvariantViolationError, enforce_no_global_contamination, sanitize_global_metadata
+from kit.core.kit_invariants import enforce_no_global_contamination, sanitize_global_metadata
 from kit.core.schema_factory import enable_wal, init_db
 
 logger = logging.getLogger("kit.core")
@@ -179,9 +179,20 @@ class SAMBrain:
     def attach_global(self, global_db_path: Path) -> None:
         """Attach the global brain for unified queries."""
         self.global_db_path = global_db_path
-        # Initialize the global DB schema if it doesn't exist
         with self._get_connection(global_db_path) as gconn:
             init_db(gconn)
+        from kit.core.memory_router import MemoryRouter
+
+        self._router = MemoryRouter(self.root_path, self.db_path, global_db_path)
+
+    def get_workspace_id(self) -> str:
+        """Return current workspace identity."""
+        if hasattr(self, "_router"):
+            return self._router.workspace_id.id
+        from kit.core.memory_router import WorkspaceId
+
+        ws = WorkspaceId.compute(self.root_path)
+        return ws.id
 
     def _compute_materialized_score(self, importance: float, access_count: int, created_at: str | None = None) -> float:
         """
@@ -785,6 +796,8 @@ class SAMBrain:
                 "nodes": conn.execute(f"SELECT COUNT(*) FROM {p}nodes").fetchone()[0],
                 "edges": conn.execute(f"SELECT COUNT(*) FROM {p}edges").fetchone()[0],
                 "observations": conn.execute(f"SELECT COUNT(*) FROM {p}observations").fetchone()[0],
+                "baked": conn.execute(f"SELECT COUNT(*) FROM {p}observations WHERE is_baked = 1").fetchone()[0],
+                "skills": conn.execute(f"SELECT COUNT(*) FROM {p}nodes WHERE kind = 'skill'").fetchone()[0],
             }
 
         with self._get_connection() as conn:
@@ -802,7 +815,7 @@ class SAMBrain:
         """
         if not symbol:
             return None
-            
+
         with self._get_connection() as conn:
             # We look for the most recent active observation anchored to this symbol
             sql = """

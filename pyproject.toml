@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "memory-share-kit"
-version = "1.2.3.3.1"
+version = "1.2.4"
 description = "Deterministic memory and governance for developers and AI agents."
 readme = "AGENTS.md"
 requires-python = ">=3.14,<3.15"
@@ -23,7 +23,11 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-dependencies = ["requests>=2.31.0"]
+dependencies = [
+    "requests>=2.31.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0.0",
+]
 
 
 [project.scripts]

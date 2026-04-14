@@ -2,7 +2,6 @@ import os
 import subprocess
 import sys
 from collections.abc import Sequence
-from typing import Optional
 
 # Fail-Fast Doctrine Invariants (v1.2.3-ULTRA-GOLD)
 # NO OPERATION MAY BLOCK > 1 SECOND WITHOUT EXPLICIT USER CONSENT

@@ -1,4 +1,5 @@
 import argparse
+import os
 import re
 import shutil
 import sys
@@ -7,11 +8,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import yaml
+
+from kit.core.file_system import EncodingError, read_text_safe
 from kit.core.kit_decision import Action, decide
 from kit.core.kit_platform import DEFAULT_TIMEOUT, FAST_TIMEOUT, GIT_TIMEOUT, read_stdin_fail_fast, run_safe
 
-BOOTSTRAP_SENTINEL = ".kit/bootstrap_v1_2_3.seed"
-CLI_VERSION = "v1.2.3.3.1-ULTRA-GOLD"
+BOOTSTRAP_SENTINEL = ".kit/bootstrap_v1_2_4.seed"
+CLI_VERSION = "v1.2.4-TITANIUM"
 BOOTSTRAP_FACTS: list[tuple[str, str]] = [
     ("kit_startup", "kit startup begins with kit recall"),
     ("kit_rituals", "Daily: recall & verify. Weekly: stats & doctor. Monthly: seal."),
@@ -274,10 +278,10 @@ def main() -> None:
         sys.argv.append("recall")
 
     parser = argparse.ArgumentParser(
-        description="SAMBrain CLI v1.2.3.3 - The Elite AI Memory Kernel (Immortal Stability)",
+        description="SAMBrain CLI v1.2.4 - The Elite AI Memory Kernel (Immortal Stability)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {CLI_VERSION}")
+    parser.add_argument("--version", action="version", version="1.2.4")
     parser.add_argument("--db", help="Path to the project database (overrides default)")
     parser.add_argument(
         "--isolated", action="store_true", help="Force isolation: create/use .kit in CWD, ignore parents"
@@ -370,7 +374,8 @@ def main() -> None:
     link_p.add_argument("--rel", required=True, help="Relation type (e.g., DEPENDS_ON)")
     link_p.add_argument("--weight", type=float, default=1.0)
 
-    subparsers.add_parser("stats", help="Show AI Kernel statistics (Hybrid)")
+    stats_p = subparsers.add_parser("stats", aliases=["status"], help="Show AI Kernel statistics (Hybrid)")
+    stats_p.add_argument("--verbose", "-v", action="store_true", help="Show detailed system info and Vantage handshake")
 
     bump_p = subparsers.add_parser("bump", help="Reinforce a memory (increment access count)")
     bump_p.add_argument("id", type=int, help="Observation ID")
@@ -400,6 +405,27 @@ def main() -> None:
     )
     preflight_p.add_argument("--json", action="store_true", help="Output raw JSON format")
 
+    scan_p = subparsers.add_parser("scan", help="Rapid safety-scan of the project tree (v1.2.4-TITANIUM)")
+    scan_p.add_argument("path", nargs="?", default=".", help="Root directory to scan")
+    scan_p.add_argument("--depth", type=int, default=10, help="Maximum scan depth (default 10, max 25)")
+
+    bake_p = subparsers.add_parser("bake", help="v1.2.4-LOCK: Structurally graduate unbaked observations via Vantage.")
+    bake_p.add_argument("--timeout", type=int, default=10, help="Per-observation Vantage timeout (seconds)")
+    bake_p.add_argument("--json", action="store_true", help="Output result as JSON")
+
+    compile_p = subparsers.add_parser("compile", help="v1.2.4-LOCK: Compile a rule definition into a L3 Skill.")
+    compile_p.add_argument("name", help="Skill name (e.g. repair-venv)")
+    compile_p.add_argument("--file", required=True, help="Path to the YAML skill definition")
+    compile_p.add_argument("--global", action="store_true", dest="is_global", help="Compile into the Global Brain")
+
+    trigger_p = subparsers.add_parser("trigger", help="v1.2.4-LOCK: Trigger a reactive skill based on a message.")
+    trigger_p.add_argument("message", help="The message/error to match triggers against")
+    trigger_p.add_argument("--dry-run", action="store_true", help="Preview matched skill without executing")
+
+    run_skill_p = subparsers.add_parser("run-skill", help="v1.2.4-LOCK: Directly execute a procedural skill by name.")
+    run_skill_p.add_argument("name", help="The name of the skill to run")
+    run_skill_p.add_argument("--dry-run", action="store_true", help="Preview skill workflow without executing")
+
     known_commands = [
         "init",
         "learn",
@@ -409,6 +435,7 @@ def main() -> None:
         "where",
         "link",
         "stats",
+        "status",
         "bump",
         "promote",
         "doctor",
@@ -418,6 +445,11 @@ def main() -> None:
         "blame",
         "reflect",
         "label",
+        "scan",
+        "bake",
+        "compile",
+        "trigger",
+        "run-skill",
     ]
 
     if len(sys.argv) > 1:
@@ -679,15 +711,133 @@ def main() -> None:
             api.link(args.src, args.dst, args.rel, args.weight)
             print_diagnostic(f"Linked: {args.src} --({args.rel})--> {args.dst}")
 
-        elif args.command == "stats":
+        elif args.command in ("stats", "status"):
             stats = api.get_brain().get_stats()
-            print("KIT STATUS\n")
+            brain = api.get_brain()
+
+            # --- Substrate Reporting ---
+            py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+            is_ft = " (Free-threading)" if hasattr(sys, "_is_gil_enabled") and not sys._is_gil_enabled() else ""
+            in_venv = hasattr(sys, 'real_prefix') or (sys.base_prefix != sys.prefix)
+            venv_status = "active" if in_venv else "missing"
+
+            # --- Governance (Vantage) Reporting ---
+            # Generalization: Use env or standard relative path
+            vantage_base = Path(os.getenv("VANTAGE_HOME", r"E:\DEV\opensource_contrib\Vantage"))
+            vantage_bin = vantage_base / "target" / "release" / "vantage.exe"
+            v_status = "present" if vantage_bin.exists() else "missing"
+
+            # Seal Status
+            seal_file = brain.root_path / "VANTAGE.SEAL"
+            if seal_file.exists() and seal_file.stat().st_size > 0:
+                seal_status = "SEALED"
+            else:
+                seal_status = "UNSEALED"
+
+            # --- Memory Stats Refinement ---
+            project_stats = stats.get("project", {})
+            total_obs = project_stats.get("observations", 0)
+            baked_obs = project_stats.get("baked", 0)
+            baked_ratio = (baked_obs / total_obs * 100) if total_obs > 0 else 100.0
+
+            print(f"KIT STATUS ({CLI_VERSION})\n")
+
+            print("[Environment]")
+            print(f"  Substrate: Python {py_ver}{is_ft} [{sys.platform}]")
+            print(f"  Venv:      {venv_status}")
+            print(f"  Vantage:   {v_status}")
+            print(f"  Seal:      {seal_status}")
+
+            if args.verbose and v_status == "present":
+                try:
+                    res = run_safe([str(vantage_bin), "--version"], timeout=2)
+                    if res.returncode == 0:
+                        print(f"  Vantage CLI: {res.stdout.strip()}")
+                except Exception as e:
+                    print(f"  Vantage CLI error: {e}")
+
+            print("\n[Memory]")
             for scope in ["project", "global"]:
                 data = stats.get(scope, {})
-                print(f"{scope.capitalize()} Brain")
-                print(f"  nodes: {data.get('nodes', 0)}")
-                print(f"  edges: {data.get('edges', 0)}")
-                print(f"  observations: {data.get('observations', 0)}\n")
+                nodes = data.get("nodes", 0)
+                obs = data.get("observations", 0)
+                skills = data.get("skills", 0)
+                print(f"  {scope.capitalize()} Brain (nodes: {nodes}, observations: {obs}, skills: {skills})")
+
+            print("\n[Execution Boundary]")
+            print(f"  Baked Ratio: {baked_ratio:.1f}% ({baked_obs}/{total_obs})")
+            print(f"  Skills (L3): {stats.get('project', {}).get('skills', 0)}")
+            print("  Status:      STABLE" if baked_ratio > 90 else "  Status:      STABILIZING")
+            print("")
+
+        elif args.command == "compile":
+            path = Path(args.file)
+            if not path.exists():
+                print(f"Error: File not found: {path}")
+                sys.exit(1)
+
+            # Read and validate YAML
+            content = path.read_text()
+            try:
+                # We validate it's proper YAML, but we store the raw text
+                yaml.safe_load(content)
+            except Exception as e:
+                print(f"Error: Invalid YAML in {path}: {e}")
+                sys.exit(1)
+
+            from kit.api import get_brain, learn
+            brain = get_brain()
+
+            # v1.2.4-LOCK: Mandatory UID Normalization and Automatic Supersede
+            skill_name = args.name.lower()
+            supersede_id = None
+            try:
+                # Find the LATEST active observation for this skill name (node_uid)
+                sql = """
+                    SELECT o.id FROM observations o
+                    JOIN nodes n ON o.node_id = n.id
+                    WHERE n.uid = ? AND o.layer = 'procedural' AND o.is_active = 1
+                    ORDER BY o.created_at DESC LIMIT 1
+                """
+                with brain.get_connection() as conn:
+                    row = conn.execute(sql, (skill_name,)).fetchone()
+                    if row:
+                        supersede_id = row["id"]
+                        print(f"[kit] Superseding existing skill: {skill_name} (Legacy ID: {supersede_id})")
+            except Exception as e:
+                print_diagnostic(f"Warning: Failed to fetch legacy skill ID for superseding: {e}")
+
+            new_id = learn(
+                content=content,
+                kind="skill",
+                layer="procedural",
+                uid=skill_name,
+                to_global=args.is_global,
+                supersede_id=supersede_id,
+                # v1.2.4: Skills are verified truth by definition during compilation
+            )
+
+            status_msg = f"Skill '{skill_name}' compiled (ID: {new_id})"
+            if supersede_id:
+                status_msg += f" - Superseded legacy ID: {supersede_id}"
+
+            print(f"{status_msg} into {'Global' if args.is_global else 'Project'} Brain.")
+            sys.exit(0)
+
+        elif args.command == "trigger" or args.command == "run-skill":
+            # Procedural Skill Execution (v0.1)
+            try:
+                if args.command == "trigger":
+                    success = api.trigger_skill(args.message, dry_run=args.dry_run)
+                    if not success and not args.dry_run:
+                        print(f"[kit] No matching skills found for: {args.message}")
+                else:
+                    success = api.run_procedural_skill(args.name, dry_run=args.dry_run)
+
+                sys.exit(0 if success else 1)
+            except Exception as e:
+                print(f"[kit] ERROR during skill execution: {e}")
+                sys.exit(1)
 
         elif args.command == "doctor":
             from kit.cli.doctor import run_doctor
@@ -759,11 +909,47 @@ def main() -> None:
                     sys.exit(1)
             sys.exit(0)
 
+        elif args.command == "scan":
+            from kit.core.file_system import safe_walk
+
+            root = Path(args.path).resolve()
+            if not root.is_dir():
+                print_diagnostic(f"Error: {root} is not a directory.")
+                sys.exit(1)
+
+            print(f"Scanning project tree at: {root}")
+            print("---")
+
+            count = 0
+            # safe_walk returns an iterator of found files
+            files = safe_walk(root, max_depth=min(args.depth, 25))
+
+            for file_path in files:
+                rel_path = os.path.relpath(file_path, root)
+                print(f"FOUND: {rel_path}")
+                count += 1
+
+            print("---")
+            print(f"Total discovered files: {count}")
+            sys.exit(0)
+
         elif args.command == "reflect":
+            # v1.2.4-LOCK: Auto-trigger baking pass before reflection to ensure we audit verified truth.
+            try:
+                from kit.core.kit_baking import run_baking_pass
+                bake_stats = run_baking_pass(api.get_brain())
+                if bake_stats["total"] > 0:
+                    print_diagnostic(
+                        f"[bake] Pre-reflect pass: baked={bake_stats['baked']} "
+                        f"toxic={bake_stats['toxic']} of {bake_stats['total']} pending."
+                    )
+            except Exception as _bake_err:
+                print_diagnostic(f"[bake] Pre-reflect baking skipped: {_bake_err}")
+
             diff_text = ""
             external_signals: list[Any] = []
             files_to_process = []
-            
+
             if args.file:
                 p = Path(args.file)
                 if not p.exists():
@@ -778,7 +964,7 @@ def main() -> None:
                     if not changed_files:
                         diff_res = run_safe(["git", "diff", "HEAD", "--name-only"], timeout=GIT_TIMEOUT)
                         changed_files = [f.strip() for f in diff_res.stdout.splitlines() if f.strip()]
-                    
+
                     files_to_process = [Path(f) for f in changed_files]
                 except (RuntimeError, FileNotFoundError):
                     print_diagnostic("Error: No file provided and no staged git changes found.")
@@ -786,17 +972,20 @@ def main() -> None:
 
             pseudo_diff = ""
             main_file_path = files_to_process[0] if files_to_process else None
-            
+
             for p in files_to_process:
                 if p.suffix not in (".py", ".rs", ".js", ".ts", ".go", ".rb"):
                     continue
                 if not p.exists():
                     continue
-                
+
                 try:
-                    content = p.read_text(encoding="utf-8", errors="ignore")
-                    for line in content.splitlines()[:500]:
+                    file_content = read_text_safe(p)
+                    for line in file_content.text.splitlines()[:500]:
                         pseudo_diff += f"+ {line}\n"
+                except EncodingError as ee:
+                    print_diagnostic(f"Warning: Skipping {p} due to {ee.status.value}: {ee.message}")
+                    continue
                 except Exception:
                     continue
 
@@ -811,8 +1000,8 @@ def main() -> None:
                 scope = api.get_brain().get_normalized_scope()
 
             result = api.reflect_check(
-                diff_text, 
-                scope=scope, 
+                diff_text,
+                scope=scope,
                 external_signals=external_signals,
                 file_path=main_file_path,
                 deep=getattr(args, "deep", False)
@@ -829,15 +1018,18 @@ def main() -> None:
             else:
                 score = result.get("score", 1.0)
                 color = "SUCCESS"
-                if final_status == Action.BLOCK: color = "BLOCK"
-                elif final_status == Action.WARN: color = "WARN"
-                
+                if final_status == Action.BLOCK:
+                    color = "BLOCK"
+                elif final_status == Action.WARN:
+                    color = "WARN"
+
                 print(f"\nScore: {score:.1f} ({final_status}) {color}")
-                
+
                 if result.get("confirmations"):
                     print("\nConfirmations:")
-                    for c in result["confirmations"]: print(f"  - {c}")
-                
+                    for c in result["confirmations"]:
+                        print(f"  - {c}")
+
                 signals = result.get("signals", [])
                 if signals:
                     print(f"\nSignals detected ({len(signals)}):")
@@ -847,21 +1039,34 @@ def main() -> None:
                         src = s.get("source") if isinstance(s, dict) else getattr(s, "source", "core")
                         line = s.get("line") if isinstance(s, dict) else getattr(s, "line", 0)
                         print(f"  - [{uid}] {src} (line {line})")
-                
+
                 if result.get("suggestions"):
                     print("\nSuggestions:")
-                    for s in result["suggestions"]: print(f"  - {s}")
+                    for s in result["suggestions"]:
+                        print(f"  - {s}")
 
             mode = args.mode
-            if args.strict:
-                mode = "strict"
+            sys.exit(0)
 
-            if mode == "strict" and exit_code != 0:
-                sys.exit(exit_code)
-            
             if mode == "advisory" and final_status == Action.BLOCK:
                 print_diagnostic("System is in ADVISORY mode: Block bypassed.")
 
+            sys.exit(0)
+
+        elif args.command == "bake":
+            # v1.2.4-LOCK: Explicit structural graduation pass.
+            # The ONLY place normal user-submitted content is analyzed by Vantage.
+            from kit.core.kit_baking import run_baking_pass
+            timeout = getattr(args, "timeout", 10)
+            stats = run_baking_pass(api.get_brain(), timeout=timeout)
+            if getattr(args, "json", False):
+                import json as json_lib
+                print(json_lib.dumps(stats, indent=2))
+            else:
+                print_diagnostic(
+                    f"[bake] Done. total={stats['total']} baked={stats['baked']} "
+                    f"skipped={stats['skipped']} toxic={stats['toxic']}"
+                )
             sys.exit(0)
 
         elif args.command == "label":

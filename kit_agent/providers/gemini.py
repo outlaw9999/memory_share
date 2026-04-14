@@ -1,7 +1,6 @@
 import os
 import subprocess
-import time
-from typing import Any, Optional
+from typing import Any
 
 from kit_agent.providers.base import BaseProvider
 

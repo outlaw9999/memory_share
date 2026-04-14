@@ -22,26 +22,26 @@ def run_shadow_scan(filepath: str, root_path: Path):
         abs_path = Path(filepath)
         if not abs_path.is_absolute() and root_path:
             abs_path = root_path / filepath
-            
+
         if not abs_path.exists():
             return
 
         with open(abs_path, encoding='utf-8', errors='replace') as f:
             content = f.read()
-        
+
         now = datetime.datetime.now(datetime.UTC).isoformat() + "Z"
         log_path = root_path / ".kit" / "shadow.log"
-        
+
         # Ensure .kit exists
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         with open(log_path, 'a', encoding='utf-8') as log_file:
             for signal, pattern in SENSORS.items():
                 if re.search(pattern, content):
                     entry = {
-                        "type": signal, 
-                        "file": str(filepath), 
-                        "confidence": "low", 
+                        "type": signal,
+                        "file": str(filepath),
+                        "confidence": "low",
                         "timestamp": now
                     }
                     log_file.write(json.dumps(entry) + "\n")

@@ -2,6 +2,7 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
 
 from kit.core.kit_cognitive_core import SAMBrain
 from kit.guard.fast_guard import execute_l1_guard
@@ -88,13 +89,38 @@ def run_preflight(
     loc_changed = guard_res.loc_changed
     staged_files = guard_res.staged_files
 
-    # --- LAYER 2: Structural Analysis (Placeholder for L2 Sensors like Vantage) ---
-    # Shadow Signal Collection (Phase 0: Regex Sensors)
-    from kit.core.shadow import run_shadow_scan
+    # --- LAYER 2: Structural Analysis (Sensor Truth Injection) ---
+    from kit.core.kit_vantage import invoke_vantage
 
+    vantage_signals = []
+    vantage_available = True
     for f in staged_files:
-        if f != "<stdin>":
-            run_shadow_scan(f, brain.root_path)
+        if f != "<stdin>" and f.endswith((".py", ".rs", ".js", ".ts", ".rb", ".go")):
+            try:
+                # Use strict=False for degraded mode (Fail-Open/Warn)
+                signals = invoke_vantage(Path(f).absolute(), strict=False)
+                vantage_signals.extend(signals)
+            except Exception:
+                vantage_available = False
+
+    if not vantage_available:
+        result.score -= 0.1
+        result.issues.append({
+            "type": "sensor_degraded",
+            "message": "[WARN] Vantage structural sensor is unavailable. Scoring precision degraded."
+        })
+
+    # Integrate Vantage signals as soft weights
+    for sig in vantage_signals:
+        if sig.uid.startswith("STRUCTURAL:SECURITY_SMELL"):
+            result.score -= 0.3
+            result.issues.append({
+                "type": "structural_risk",
+                "message": f"[SOFT] Security smell detected in {sig.symbol or 'unknown'}"
+            })
+        elif sig.uid.startswith("STRUCTURAL:COMPLEXITY_SMELL"):
+            result.score -= 0.1
+            result.suggestions.append(f"Structural complexity detected in {sig.symbol}")
 
     # --- LAYER 3: Cognitive Governance ---
 
@@ -177,8 +203,6 @@ def run_preflight(
         result.suggestions.append("Consider updating AGENTS.md to reflect these architectural changes.")
 
     # 4. L4: Version Sync Check
-    from pathlib import Path
-
     arch_file = Path("ARCHITECTURE.md")
     if arch_file.exists():
         try:

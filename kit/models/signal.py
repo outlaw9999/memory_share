@@ -1,5 +1,7 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
-from typing import Literal, Optional
+
 
 class Signal(BaseModel):
     """
@@ -10,13 +12,14 @@ class Signal(BaseModel):
     confidence: Literal["low", "medium", "high"]
     line: int
     source: str = Field(..., description="The code snippet or tool causing the smell")
-    evidence: Optional[str] = None
-    
-    # v1.2.4: Structural Integration Fields
-    symbol: Optional[str] = Field(None, description="Universal ID for the symbol identity (UUID)")
-    structural_hash: Optional[str] = Field(None, description="AST-stable structural fingerprint (Normalized Hash)")
+    evidence: str | None = None
 
-class MEC_Payload(BaseModel):
+    # v1.2.4: Structural Integration Fields
+    symbol: str | None = Field(None, description="Universal ID for the symbol identity (UUID)")
+    structural_hash: str | None = Field(None, description="AST-stable structural fingerprint (Normalized Hash)")
+
+
+class MecPayload(BaseModel):
     """
     The atomic payload for L2 -> L3 transport.
     """

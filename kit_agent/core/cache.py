@@ -1,6 +1,5 @@
 import hashlib
 import time
-from typing import Optional
 
 
 class SemanticCache:

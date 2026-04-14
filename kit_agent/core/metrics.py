@@ -1,9 +1,8 @@
-import json
 import sqlite3
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Self
+from typing import Self
 
 
 @dataclass(frozen=True, slots=True)
