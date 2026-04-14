@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "version": "1.0",
+    "anchor_tag": "prune-anchor-v1",
+    "mode": "conservative",
+    "confidence_threshold": 0.95
+  },
+  "targets": {
+    "DEAD": [
+      "kit_agent",
+      "runtime",
+      "examples",
+      "plugins",
+      "kit/adapters",
+      "kit/context",
+      "kit/fs",
+      "kit/graph",
+      "kit/index",
+      "kit/interfaces",
+      "kit/llm",
+      "kit/planning",
+      "kit/query",
+      "kit/services"
+    ]
+  },
+  "rules": {
+    "require_git_diff_zero_external_imports": true,
+    "fail_if_any_hot_or_hazard_node_detected": true,
+    "dry_run_first": true,
+    "atomic_delete": true
+  }
+}
