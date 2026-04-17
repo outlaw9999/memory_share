@@ -3,14 +3,15 @@ import os
 import re
 import shutil
 import sys
+import subprocess
 import sysconfig
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import yaml
-from kit.core import kit_env # ECL v2: Runtime Shield
-from kit.core.kit_baking import trigger_async_bake # v1.2.3-STABLE Async Bake
+from kit.core import kit_env  # ECL v2: Runtime Shield
+from kit.core.kit_baking import trigger_async_bake  # v1.2.3-STABLE Async Bake
 
 from kit.core.file_system import EncodingError, read_text_safe
 from kit.core.kit_decision import Action, decide
@@ -27,6 +28,10 @@ BOOTSTRAP_FACTS: list[tuple[str, str]] = [
     ("arch_lighthouse", "AGENTS.md is the root lighthouse; .kit/ is the private cognitive vault."),
     ("arch_layers", "L1 (Fast Guard) -> L2 (Structural/Vantage) -> L3 (Cognitive/SQLite)."),
     ("token_law", "Minimize static docs. Use 'kit --help' for syntax and 'kit recall' for rituals."),
+    (
+        "execution_contract",
+        "CANONICAL ENTRYPOINT INVARIANT: All kit operations MUST route through 'python -m kit' or the installed 'kit' CLI. Direct module paths like 'kit.cli.main' are NOT supported.",
+    ),
 ]
 
 
@@ -295,16 +300,246 @@ def _normalize_signal(s):
     }
 
 
+FLOW_PREFIX_PRIORITY = {
+    "RUNTIME:": 100,
+    "RISK:": 90,
+    "VIOLATION:": 80,
+    "DRIFT:": 70,
+    "GAP:": 60,
+    "AMBIGUITY:": 50,
+    "STRUCTURAL:": 40,
+}
+FLOW_SEVERITY_WEIGHT = {
+    "high": 30,
+    "medium": 20,
+    "low": 10,
+}
+FLOW_EXACT_ACTIONS = {
+    "RUNTIME:INTERPRETER_MISMATCH": "run repair-python-venv",
+}
+FLOW_PREFIX_ACTIONS = {
+    "RISK:": "run scan",
+    "VIOLATION:": "run compile",
+    "DRIFT:": "run compile",
+    "GAP:": "run scan",
+    "STRUCTURAL:": "run scan",
+}
+FLOW_CONFIDENCE_VALUE = {
+    "high": 1.0,
+    "medium": 0.6,
+    "low": 0.3,
+}
+FLOW_REFLECT_SUFFIXES = {".py", ".rs", ".js", ".ts", ".go", ".rb"}
+FLOW_MIN_CONFIDENCE = 0.6
+FLOW_TOP_K = 3
+
+
+def _signal_confidence_value(raw_confidence: Any) -> float:
+    if isinstance(raw_confidence, (int, float)):
+        return max(0.0, min(float(raw_confidence), 1.0))
+    if isinstance(raw_confidence, str):
+        return FLOW_CONFIDENCE_VALUE.get(raw_confidence.lower(), 0.0)
+    return 0.0
+
+
+def _signal_priority(uid: str) -> int:
+    for prefix, score in FLOW_PREFIX_PRIORITY.items():
+        if uid.startswith(prefix):
+            return score
+    return 10
+
+
+def _flow_sort_key(signal: dict[str, Any]) -> tuple[int, int, int, str, str, str]:
+    uid = str(signal.get("uid", ""))
+    severity = str(signal.get("severity", ""))
+    confidence_score = int(_signal_confidence_value(signal.get("confidence")) * 10)
+    severity_score = FLOW_SEVERITY_WEIGHT.get(severity.lower(), 0)
+    return (
+        -_signal_priority(uid),
+        -severity_score,
+        -confidence_score,
+        uid,
+        str(signal.get("structural_hash") or ""),
+        str(signal.get("source") or ""),
+    )
+
+
+def _curate_flow_signals(raw_signals: list[Any], top_k: int = FLOW_TOP_K) -> list[dict[str, Any]]:
+    normalized = [_normalize_signal(s) for s in raw_signals]
+    filtered = [s for s in normalized if _signal_confidence_value(s.get("confidence")) >= FLOW_MIN_CONFIDENCE]
+    ordered = sorted(filtered, key=_flow_sort_key)
+
+    curated: list[dict[str, Any]] = []
+    seen_hashes: set[str] = set()
+    seen_fingerprints: set[tuple[str, str, int]] = set()
+
+    for signal in ordered:
+        structural_hash = signal.get("structural_hash")
+        if structural_hash:
+            structural_hash = str(structural_hash)
+            if structural_hash in seen_hashes:
+                continue
+            seen_hashes.add(structural_hash)
+
+        fingerprint = (
+            str(signal.get("uid", "")),
+            str(signal.get("source", "")),
+            int(signal.get("line", 0) or 0),
+        )
+        if fingerprint in seen_fingerprints:
+            continue
+        seen_fingerprints.add(fingerprint)
+
+        curated.append(signal)
+        if len(curated) >= top_k:
+            break
+
+    return curated
+
+
+def _runtime_signal_from_substrate(substrate: dict[str, Any], error: Exception | None = None) -> dict[str, Any] | None:
+    evidence: str | None = None
+    uid: str | None = None
+
+    if error and "interpreter mismatch" in str(error).lower():
+        uid = "RUNTIME:INTERPRETER_MISMATCH"
+        evidence = str(error)
+    elif not substrate.get("is_locked", True):
+        uid = "RUNTIME:INTERPRETER_MISMATCH"
+        evidence = (
+            "[RUNTIME LOCK] Interpreter mismatch (v1.2.4)\n"
+            f"Expected: {substrate.get('venv_discovered', 'missing')}\n"
+            f"Actual:   {substrate.get('interpreter', 'unknown')}"
+        )
+
+    if not uid:
+        return None
+
+    return {
+        "uid": uid,
+        "confidence": "high",
+        "severity": "high",
+        "line": 0,
+        "source": "runtime_shield",
+        "evidence": evidence,
+    }
+
+
+def _map_flow_action(uid: str) -> str | None:
+    exact_match = FLOW_EXACT_ACTIONS.get(uid)
+    if exact_match:
+        return exact_match
+
+    for prefix, action in FLOW_PREFIX_ACTIONS.items():
+        if uid.startswith(prefix):
+            return action
+
+    return None
+
+
+def _build_flow_suggestions(
+    curated_signals: list[dict[str, Any]],
+    fallback_suggestions: list[str] | None = None,
+    top_k: int = FLOW_TOP_K,
+) -> list[str]:
+    commands: list[str] = []
+    seen: set[str] = set()
+
+    for signal in curated_signals:
+        uid = str(signal.get("uid", ""))
+        action = _map_flow_action(uid)
+        if not action or action in seen:
+            continue
+        seen.add(action)
+        commands.append(action)
+        if len(commands) >= top_k:
+            return commands
+
+    for suggestion in fallback_suggestions or []:
+        suggestion = str(suggestion).strip()
+        if not suggestion or suggestion in seen:
+            continue
+        seen.add(suggestion)
+        commands.append(suggestion)
+        if len(commands) >= top_k:
+            break
+
+    return commands
+
+
+def _build_flow_reflect_payload() -> tuple[str, Path | None]:
+    changed_files: list[str] = []
+
+    for git_cmd in (["git", "diff", "--cached", "--name-only"], ["git", "diff", "HEAD", "--name-only"]):
+        try:
+            result = subprocess.run(
+                git_cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=GIT_TIMEOUT,
+                cwd=Path.cwd(),
+            )
+        except Exception:
+            continue
+
+        if result.returncode != 0 or not result.stdout:
+            continue
+
+        changed_files = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        if changed_files:
+            break
+
+    pseudo_diff_lines: list[str] = []
+    main_file_path: Path | None = None
+
+    for file_name in changed_files:
+        path = Path(file_name)
+        if path.suffix.lower() not in FLOW_REFLECT_SUFFIXES or not path.exists():
+            continue
+
+        if main_file_path is None:
+            main_file_path = path
+
+        try:
+            file_content = read_text_safe(path)
+        except EncodingError:
+            continue
+        except Exception:
+            continue
+
+        for line in file_content.text.splitlines()[:200]:
+            pseudo_diff_lines.append(f"+ {line}")
+
+        if len(pseudo_diff_lines) >= 600:
+            break
+
+    return "\n".join(pseudo_diff_lines), main_file_path
+
+
 def main() -> None:
-    # --- ECL v2: Runtime Shield Warning ---
+    # --- ECL v2: Runtime Shield Enforcer ---
     substrate = kit_env.get_substrate_report()
     if not substrate["is_locked"]:
-        # Only warn on commands that mutate or analyze deeply
-        # Skip warning for stats/help/init to avoid friction
-        if len(sys.argv) > 1 and sys.argv[1] not in ["stats", "status", "init", "--help", "-h"]:
-             print(f"\033[93m[RUNTIME WARNING] Drift detected. Interpreter is NOT the project .venv.\033[0m", file=sys.stderr)
-             print(f"  Current: {substrate['interpreter']}", file=sys.stderr)
-             print(f"  Target:  {substrate['venv_discovered']}\n", file=sys.stderr)
+        # Abort on commands that mutate or analyze deeply
+        # Skip abort for stats/help/init to avoid friction
+        if len(sys.argv) > 1 and sys.argv[1] not in [
+            "stats",
+            "status",
+            "init",
+            "--help",
+            "-h",
+            "seal",
+            "unseal",
+            "flow",
+        ]:
+            raise RuntimeError(
+                "[RUNTIME LOCK] Interpreter mismatch (v1.2.4)\n"
+                f"Expected: {substrate['venv_discovered']}\n"
+                f"Actual:   {substrate['interpreter']}\n"
+                "ABORTING execution."
+            )
 
     _configure_console_encoding()
 
@@ -376,7 +611,9 @@ def main() -> None:
     recall_p.add_argument("--query", help="Keyword search within recalled context")
     recall_p.add_argument("--with-global", action="store_true", help="Include Global Brain facts in recall")
     recall_p.add_argument("--fast", action="store_true", help="Fast mode (skip heavy ranking)")
-    recall_p.add_argument("--profile", action="store_true", help="Show recall performance breakdown (v1.2.4-EXPERIMENTAL)")
+    recall_p.add_argument(
+        "--profile", action="store_true", help="Show recall performance breakdown (v1.2.4-EXPERIMENTAL)"
+    )
 
     context_p = subparsers.add_parser("context", help="Alias for recall --here (Project context awareness)")
     context_p.add_argument("--limit", type=int, default=15)
@@ -386,7 +623,9 @@ def main() -> None:
     context_p.add_argument("--query", help="Keyword search within context")
     context_p.add_argument("--with-global", action="store_true", help="Include Global Brain facts in recall")
     context_p.add_argument("--fast", action="store_true", help="Fast mode (skip heavy ranking)")
-    context_p.add_argument("--profile", action="store_true", help="Show recall performance breakdown (v1.2.4-EXPERIMENTAL)")
+    context_p.add_argument(
+        "--profile", action="store_true", help="Show recall performance breakdown (v1.2.4-EXPERIMENTAL)"
+    )
 
     reflect_p = subparsers.add_parser("reflect", help="Cognitive awareness: detect gaps and drift in diff")
     reflect_p.add_argument("file", nargs="?", help="File to reflect on (or use staged changes)")
@@ -424,6 +663,12 @@ def main() -> None:
     doctor_p.add_argument("--mode", choices=["safe", "aggressive"], default="safe", help="Hygiene strictness level")
     doctor_p.add_argument("--check-agents", action="store_true", help="Run status check for AI agents")
     doctor_p.add_argument("--reset-cloud", action="store_true", help="Reset persisted cloud provider metrics")
+    doctor_p.add_argument("--fix-shell", action="store_true", help="Attempt to fix shell environment (e.g. aliases)")
+    doctor_p.add_argument(
+        "--migrate-memory", action="store_true", help="Migrate legacy brain.db/global.db to new naming convention"
+    )
+
+    subparsers.add_parser("boot", help="Run the fast cognitive startup ritual (recall + verify)")
 
     subparsers.add_parser("render", help="Force regenerate AI context files (.kit/context, AGENTS.md)")
 
@@ -450,9 +695,11 @@ def main() -> None:
     bake_p.add_argument("--timeout", type=int, default=10, help="Per-observation Vantage timeout (seconds)")
     bake_p.add_argument("--json", action="store_true", help="Output result as JSON")
 
-    compile_p = subparsers.add_parser("compile", help="v1.2.4-LOCK: Compile a rule definition into a L3 Skill.")
-    compile_p.add_argument("name", help="Skill name (e.g. repair-venv)")
-    compile_p.add_argument("--file", required=True, help="Path to the YAML skill definition")
+    compile_p = subparsers.add_parser(
+        "compile", help="v1.2.4-LOCK: Compile execution context or rule definition into L3 Skill."
+    )
+    compile_p.add_argument("name", nargs="?", help="Skill name (e.g. repair-venv)")
+    compile_p.add_argument("--file", help="Path to the YAML skill definition")
     compile_p.add_argument("--global", action="store_true", dest="is_global", help="Compile into the Global Brain")
 
     trigger_p = subparsers.add_parser("trigger", help="v1.2.4-LOCK: Trigger a reactive skill based on a message.")
@@ -462,6 +709,46 @@ def main() -> None:
     run_skill_p = subparsers.add_parser("run-skill", help="v1.2.4-LOCK: Directly execute a procedural skill by name.")
     run_skill_p.add_argument("name", help="The name of the skill to run")
     run_skill_p.add_argument("--dry-run", action="store_true", help="Preview skill workflow without executing")
+
+    seal_p = subparsers.add_parser(
+        "seal",
+        help="KHÓA HỆ THỐNG: Kích hoạt Phase C (Global ABI Lock)",
+        description=(
+            "Đóng băng vĩnh viễn (Read-Only) bộ nhớ Cognitive Brain ở tầng OS. "
+            "Mọi nỗ lực ghi sau lệnh này (như kit learn, kit bake) sẽ bị từ chối (Hard Fail). "
+            "Quy trình: Truncate WAL -> Scan Zombie -> Apply OS Lock -> Verify."
+        ),
+    )
+    seal_p.add_argument(
+        "--force-evict",
+        action="store_true",
+        help="Tự động tiêu diệt (kill) các Zombie Handles đang chiếm dụng DB thay vì chỉ cảnh báo.",
+    )
+
+    flow_p = subparsers.add_parser(
+        "flow",
+        help="Flow Surface: Unified interactive execution loop (ask/run/learn/status)",
+        description=(
+            "Kit Flow Surface: Mặt phẳng thực thi thống nhất. "
+            "Không cần nhớ nhiều lệnh — chỉ cần biết: ask, run, learn, status. "
+            "Hệ thống tự điều phối giữa các module nội bộ."
+        ),
+    )
+
+    unseal_p = subparsers.add_parser(
+        "unseal",
+        help="MỞ KHÓA HỆ THỐNG (Nguy hiểm): Gỡ bỏ Phase C Lock",
+        description="Gỡ bỏ cờ Read-Only ở tầng OS. Yêu cầu Cờ --force và Lý do (Audit Trail).",
+    )
+    unseal_p.add_argument(
+        "--force", action="store_true", required=True, help="BẮT BUỘC: Xác nhận phá vỡ tính bất biến của hệ thống."
+    )
+    unseal_p.add_argument(
+        "--reason",
+        type=str,
+        required=True,
+        help="BẮT BUỘC: Ghi nhận lý do mở khóa vào Audit Trail (VD: 'Nâng cấp L3 Skills').",
+    )
 
     known_commands = [
         "init",
@@ -481,12 +768,15 @@ def main() -> None:
         "preflight",
         "blame",
         "reflect",
-        "label",
         "scan",
         "bake",
         "compile",
         "trigger",
         "run-skill",
+        "boot",
+        "seal",
+        "unseal",
+        "flow",
     ]
 
     if len(sys.argv) > 1:
@@ -506,10 +796,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    tracer.log_command({
-        "cmd": args.command,
-        "args": vars(args)
-    })
+    tracer.log_command({"cmd": args.command, "args": vars(args)})
 
     if args.command == "init" and getattr(args, "force", False):
         _reset_managed_onboarding_files(Path.cwd(), lambda _msg: None)
@@ -568,7 +855,7 @@ def main() -> None:
             from kit.core.kernel_fsm import ExecutionFrame
 
             observations: list[dict[str, Any]] = []
-            
+
             # Initialize Deterministic Kernel for this session
             kernel = DeterministicKernel(session_id=os.getenv("KIT_SESSION_ID"))
             kernel.bind_brain(api.get_brain())
@@ -649,6 +936,7 @@ def main() -> None:
                     # --- v1.2.3 Auto-Routing ---
                     if getattr(args, "auto", False):
                         from kit.cli import auto_route
+
                         res = auto_route.route_content(content)
                         status = res["status"]
                         if status == "BLOCK":
@@ -662,7 +950,7 @@ def main() -> None:
                             continue
                         struct_hash = res["hash"]
                         to_global = res["route"] == "GLOBAL"
-                    
+
                     # ECL v1: Wrap in Frame
                     action_call = partial(
                         api.get_brain().learn,
@@ -681,11 +969,8 @@ def main() -> None:
                         tag=tag,
                         skip_render=args.no_render,
                     )
-                    
-                    frame = ExecutionFrame(
-                        action=action_call,
-                        command=f"kit.api:learn(uid='{uid}', tag='{tag}')"
-                    )
+
+                    frame = ExecutionFrame(action=action_call, command=f"kit.api:learn(uid='{uid}', tag='{tag}')")
                     kernel.submit(frame)
                     success_count += 1
 
@@ -696,8 +981,8 @@ def main() -> None:
             # 🔥 BURN: Execute Governing Kernel
             kernel_success = kernel.run()
             if not kernel_success:
-                 print_diagnostic("[Kernel] Execution partially failed.")
-                 sys.exit(1)
+                print_diagnostic("[Kernel] Execution partially failed.")
+                sys.exit(1)
 
             if total_obs > 1:
                 print_diagnostic(f"\nCOMPLETED: {success_count}/{total_obs} observations successfully ingested.")
@@ -727,7 +1012,7 @@ def main() -> None:
             is_here = getattr(args, "here", False) or args.command == "context"
             is_fast = getattr(args, "fast", False)
             is_prof = getattr(args, "profile", False)
-            memories, profile = api.recall(
+            recall_result = api.recall(
                 entities,
                 limit=args.limit,
                 at=args.at,
@@ -739,6 +1024,11 @@ def main() -> None:
                 fast=args.fast or (args.query is not None),
                 include_profile=is_prof,
             )
+            if is_prof:
+                memories, profile = recall_result
+            else:
+                memories = recall_result
+                profile = None
 
             if is_tty:
                 scope_str = f" [Scope: {api.get_brain().get_normalized_scope()}]" if is_here else ""
@@ -755,10 +1045,10 @@ def main() -> None:
 
             if is_prof and profile:
                 print_diagnostic("\nRECALL PROFILE:")
-                print_diagnostic(f"  * SQL Query:    {profile['sql']*1000:6.2f}ms")
-                print_diagnostic(f"  * Hydration:    {profile['hydration']*1000:6.2f}ms")
-                print_diagnostic(f"  * Ranking:      {profile['ranking']*1000:6.2f}ms")
-                print_diagnostic(f"  * Total:        {profile['total']*1000:6.2f}ms")
+                print_diagnostic(f"  * SQL Query:    {profile['sql'] * 1000:6.2f}ms")
+                print_diagnostic(f"  * Hydration:    {profile['hydration'] * 1000:6.2f}ms")
+                print_diagnostic(f"  * Ranking:      {profile['ranking'] * 1000:6.2f}ms")
+                print_diagnostic(f"  * Total:        {profile['total'] * 1000:6.2f}ms")
 
         elif args.command == "bump":
             if api.touch(args.id):
@@ -775,12 +1065,13 @@ def main() -> None:
             print_diagnostic(f"Linked: {args.src} --({args.rel})--> {args.dst}")
 
         elif args.command in ("stats", "status"):
-            from kit.core import rmil # MEC v2: Neural Priming status
+            from kit.core import rmil  # MEC v2: Neural Priming status
+
             substrate = kit_env.get_substrate_report()
             rmil_status = rmil.get_rmil_status()
             stats = api.get_brain().get_stats()
             brain = api.get_brain()
-            
+
             # Auto-verbose if --status flag used (v1.2.4-LOCK ergonomics)
             is_verbose = args.verbose or (hasattr(args, "status") and args.status)
 
@@ -789,7 +1080,7 @@ def main() -> None:
             print(f"  Substrate: {substrate['interpreter']}")
             print(f"  Locked:    {'✅ YES' if substrate['is_locked'] else '⚠️ NO (Drift Detected!)'}")
             print(f"  Venv:      {substrate['venv_discovered']}")
-            
+
             if is_verbose:
                 print(f"  Vantage:   {substrate['vantage_bin']}")
                 print(f"  Prefix:    {substrate['prefix']}")
@@ -802,10 +1093,12 @@ def main() -> None:
                 obs = data.get("observations", 0)
                 skills = data.get("skills", 0)
                 print(f"  {scope.capitalize()} Brain (nodes: {nodes}, observations: {obs}, skills: {skills})")
-            
+
             # RMIL Working Memory Report
             if rmil_status["loaded"]:
-                print(f"  Working:   {len(rmil_status['skills'])} skills, {len(rmil_status['facts'])} facts (Neural Primed)")
+                print(
+                    f"  Working:   {len(rmil_status['skills'])} skills, {len(rmil_status['facts'])} facts (Neural Primed)"
+                )
 
             # Calculate bake ratio for the project brain
             p_data = stats.get("project", {})
@@ -821,57 +1114,62 @@ def main() -> None:
             sys.exit(0)
 
         elif args.command == "compile":
-            path = Path(args.file)
-            if not path.exists():
-                print(f"Error: File not found: {path}")
-                sys.exit(1)
+            if args.file and args.name:
+                path = Path(args.file)
+                if not path.exists():
+                    print(f"Error: File not found: {path}")
+                    sys.exit(1)
 
-            # Read and validate YAML
-            content = path.read_text()
-            try:
-                # We validate it's proper YAML, but we store the raw text
-                yaml.safe_load(content)
-            except Exception as e:
-                print(f"Error: Invalid YAML in {path}: {e}")
-                sys.exit(1)
+                # Read and validate YAML
+                content = path.read_text()
+                try:
+                    yaml.safe_load(content)
+                except Exception as e:
+                    print(f"Error: Invalid YAML in {path}: {e}")
+                    sys.exit(1)
 
-            from kit.api import get_brain, learn
-            brain = get_brain()
+                from kit.api import get_brain, learn
 
-            # v1.2.4-LOCK: Mandatory UID Normalization and Automatic Supersede
-            skill_name = args.name.lower()
-            supersede_id = None
-            try:
-                # Find the LATEST active observation for this skill name (node_uid)
-                sql = """
-                    SELECT o.id FROM observations o
-                    JOIN nodes n ON o.node_id = n.id
-                    WHERE n.uid = ? AND o.layer = 'procedural' AND o.is_active = 1
-                    ORDER BY o.created_at DESC LIMIT 1
-                """
-                with brain.get_connection() as conn:
-                    row = conn.execute(sql, (skill_name,)).fetchone()
-                    if row:
-                        supersede_id = row["id"]
-                        print(f"[kit] Superseding existing skill: {skill_name} (Legacy ID: {supersede_id})")
-            except Exception as e:
-                print_diagnostic(f"Warning: Failed to fetch legacy skill ID for superseding: {e}")
+                brain = get_brain()
 
-            new_id = learn(
-                content=content,
-                kind="skill",
-                layer="procedural",
-                uid=skill_name,
-                to_global=args.is_global,
-                supersede_id=supersede_id,
-                # v1.2.4: Skills are verified truth by definition during compilation
-            )
+                skill_name = args.name.lower()
+                supersede_id = None
+                try:
+                    sql = """
+                        SELECT o.id FROM observations o
+                        JOIN nodes n ON o.node_id = n.id
+                        WHERE n.uid = ? AND o.layer = 'procedural' AND o.is_active = 1
+                        ORDER BY o.created_at DESC LIMIT 1
+                    """
+                    with brain.get_connection() as conn:
+                        row = conn.execute(sql, (skill_name,)).fetchone()
+                        if row:
+                            supersede_id = row["id"]
+                            print(f"[kit] Superseding existing skill: {skill_name} (Legacy ID: {supersede_id})")
+                except Exception as e:
+                    print_diagnostic(f"Warning: Failed to fetch legacy skill ID for superseding: {e}")
 
-            status_msg = f"Skill '{skill_name}' compiled (ID: {new_id})"
-            if supersede_id:
-                status_msg += f" - Superseded legacy ID: {supersede_id}"
+                new_id = learn(
+                    content=content,
+                    kind="skill",
+                    layer="procedural",
+                    uid=skill_name,
+                    to_global=args.is_global,
+                    supersede_id=supersede_id,
+                )
 
-            print(f"{status_msg} into {'Global' if args.is_global else 'Project'} Brain.")
+                status_msg = f"Skill '{skill_name}' compiled (ID: {new_id})"
+                if supersede_id:
+                    status_msg += f" - Superseded legacy ID: {supersede_id}"
+
+                print(f"{status_msg} into {'Global' if args.is_global else 'Project'} Brain.")
+            else:
+                # v1.2.4-LOCK: Default to context compiler
+                from kit.core.context_compiler import save_execution_context
+
+                brain = api.get_brain()
+                ctx_path = save_execution_context(brain)
+                print_diagnostic(f"Compiled execution context to {ctx_path.name} (Deterministic v1.0)")
             sys.exit(0)
 
         elif args.command == "trigger" or args.command == "run-skill":
@@ -892,12 +1190,36 @@ def main() -> None:
         elif args.command == "doctor":
             from kit.cli.doctor import run_doctor
 
+            # Hybrid Doctor: Audit (Read-only) + Explicit Fix
             run_doctor(
                 api.get_brain(),
                 args.mode,
                 check_agents=args.check_agents,
                 reset_cloud=args.reset_cloud,
+                fix_shell=args.fix_shell,
+                migrate_memory=args.migrate_memory,
             )
+
+        elif args.command == "boot":
+            print_diagnostic("Starting cognitive boot ritual...")
+
+            # 1. Recall top context (Limit 15 as requested)
+            recalled = api.recall([], limit=15)
+            print_diagnostic(f"✔ Recalled {len(recalled)} memories from project context.")
+
+            # 2. Run Vantage Verification shim
+            try:
+                # We target the CLI entrypoint for the structural anchor check
+                v_res = subprocess.run(["kit-vantage", "verify", "kit/cli/main.py"], capture_output=True, text=True)
+                if v_res.returncode == 0:
+                    print_diagnostic("✔ Structural integrity verified via Vantage.")
+                else:
+                    print_diagnostic(f"✖ Vantage verification failed: {v_res.stderr}")
+            except FileNotFoundError:
+                print_diagnostic("⚠️ Vantage binary not found. Skipping structural check.")
+
+            print_diagnostic("\n[READY] Kernel online and context loaded. Ready for task execution.")
+            sys.exit(0)
 
         elif args.command == "where":
             brain = api.get_brain()
@@ -906,7 +1228,22 @@ def main() -> None:
             print(f"Scope: '{brain.get_normalized_scope()}'")
 
         elif args.command == "render":
-            api.get_brain().render_context()
+            # v1.2.5: Generate deterministic context files
+            from kit.core.context_compiler import save_execution_context
+            from kit.core.repo_scanner import save_repo_map
+
+            brain = api.get_brain()
+
+            # Generate execution_context.json
+            ctx_path = save_execution_context(brain)
+            print_diagnostic(f"Generated: {ctx_path}")
+
+            # Generate repo_map.json
+            repo_path = save_repo_map(brain.root_path)
+            print_diagnostic(f"Generated: {repo_path}")
+
+            # Also run legacy render for backward compatibility
+            brain.render_context()
             print_diagnostic("AI context manifests regenerated.")
 
         elif args.command == "blame":
@@ -960,7 +1297,7 @@ def main() -> None:
             sys.exit(0)
 
         elif args.command == "scan":
-            from kit.core.file_system import safe_walk
+            from kit.core.repo_scanner import save_repo_map
 
             root = Path(args.path).resolve()
             if not root.is_dir():
@@ -970,14 +1307,12 @@ def main() -> None:
             print(f"Scanning project tree at: {root}")
             print("---")
 
-            count = 0
-            # safe_walk returns an iterator of found files
-            files = safe_walk(root, max_depth=min(args.depth, 25))
+            repo_path = save_repo_map(root)
+            print(f"Generated physical awareness artifact: {repo_path.name}")
+            import json as json_lib
 
-            for file_path in files:
-                rel_path = os.path.relpath(file_path, root)
-                print(f"FOUND: {rel_path}")
-                count += 1
+            stats = json_lib.loads(repo_path.read_text(encoding="utf-8"))
+            count = len(stats.get("files", []))
 
             print("---")
             print(f"Total discovered files: {count}")
@@ -987,6 +1322,7 @@ def main() -> None:
             # v1.2.4-LOCK: Auto-trigger baking pass before reflection to ensure we audit verified truth.
             try:
                 from kit.core.kit_baking import run_baking_pass
+
                 bake_stats = run_baking_pass(api.get_brain())
                 if bake_stats["total"] > 0:
                     print_diagnostic(
@@ -1016,7 +1352,7 @@ def main() -> None:
                         changed_files = [f.strip() for f in diff_res.stdout.splitlines() if f.strip()]
 
                     files_to_process = [Path(f) for f in changed_files]
-                except (RuntimeError, FileNotFoundError):
+                except RuntimeError, FileNotFoundError:
                     print_diagnostic("Error: No file provided and no staged git changes found.")
                     sys.exit(1)
 
@@ -1054,7 +1390,7 @@ def main() -> None:
                 scope=scope,
                 external_signals=external_signals,
                 file_path=main_file_path,
-                deep=getattr(args, "deep", False)
+                deep=getattr(args, "deep", False),
             )
 
             # v1.2.4 Decision Discipline: Seal the Judge (L3)
@@ -1062,7 +1398,7 @@ def main() -> None:
             signals = [_normalize_signal(s) for s in raw_signals]
             for s in signals:
                 tracer.log_signal({"phase": "pre", "signal": s})
-            result["signals"] = signals # normalize within the structure
+            result["signals"] = signals  # normalize within the structure
             decision = decide(signals)
             for s in signals:
                 tracer.log_signal({"phase": "post", "signal": s})
@@ -1071,6 +1407,7 @@ def main() -> None:
 
             if args.json:
                 import json
+
                 print(json.dumps(result, indent=2))
             else:
                 score = result.get("score", 1.0)
@@ -1113,10 +1450,12 @@ def main() -> None:
             # v1.2.4-LOCK: Explicit structural graduation pass.
             # The ONLY place normal user-submitted content is analyzed by Vantage.
             from kit.core.kit_baking import run_baking_pass
+
             timeout = getattr(args, "timeout", 10)
             stats = run_baking_pass(api.get_brain(), timeout=timeout)
             if getattr(args, "json", False):
                 import json as json_lib
+
                 print(json_lib.dumps(stats, indent=2))
             else:
                 print_diagnostic(
@@ -1137,6 +1476,185 @@ def main() -> None:
             }
             auto_route.log(feedback)
             print_diagnostic(f"Feedback logged: Observation {args.id} -> {args.correct}. v1.2.4 Trainer will use this.")
+
+        elif args.command == "seal":
+            from kit.core.memory_topology import MemoryTopology
+            from kit.core.kit_lock import seal as lock_seal, is_sealed
+
+            root = Path.cwd()
+
+            topo = MemoryTopology(project_root=root)
+            db = topo.resolve("local", "local")
+
+            if is_sealed(root):
+                print_diagnostic("Brain is already sealed.")
+                sys.exit(0)
+
+            try:
+                result = lock_seal(db, root, force_evict=getattr(args, "force_evict", False))
+                print_diagnostic(f"Seal complete: {result['status']}")
+            except Exception as e:
+                print_diagnostic(f"Seal failed: {e}")
+                sys.exit(1)
+
+        elif args.command == "unseal":
+            from kit.core.kit_lock import unseal as lock_unseal, is_sealed
+            from kit.core.memory_topology import MemoryTopology
+
+            root = Path.cwd()
+
+            topo = MemoryTopology(project_root=root)
+            db = topo.resolve("local", "local")
+
+            if not is_sealed(root):
+                print_diagnostic("Brain is not sealed.")
+                sys.exit(0)
+
+            if not getattr(args, "force", False):
+                print_diagnostic("ERROR: unseal requires --force flag.")
+                print_diagnostic('Usage: kit unseal --force --reason "maintenance"')
+                sys.exit(1)
+
+            result = lock_unseal(db, root, reason=args.reason)
+            print_diagnostic(f"Unseal complete: {result['status']}")
+
+        elif args.command == "flow":
+            print_diagnostic("KIT Flow Surface v1.2.4")
+            print_diagnostic("Commands: ask, run, learn, status (interactive mode)")
+            print_diagnostic("Type 'exit' to leave flow mode.")
+            print_diagnostic("")
+
+            import kit.api as flow_api
+
+            flow_api.init_kernel(None, mode="auto")
+            brain = flow_api.get_brain()
+
+            def render_flow_snapshot(reason: str | None = None, error: Exception | None = None) -> None:
+                external_signals: list[dict[str, Any]] = []
+                runtime_signal = _runtime_signal_from_substrate(substrate, error=error)
+                if runtime_signal:
+                    external_signals.append(runtime_signal)
+
+                diff_text, main_file_path = _build_flow_reflect_payload()
+                try:
+                    result = flow_api.reflect_check(
+                        diff_text=diff_text,
+                        external_signals=external_signals,
+                        file_path=main_file_path,
+                        deep=False,
+                    )
+                except Exception:
+                    result = {
+                        "signals": external_signals,
+                        "suggestions": [],
+                    }
+                curated_signals = _curate_flow_signals(result.get("signals", []))
+                suggestions = _build_flow_suggestions(curated_signals, result.get("suggestions", []))
+
+                if not curated_signals and not suggestions:
+                    return
+
+                if reason:
+                    print(f"\n[{reason}]")
+
+                if curated_signals:
+                    print(f"Signals detected ({len(curated_signals)}):")
+                    for signal in curated_signals:
+                        uid = signal.get("uid", "Unknown")
+                        source = signal.get("source", "core")
+                        line = signal.get("line", 0)
+                        print(f"  - [{uid}] {source} (line {line})")
+
+                if suggestions:
+                    print("Suggested next commands:")
+                    for suggestion in suggestions:
+                        print(f"  - {suggestion}")
+
+            render_flow_snapshot("startup")
+
+            while True:
+                try:
+                    prompt = input("kit flow> ").strip()
+                    if not prompt:
+                        continue
+                    if prompt.lower() in ["exit", "quit", "q"]:
+                        print_diagnostic("Exiting flow mode.")
+                        break
+
+                    parts = prompt.split(maxsplit=1)
+                    cmd = parts[0].lower()
+                    arg = parts[1] if len(parts) > 1 else ""
+
+                    if cmd == "status":
+                        stats = brain.get_stats()
+                        print(f"Project: {stats.get('project', {}).get('observations', 0)} observations")
+                        print(f"Global:  {stats.get('global', {}).get('observations', 0)} observations")
+
+                    elif cmd == "ask":
+                        if not arg:
+                            print_diagnostic("Usage: ask <question>")
+                            continue
+                        memories, _ = brain.recall(arg.split(), limit=5)
+                        if memories:
+                            print(f"Recalled {len(memories)} memories:")
+                            for m in memories:
+                                print(f"  - [{m.tag}] {m.content[:80]}...")
+                        else:
+                            print_diagnostic("No relevant memories found.")
+
+                    elif cmd == "learn":
+                        if not arg:
+                            print_diagnostic("Usage: learn <content>")
+                            continue
+                        fact_id = brain.learn(
+                            uid="flow_session",
+                            content=arg,
+                            tag="note",
+                            importance=0.5,
+                        )
+                        print_diagnostic(f"Stored: Fact ID {fact_id}")
+
+                    elif cmd == "run":
+                        if not arg:
+                            print_diagnostic("Usage: run <action> (e.g., scan, compile)")
+                            continue
+                        if arg == "scan":
+                            from kit.core.repo_scanner import save_repo_map
+
+                            root_path = brain.root_path
+                            result_path = save_repo_map(root_path)
+                            print_diagnostic(f"Scanned: {result_path.name}")
+                        elif arg == "compile":
+                            from kit.core.context_compiler import save_execution_context
+
+                            ctx_path = save_execution_context(brain)
+                            print_diagnostic(f"Compiled: {ctx_path.name}")
+                        else:
+                            procedural_skills = {
+                                str(skill.get("name", "")).strip()
+                                for skill in flow_api.list_procedural_skills()
+                                if skill.get("name")
+                            }
+                            if arg in procedural_skills:
+                                success = flow_api.run_procedural_skill(arg)
+                                if not success:
+                                    print_diagnostic(f"Action failed: {arg}")
+                            else:
+                                print_diagnostic(f"Unknown action: {arg}. Try: scan, compile")
+                                continue
+
+                        render_flow_snapshot("post-run")
+
+                    else:
+                        print_diagnostic(f"Unknown command: {cmd}")
+                        print_diagnostic("Available: ask, run, learn, status")
+
+                except KeyboardInterrupt:
+                    print_diagnostic("\nExiting flow mode.")
+                    break
+                except Exception as e:
+                    print_diagnostic(f"Error: {e}")
+                    render_flow_snapshot("error", error=e)
 
     except Exception as e:
         print_diagnostic(f"Error: {e}")
