@@ -1,7 +1,7 @@
-from kit.cli.main import (
-    _build_flow_suggestions,
-    _curate_flow_signals,
-    _runtime_signal_from_substrate,
+from kit.flow.surface import (
+    build_flow_suggestions,
+    curate_flow_signals,
+    runtime_signal_from_substrate,
 )
 
 
@@ -12,7 +12,7 @@ def test_flow_signal_ordering_is_priority_driven():
         {"uid": "RISK:sql.interpolation", "confidence": "high", "source": "security_lens", "line": 3},
     ]
 
-    curated = _curate_flow_signals(signals, top_k=3)
+    curated = curate_flow_signals(signals, top_k=3)
 
     assert [signal["uid"] for signal in curated] == [
         "RISK:sql.interpolation",
@@ -39,7 +39,7 @@ def test_flow_signal_deduplicates_structural_hash():
         },
     ]
 
-    curated = _curate_flow_signals(signals, top_k=3)
+    curated = curate_flow_signals(signals, top_k=3)
 
     assert len(curated) == 1
     assert curated[0]["structural_hash"] == "abc123"
@@ -50,8 +50,8 @@ def test_flow_suggestions_filter_low_confidence_and_use_fallback():
         {"uid": "AMBIGUITY:db", "confidence": "low", "source": "cognitive_core", "line": 4},
     ]
 
-    curated = _curate_flow_signals(signals, top_k=3)
-    suggestions = _build_flow_suggestions(curated, ["Consider documenting this signal"])
+    curated = curate_flow_signals(signals, top_k=3)
+    suggestions = build_flow_suggestions(curated, ["Consider documenting this signal"])
 
     assert curated == []
     assert suggestions == ["Consider documenting this signal"]
@@ -64,8 +64,8 @@ def test_runtime_signal_maps_to_repair_command():
         "interpreter": "C:/Python314/python.exe",
     }
 
-    runtime_signal = _runtime_signal_from_substrate(substrate)
-    suggestions = _build_flow_suggestions([runtime_signal] if runtime_signal else [])
+    runtime_signal = runtime_signal_from_substrate(substrate)
+    suggestions = build_flow_suggestions([runtime_signal] if runtime_signal else [])
 
     assert runtime_signal is not None
     assert runtime_signal["uid"] == "RUNTIME:INTERPRETER_MISMATCH"

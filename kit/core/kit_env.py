@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import sysconfig
 from pathlib import Path
@@ -39,26 +40,41 @@ def is_env_locked() -> bool:
 
 def get_vantage_bin() -> Path | None:
     """Discover the Vantage binary with multi-anchor fallback."""
+    venv = get_venv_path()
+    if venv:
+        scripts_dir = venv / "Scripts"
+        for name in ("kit-vantage.exe", "kit-vantage", "vantage.exe", "vantage"):
+            bin_path = scripts_dir / name
+            if bin_path.exists():
+                return bin_path
+
     candidates = [
         os.getenv("VANTAGE_HOME"),
-        get_venv_path(), # Check if .vantage is inside venv
+        venv,  # Check if .vantage is inside venv
         Path.cwd() / ".vantage",
         Path.home() / ".vantage",
-        r"E:\DEV\opensource_contrib\Vantage" # Legacy Fallback
     ]
-    
+
     for cand in candidates:
         if not cand:
             continue
         base = Path(cand)
-        # Check standard Rust target release location
-        bin_path = base / "target" / "release" / "vantage.exe"
-        if bin_path.exists():
-            return bin_path
-        # Check direct binary if base points to bin
-        if base.name == "vantage.exe" and base.exists():
-            return base
-            
+        for bin_path in (
+            base / "target" / "release" / "vantage.exe",
+            base / "target" / "release" / "vantage",
+            base / "kit-vantage.exe",
+            base / "kit-vantage",
+            base / "vantage.exe",
+            base / "vantage",
+        ):
+            if bin_path.exists():
+                return bin_path
+
+    for name in ("kit-vantage", "kit-vantage.exe", "vantage", "vantage.exe"):
+        resolved = shutil.which(name)
+        if resolved:
+            return Path(resolved)
+
     return None
 
 def get_substrate_report() -> dict:

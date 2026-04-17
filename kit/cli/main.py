@@ -14,6 +14,13 @@ from kit.core import kit_env  # ECL v2: Runtime Shield
 from kit.core.kit_baking import trigger_async_bake  # v1.2.3-STABLE Async Bake
 
 from kit.core.file_system import EncodingError, read_text_safe
+from kit.flow.surface import (
+    build_flow_reflect_payload,
+    build_flow_suggestions,
+    curate_flow_signals,
+    normalize_signal,
+    runtime_signal_from_substrate,
+)
 from kit.core.kit_decision import Action, decide
 from kit.core.kit_platform import DEFAULT_TIMEOUT, FAST_TIMEOUT, GIT_TIMEOUT, read_stdin_fail_fast, run_safe
 from kit.core.kit_replay_tracer import tracer
@@ -277,245 +284,6 @@ def _seed_bootstrap_memories(root_path: Path, project_name: str) -> bool:
         sentinel.write_text(f"seeded at {datetime.now(UTC)}\n", encoding="utf-8")
         return True
     return False
-
-
-def _normalize_signal(s):
-    if isinstance(s, dict):
-        return s
-
-    if isinstance(s, (list, tuple)):
-        return {
-            "uid": s[0] if len(s) > 0 else None,
-            "source": s[1] if len(s) > 1 else None,
-            "line": s[2] if len(s) > 2 else 0,
-            "tag": s[3] if len(s) > 3 else None,
-        }
-
-    # fallback safety
-    return {
-        "uid": str(s),
-        "source": "unknown",
-        "line": 0,
-        "tag": None,
-    }
-
-
-FLOW_PREFIX_PRIORITY = {
-    "RUNTIME:": 100,
-    "RISK:": 90,
-    "VIOLATION:": 80,
-    "DRIFT:": 70,
-    "GAP:": 60,
-    "AMBIGUITY:": 50,
-    "STRUCTURAL:": 40,
-}
-FLOW_SEVERITY_WEIGHT = {
-    "high": 30,
-    "medium": 20,
-    "low": 10,
-}
-FLOW_EXACT_ACTIONS = {
-    "RUNTIME:INTERPRETER_MISMATCH": "run repair-python-venv",
-}
-FLOW_PREFIX_ACTIONS = {
-    "RISK:": "run scan",
-    "VIOLATION:": "run compile",
-    "DRIFT:": "run compile",
-    "GAP:": "run scan",
-    "STRUCTURAL:": "run scan",
-}
-FLOW_CONFIDENCE_VALUE = {
-    "high": 1.0,
-    "medium": 0.6,
-    "low": 0.3,
-}
-FLOW_REFLECT_SUFFIXES = {".py", ".rs", ".js", ".ts", ".go", ".rb"}
-FLOW_MIN_CONFIDENCE = 0.6
-FLOW_TOP_K = 3
-
-
-def _signal_confidence_value(raw_confidence: Any) -> float:
-    if isinstance(raw_confidence, (int, float)):
-        return max(0.0, min(float(raw_confidence), 1.0))
-    if isinstance(raw_confidence, str):
-        return FLOW_CONFIDENCE_VALUE.get(raw_confidence.lower(), 0.0)
-    return 0.0
-
-
-def _signal_priority(uid: str) -> int:
-    for prefix, score in FLOW_PREFIX_PRIORITY.items():
-        if uid.startswith(prefix):
-            return score
-    return 10
-
-
-def _flow_sort_key(signal: dict[str, Any]) -> tuple[int, int, int, str, str, str]:
-    uid = str(signal.get("uid", ""))
-    severity = str(signal.get("severity", ""))
-    confidence_score = int(_signal_confidence_value(signal.get("confidence")) * 10)
-    severity_score = FLOW_SEVERITY_WEIGHT.get(severity.lower(), 0)
-    return (
-        -_signal_priority(uid),
-        -severity_score,
-        -confidence_score,
-        uid,
-        str(signal.get("structural_hash") or ""),
-        str(signal.get("source") or ""),
-    )
-
-
-def _curate_flow_signals(raw_signals: list[Any], top_k: int = FLOW_TOP_K) -> list[dict[str, Any]]:
-    normalized = [_normalize_signal(s) for s in raw_signals]
-    filtered = [s for s in normalized if _signal_confidence_value(s.get("confidence")) >= FLOW_MIN_CONFIDENCE]
-    ordered = sorted(filtered, key=_flow_sort_key)
-
-    curated: list[dict[str, Any]] = []
-    seen_hashes: set[str] = set()
-    seen_fingerprints: set[tuple[str, str, int]] = set()
-
-    for signal in ordered:
-        structural_hash = signal.get("structural_hash")
-        if structural_hash:
-            structural_hash = str(structural_hash)
-            if structural_hash in seen_hashes:
-                continue
-            seen_hashes.add(structural_hash)
-
-        fingerprint = (
-            str(signal.get("uid", "")),
-            str(signal.get("source", "")),
-            int(signal.get("line", 0) or 0),
-        )
-        if fingerprint in seen_fingerprints:
-            continue
-        seen_fingerprints.add(fingerprint)
-
-        curated.append(signal)
-        if len(curated) >= top_k:
-            break
-
-    return curated
-
-
-def _runtime_signal_from_substrate(substrate: dict[str, Any], error: Exception | None = None) -> dict[str, Any] | None:
-    evidence: str | None = None
-    uid: str | None = None
-
-    if error and "interpreter mismatch" in str(error).lower():
-        uid = "RUNTIME:INTERPRETER_MISMATCH"
-        evidence = str(error)
-    elif not substrate.get("is_locked", True):
-        uid = "RUNTIME:INTERPRETER_MISMATCH"
-        evidence = (
-            "[RUNTIME LOCK] Interpreter mismatch (v1.2.4)\n"
-            f"Expected: {substrate.get('venv_discovered', 'missing')}\n"
-            f"Actual:   {substrate.get('interpreter', 'unknown')}"
-        )
-
-    if not uid:
-        return None
-
-    return {
-        "uid": uid,
-        "confidence": "high",
-        "severity": "high",
-        "line": 0,
-        "source": "runtime_shield",
-        "evidence": evidence,
-    }
-
-
-def _map_flow_action(uid: str) -> str | None:
-    exact_match = FLOW_EXACT_ACTIONS.get(uid)
-    if exact_match:
-        return exact_match
-
-    for prefix, action in FLOW_PREFIX_ACTIONS.items():
-        if uid.startswith(prefix):
-            return action
-
-    return None
-
-
-def _build_flow_suggestions(
-    curated_signals: list[dict[str, Any]],
-    fallback_suggestions: list[str] | None = None,
-    top_k: int = FLOW_TOP_K,
-) -> list[str]:
-    commands: list[str] = []
-    seen: set[str] = set()
-
-    for signal in curated_signals:
-        uid = str(signal.get("uid", ""))
-        action = _map_flow_action(uid)
-        if not action or action in seen:
-            continue
-        seen.add(action)
-        commands.append(action)
-        if len(commands) >= top_k:
-            return commands
-
-    for suggestion in fallback_suggestions or []:
-        suggestion = str(suggestion).strip()
-        if not suggestion or suggestion in seen:
-            continue
-        seen.add(suggestion)
-        commands.append(suggestion)
-        if len(commands) >= top_k:
-            break
-
-    return commands
-
-
-def _build_flow_reflect_payload() -> tuple[str, Path | None]:
-    changed_files: list[str] = []
-
-    for git_cmd in (["git", "diff", "--cached", "--name-only"], ["git", "diff", "HEAD", "--name-only"]):
-        try:
-            result = subprocess.run(
-                git_cmd,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=GIT_TIMEOUT,
-                cwd=Path.cwd(),
-            )
-        except Exception:
-            continue
-
-        if result.returncode != 0 or not result.stdout:
-            continue
-
-        changed_files = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-        if changed_files:
-            break
-
-    pseudo_diff_lines: list[str] = []
-    main_file_path: Path | None = None
-
-    for file_name in changed_files:
-        path = Path(file_name)
-        if path.suffix.lower() not in FLOW_REFLECT_SUFFIXES or not path.exists():
-            continue
-
-        if main_file_path is None:
-            main_file_path = path
-
-        try:
-            file_content = read_text_safe(path)
-        except EncodingError:
-            continue
-        except Exception:
-            continue
-
-        for line in file_content.text.splitlines()[:200]:
-            pseudo_diff_lines.append(f"+ {line}")
-
-        if len(pseudo_diff_lines) >= 600:
-            break
-
-    return "\n".join(pseudo_diff_lines), main_file_path
 
 
 def main() -> None:
@@ -1208,14 +976,21 @@ def main() -> None:
             print_diagnostic(f"✔ Recalled {len(recalled)} memories from project context.")
 
             # 2. Run Vantage Verification shim
-            try:
+            vantage_bin = kit_env.get_vantage_bin()
+            if vantage_bin:
                 # We target the CLI entrypoint for the structural anchor check
-                v_res = subprocess.run(["kit-vantage", "verify", "kit/cli/main.py"], capture_output=True, text=True)
+                v_res = subprocess.run(
+                    [str(vantage_bin), "verify", "kit/cli/main.py"],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                )
                 if v_res.returncode == 0:
                     print_diagnostic("✔ Structural integrity verified via Vantage.")
                 else:
                     print_diagnostic(f"✖ Vantage verification failed: {v_res.stderr}")
-            except FileNotFoundError:
+            else:
                 print_diagnostic("⚠️ Vantage binary not found. Skipping structural check.")
 
             print_diagnostic("\n[READY] Kernel online and context loaded. Ready for task execution.")
@@ -1395,7 +1170,7 @@ def main() -> None:
 
             # v1.2.4 Decision Discipline: Seal the Judge (L3)
             raw_signals = result.get("signals", [])
-            signals = [_normalize_signal(s) for s in raw_signals]
+            signals = [normalize_signal(s) for s in raw_signals]
             for s in signals:
                 tracer.log_signal({"phase": "pre", "signal": s})
             result["signals"] = signals  # normalize within the structure
@@ -1531,11 +1306,11 @@ def main() -> None:
 
             def render_flow_snapshot(reason: str | None = None, error: Exception | None = None) -> None:
                 external_signals: list[dict[str, Any]] = []
-                runtime_signal = _runtime_signal_from_substrate(substrate, error=error)
+                runtime_signal = runtime_signal_from_substrate(substrate, error=error)
                 if runtime_signal:
                     external_signals.append(runtime_signal)
 
-                diff_text, main_file_path = _build_flow_reflect_payload()
+                diff_text, main_file_path = build_flow_reflect_payload()
                 try:
                     result = flow_api.reflect_check(
                         diff_text=diff_text,
@@ -1548,8 +1323,8 @@ def main() -> None:
                         "signals": external_signals,
                         "suggestions": [],
                     }
-                curated_signals = _curate_flow_signals(result.get("signals", []))
-                suggestions = _build_flow_suggestions(curated_signals, result.get("suggestions", []))
+                curated_signals = curate_flow_signals(result.get("signals", []))
+                suggestions = build_flow_suggestions(curated_signals, result.get("suggestions", []))
 
                 if not curated_signals and not suggestions:
                     return
