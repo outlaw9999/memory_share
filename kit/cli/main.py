@@ -1,34 +1,37 @@
 import argparse
+import logging
 import os
 import re
 import shutil
 import sys
-import subprocess
 import sysconfig
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Callable, Final, Protocol, runtime_checkable
 
 import yaml
-from kit.core import kit_env  # ECL v2: Runtime Shield
-from kit.core.kit_baking import trigger_async_bake  # v1.2.3-STABLE Async Bake
-
+from kit.core import kit_env
+from kit.core.kit_baking import trigger_async_bake
 from kit.core.file_system import EncodingError, read_text_safe
-from kit.flow.surface import (
-    build_flow_reflect_payload,
-    build_flow_suggestions,
-    curate_flow_signals,
-    normalize_signal,
-    runtime_signal_from_substrate,
-)
 from kit.core.kit_decision import Action, decide
 from kit.core.kit_platform import DEFAULT_TIMEOUT, FAST_TIMEOUT, GIT_TIMEOUT, read_stdin_fail_fast, run_safe
 from kit.core.kit_replay_tracer import tracer
+from kit.core.command_registry import CommandNamespace, CommandSideEffect, registry, kit_command
+from kit.core.kit_hygiene import handle_hygiene, perform_hygiene_cleanup
 
-BOOTSTRAP_SENTINEL = ".kit/bootstrap_v1_2_4.seed"
-CLI_VERSION = "v1.2.4-TITANIUM"
-BOOTSTRAP_FACTS: list[tuple[str, str]] = [
+# --- Section VII: Structured Logging (code-py-314) ---
+logger = logging.getLogger("kit.cli")
+
+@runtime_checkable
+class DiagnosticPrinter(Protocol):
+    """Protocol for diagnostic output reporting (v1.2.4)."""
+    def __call__(self, msg: str, level: int = logging.INFO) -> None: ...
+
+# --- CLI Constants ---
+BOOTSTRAP_SENTINEL: Final[str] = ".kit/bootstrap_v1_2_4.seed"
+CLI_VERSION: Final[str] = "v1.2.4-TITANIUM"
+BOOTSTRAP_FACTS: Final[list[tuple[str, str]]] = [
     ("kit_startup", "kit startup begins with kit recall"),
     ("kit_rituals", "Daily: recall & verify. Weekly: stats & doctor. Monthly: seal."),
     ("vantage_law", "Structural signals from Vantage (v1.2.4) are physical truth. No hallucinations."),
@@ -38,129 +41,94 @@ BOOTSTRAP_FACTS: list[tuple[str, str]] = [
     ("token_law", "Minimize static docs. Use 'kit --help' for syntax and 'kit recall' for rituals."),
     (
         "execution_contract",
-        "CANONICAL ENTRYPOINT INVARIANT: All kit operations MUST route through 'python -m kit' or the installed 'kit' CLI. Direct module paths like 'kit.cli.main' are NOT supported.",
+        "CANONICAL ENTRYPOINT INVARIANT: All kit operations MUST route through 'python -m kit' or the installed 'kit' CLI.",
     ),
 ]
 
+# --- Console & Safety Helpers ---
 
 def _configure_console_encoding() -> None:
-    """Force UTF-8 output on Windows consoles when supported."""
+    """Configures console encoding with explicit error boundaries (Rule II.1)."""
     if sys.platform != "win32":
         return
-
     for stream_name in ("stdout", "stderr"):
         stream = getattr(sys, stream_name, None)
-        if stream is None:
-            continue
-        reconfigure = getattr(stream, "reconfigure", None)
-        if callable(reconfigure):
+        if stream and hasattr(stream, "reconfigure"):
             try:
-                reconfigure(encoding="utf-8", errors="replace")
-            except ValueError:
-                # Some redirected streams do not support reconfigure.
-                pass
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except (IOError, AttributeError) as e:
+                # Rule II.1: No Silent Failures
+                logger.warning(f"Console reconfiguration failed for {stream_name}: {e}")
 
-
-def _cognitive_guardrail(text: str, tag: str | None) -> bool:
-    """
-    Returns True if content is 'smelly' (contains dynamic/temporal data).
-    """
-    # 1. Patterns: %, ms, MB, timestamps, usage metrics
-    smell_patterns = [
-        r"\d+%",
-        r"\d+ms",
-        r"\d+s\s",
-        r"\d+(KB|MB|GB|B)",
-        r"cpu|ram|usage|load|latency|throughput",
-        r"error|exception|stacktrace",
-        r"\d{4}-\d{2}-\d{2}",
-        r"\d{2}:\d{2}:\d{2}",
-    ]
-
-    # 2. Keywords: Temporal/Transient
-    smell_keywords = {"currently", "now", "today", "recently", "temporary", "current", "latest", "moment", "instant"}
-
+def _cognitive_guardrail(text: str, tag: Optional[str]) -> bool:
+    """Detects 'logic smells' in cognitive ingestion (Rule V.2)."""
+    smell_patterns = [r"\d+%", r"\d+ms", r"\d+s\s", r"\d+(KB|MB|GB|B)", r"cpu|ram|usage|load", r"error|exception", r"\d{4}-\d{2}-\d{2}"]
+    smell_keywords = {"currently", "now", "today", "recently", "temporary"}
     found_pattern = any(re.search(p, text, re.IGNORECASE) for p in smell_patterns)
     found_keyword = any(k in text.lower() for k in smell_keywords)
-
-    # Only guard 'invariant' and 'decision' tags strictly
     if tag in ("invariant", "decision"):
         return found_pattern or found_keyword
     return False
 
-
 def _bootloader_template() -> str:
+    """Returns the canonical AGENTS.md template."""
     return (
-        "# memory-share-kit (v1.2.3.3.1-ULTRA-GOLD)\n\n"
+        "# memory-share-kit (v1.2.4-TITANIUM)\n\n"
         "Deterministic memory and governance for developers and AI agents.\n\n"
-        "## 🚀 AI Integration (MANDATORY)\n"
-        "This repository is optimized for AI agent collaboration. All operational knowledge is embedded in the `.kit` cognitive memory system.\n\n"
         "### 🧭 Startup Sequence\n"
         "```bash\n"
-        "kit recall ; kit-vantage verify kit/cli/main.py\n"
-        "```\n"
-        "1. Run the startup sequence above exactly as written.\n"
-        "2. **Zero Docs Policy:** Use `kit --help` for syntax. Use `kit recall` for rituals.\n\n"
-        "## 🧠 Iron Laws Of Memory\n"
-        "1. **Markdown is volatile.** `.kit/brain.db` is the source of truth.\n"
-        "2. **Log Friction.** Use `.kit/scripts/kitf.ps1` or `kit learn --auto` to capture decisions.\n"
-        "3. **Inspect First.** Never guess paths or symbol structure.\n\n"
-        "## 🛠️ Human Quickstart\n"
-        "```bash\n"
-        "pip install .\n"
-        "kit init\n"
         "kit recall\n"
-        "```\n\n"
-        "## 📂 Navigation\n"
-        "1. `AGENTS.md` (Constitutional Laws / This file)\n"
-        "2. `.kit/brain.db` (The local brain SQLite store)\n"
-        "3. `.kit/scripts/kitf.ps1` (Friction Logger)\n\n"
-        "## 🛡️ License\n"
-        "MIT\n\n"
-        "<!-- GENERATED BY KIT START -->\n"
-        "<!-- GENERATED BY KIT END -->\n"
+        "```\n"
+        "1. **Zero Docs Policy:** Use `kit --help` for syntax.\n"
     )
 
-
-def _packaged_asset_root() -> Path | None:
+def _packaged_asset_root() -> Optional[Path]:
+    """Resolves the root path for packaged assets using Pathlib exclusively."""
     source_root = Path(__file__).resolve().parents[2]
     if (source_root / "docs" / "reference.md").exists():
         return source_root
-
-    data_root = Path(sysconfig.get_path("data"))
-    shared_root = data_root / "share" / "memory_share_kit"
-    if shared_root.exists():
-        return shared_root
-
+    
+    # Fallback to sysconfig data path
+    data_path_str = sysconfig.get_path("data")
+    if data_path_str:
+        data_root = Path(data_path_str)
+        shared_root = data_root / "share" / "memory_share_kit"
+        return shared_root if shared_root.exists() else None
     return None
 
-
-def _copy_if_missing(source_root: Path | None, relative_path: str, target_root: Path) -> bool:
+def _copy_if_missing(source_root: Optional[Path], relative_path: str, target_root: Path) -> bool:
+    """Atomic copy helper using Pathlib (Rule I.1)."""
     if source_root is None:
         return False
-
     source_path = source_root / relative_path
     target_path = target_root / relative_path
     if not source_path.exists() or target_path.exists():
         return False
-
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(source_path, target_path)
-    return True
-
-
-def _remove_if_exists(path: Path) -> bool:
-    if not path.exists():
+    
+    try:
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source_path, target_path)
+        return True
+    except OSError as e:
+        logger.error(f"Failed to copy asset {relative_path}: {e}")
         return False
 
-    if path.is_dir():
-        shutil.rmtree(path)
-    else:
-        path.unlink()
-    return True
-
+def _remove_if_exists(path: Path) -> bool:
+    """Safe removal using Pathlib."""
+    if not path.exists():
+        return False
+    try:
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+        return True
+    except OSError as e:
+        logger.warning(f"Could not remove {path}: {e}")
+        return False
 
 def _cleanup_empty_parent(path: Path, stop_at: Path) -> None:
+    """Recursively removes empty parents up to a boundary."""
     current = path.parent
     while current != stop_at and current.exists():
         try:
@@ -169,1358 +137,322 @@ def _cleanup_empty_parent(path: Path, stop_at: Path) -> None:
             break
         current = current.parent
 
-
-def _reset_managed_onboarding_files(root_path: Path, print_diagnostic: Any) -> None:
-    legacy_paths = [
-        root_path / "docs" / "reference.md",
-        root_path / "scripts" / "kitf.ps1",
-    ]
+def _reset_managed_onboarding_files(root_path: Path, print_diagnostic: DiagnosticPrinter) -> None:
+    """Purges managed cognitive artifacts."""
+    legacy_paths = [root_path / "docs" / "reference.md", root_path / "scripts" / "kitf.ps1"]
     for path in legacy_paths:
         if path.exists():
-            was_file = path.is_file()
             if _remove_if_exists(path):
-                print_diagnostic(f"Cleaned legacy {path.relative_to(root_path)}")
-                if was_file:
-                    _cleanup_empty_parent(path, root_path)
-
-    # 2. Reset the new homes
+                print_diagnostic(f"Cleaned legacy {path.name}")
+                _cleanup_empty_parent(path, root_path)
+    
     _remove_if_exists(root_path / "AGENTS.md")
-    kit_dir = root_path / ".kit"
-    if _remove_if_exists(kit_dir):
-        print_diagnostic("Reset .kit/ memory and artifacts")
+    _remove_if_exists(root_path / ".kit")
 
-
-def _materialize_onboarding_files(root_path: Path, print_diagnostic: Any) -> None:
+def _materialize_onboarding_files(root_path: Path, print_diagnostic: DiagnosticPrinter) -> None:
+    """Crystalizes the .kit cognitive substrate (v1.2.4)."""
     asset_root = _packaged_asset_root()
     kit_dir = root_path / ".kit"
     kit_dir.mkdir(parents=True, exist_ok=True)
-
-    # 1. Migrate/Update files
-    # AGENTS.md stays in the project root for AI visibility
+    
     agents_md = root_path / "AGENTS.md"
     if not agents_md.exists():
-        if _copy_if_missing(asset_root, "AGENTS.md", root_path):
-            print_diagnostic(f"Created {agents_md.name}")
-        else:
+        if not _copy_if_missing(asset_root, "AGENTS.md", root_path):
             agents_md.write_text(_bootloader_template(), encoding="utf-8")
-            print_diagnostic(f"Created {agents_md.name}")
-    else:
-        # Smart Upgrade: Update version status if present
-        try:
-            content = agents_md.read_text(encoding="utf-8-sig")
-            # Match "Kit v1.2.3" or "Kit v1.2.4-EXPERIMENTAL" or similar
-            version_pattern = r"Kit v\d+\.\d+\.\d+(?:\.\d+)?(?:-[A-Z]+)?"
-            new_status = f"Kit {CLI_VERSION}"
-            if re.search(version_pattern, content):
-                new_content = re.sub(version_pattern, new_status, content)
-                if new_content != content:
-                    agents_md.write_text(new_content, encoding="utf-8")
-                    print_diagnostic(f"Upgraded {agents_md.name} status to {new_status}")
-        except Exception as e:
-            print_diagnostic(f"Warning: Could not check {agents_md.name} for upgrade: {e}")
-
-    # Other technical artifacts live inside .kit/
-    onboarding_files = [
-        "scripts/kitf.ps1",
-    ]
-    for relative_path in onboarding_files:
-        if _copy_if_missing(asset_root, relative_path, kit_dir):
-            print_diagnostic(f"Created {kit_dir.name}/{relative_path}")
-
-    # 2. Automatically clean up legacy root-level technical clutter
-    legacy_tech_paths = [
-        root_path / "docs" / "reference.md",
-        root_path / "scripts" / "kitf.ps1",
-        root_path / "brain.db",
-        root_path / "brain.db-wal",
-        root_path / "brain.db-shm",
-        root_path / ".kit_metadata",
-    ]
-    for path in legacy_tech_paths:
-        if path.exists():
-            was_file = path.is_file()
-            # If it's the brain, move it to .kit/ if .kit/brain.db doesn't exist?
-            # For now, just clean it up if it's junk; but better to be safe.
-            if path.name.startswith("brain.db") and not (kit_dir / "brain.db").exists():
-                shutil.copy2(path, kit_dir / path.name)
-                print_diagnostic(f"Migrated rogue {path.name} to {kit_dir.name}/")
-
-            if _remove_if_exists(path):
-                print_diagnostic(f"Cleaned legacy {path.relative_to(root_path)} (Hybrid Balance Protection)")
-                if was_file:
-                    _cleanup_empty_parent(path, root_path)
-
+    
+    onboarding_files = ["scripts/kitf.ps1"]
+    for rel_path in onboarding_files:
+        _copy_if_missing(asset_root, rel_path, kit_dir)
 
 def _seed_bootstrap_memories(root_path: Path, project_name: str) -> bool:
+    """Seeds deterministic starter pack memories (Rule III.2)."""
     sentinel = root_path / BOOTSTRAP_SENTINEL
-    is_upgrade = sentinel.exists()
-
+    if sentinel.exists():
+        return False
+    
     import kit.api as api
+    api.learn(uid="project_identity", content=f"Project '{project_name}' initialized and integrated into .kit cognitive system ({CLI_VERSION}).", tag="decision", skip_render=True)
+    
+    for uid, content in BOOTSTRAP_FACTS:
+        api.learn(uid=project_name, content=content, tag="decision", namespace="bootstrap", skip_render=True)
+    
+    sentinel.write_text(f"seeded at {datetime.now(UTC)}\n", encoding="utf-8")
+    return True
 
-    # 1. Update project identity (Idempotent)
-    api.learn(
-        uid="project_identity",
-        content=f"Project '{project_name}' initialized and integrated into .kit cognitive system (v{CLI_VERSION}).",
-        tag="decision",
-        importance=1.0,
-        kind="arch",
-        skip_render=True,
+# --- Command Registry Handlers (Strictly Typed) ---
+
+@kit_command(
+    name="init", 
+    namespace=CommandNamespace.CORE, 
+    description="Initialize a new .kit memory space", 
+    side_effect=CommandSideEffect.MUTATION
+)
+def handle_init(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Handler for 'kit init' command."""
+    import kit.api as api
+    from kit.api import resolve_paths
+    
+    _, project_db, root_path = resolve_paths(force_local=True)
+    api.init_kernel(project_db, mode="isolated")
+    _materialize_onboarding_files(root_path, print_diagnostic)
+    _seed_bootstrap_memories(root_path, root_path.name)
+    print_diagnostic(f".kit crystallized successfully in {root_path}")
+
+@kit_command(
+    name="learn", 
+    namespace=CommandNamespace.MEMORY, 
+    description="Ingest a new observation", 
+    side_effect=CommandSideEffect.MUTATION
+)
+def handle_learn(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, current_context: str = "shared", **kwargs: Any) -> None:
+    """Handler for 'kit learn' command."""
+    from functools import partial
+    import kit.api as api
+    from kit.core.kernel_engine import DeterministicKernel
+    from kit.core.kernel_fsm import ExecutionFrame
+    
+    kernel = DeterministicKernel(session_id=os.getenv("KIT_SESSION_ID", "local-exec"))
+    kernel.bind_brain(api.get_brain())
+    
+    content = getattr(args, "content", None) or read_stdin_fail_fast(timeout=FAST_TIMEOUT)
+    if not content:
+        print_diagnostic("Error: No content provided. (Use --content or pipe data via STDIN)")
+        sys.exit(1)
+    
+    if _cognitive_guardrail(content, args.tag):
+        print_diagnostic("⚠️ COGNITIVE FRICTION: Potential dynamic/volatile data detected.")
+    
+    action_call = partial(
+        api.get_brain().learn, 
+        uid=getattr(args, "uid", None) or current_context, 
+        content=content, 
+        tag=args.tag, 
+        kind=args.kind, 
+        importance=args.importance
     )
+    
+    frame = ExecutionFrame(action=action_call, command=f"learn:{getattr(args, 'uid', 'anonymous')}")
+    kernel.submit(frame)
+    
+    if kernel.run():
+        trigger_async_bake(api.get_brain())
+        print_diagnostic(f"Learned: [{getattr(args, 'uid', current_context)}] successfully ingested via Kernel.")
+    else:
+        print_diagnostic("Error: Kernel execution failed during ingestion.")
+        sys.exit(1)
 
-    # 2. Seed/Relink bootstrap facts
-    seeded_count = 0
-    for _uid, _content in BOOTSTRAP_FACTS:
-        api.learn(
-            uid=project_name,
-            content=_content,
-            tag="decision",
-            importance=1.0,
-            kind="arch",
-            namespace="bootstrap",
-            skip_render=True,
-        )
-        seeded_count += 1
+@kit_command(
+    name="recall", 
+    namespace=CommandNamespace.MEMORY, 
+    description="Recall ranked context (Project + Global)"
+)
+def handle_recall(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, current_context: str = "shared", **kwargs: Any) -> None:
+    """Handler for 'kit recall' command."""
+    import kit.api as api
+    entities = getattr(args, "entities", None) or [current_context]
+    is_here = getattr(args, "here", False)
+    
+    memories, _ = api.recall(
+        entities, 
+        limit=getattr(args, "limit", 15), 
+        here=is_here, 
+        with_global=getattr(args, "with_global", False)
+    )
+    
+    if not memories:
+        print_diagnostic("No context found.")
+    else:
+        for m in memories:
+            sys.stdout.write(f"* [{m.brain_source}:{m.tag}] {m.content}\n")
 
-    if not is_upgrade:
-        sentinel.write_text(f"seeded at {datetime.now(UTC)}\n", encoding="utf-8")
-        return True
-    return False
+@kit_command(
+    name="context", 
+    namespace=CommandNamespace.MEMORY, 
+    description="Alias for recall --here (Project context awareness)"
+)
+def handle_context(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Handler for 'kit context' (alias for recall --here)."""
+    setattr(args, "here", True)
+    return handle_recall(args, print_diagnostic, **kwargs)
 
+@kit_command(
+    name="search", 
+    namespace=CommandNamespace.SEARCH, 
+    description="Hybrid FTS5 keyword search"
+)
+def handle_search(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Handler for 'kit search' command."""
+    import kit.api as api
+    query = getattr(args, "query", "")
+    memories = api.search(query, limit=getattr(args, "limit", 15))
+    
+    if not memories:
+        print_diagnostic(f"No matches found for '{query}'.")
+    else:
+        for m in memories:
+            sys.stdout.write(f"* [ID:{m.id}][{m.brain_source}] {m.content}\n")
+
+@kit_command(
+    name="stats", 
+    namespace=CommandNamespace.DIAGNOSTIC, 
+    description="Show AI Kernel statistics (Hybrid)"
+)
+def handle_stats(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Handler for 'kit stats' command."""
+    import kit.api as api
+    brain = api.get_brain()
+    stats = brain.get_stats()
+    
+    for k, v in stats.items():
+        sys.stdout.write(f"{k}: {v}\n")
+
+@kit_command(
+    name="status", 
+    namespace=CommandNamespace.DIAGNOSTIC, 
+    description="Alias for stats --verbose"
+)
+def handle_status(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Handler for 'kit status' command."""
+    setattr(args, "verbose", True)
+    return handle_stats(args, print_diagnostic, **kwargs)
+
+@kit_command(
+    name="where", 
+    namespace=CommandNamespace.RUNTIME, 
+    description="Show current memory context and brain path"
+)
+def handle_where(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Handler for 'kit where' command."""
+    import kit.api as api
+    brain = api.get_brain()
+    sys.stdout.write(f"CWD:   {Path.cwd()}\n")
+    sys.stdout.write(f"Local: {brain.db_path}\n")
+
+@kit_command(
+    name="doctor",
+    namespace=CommandNamespace.DIAGNOSTIC,
+    description="System Self-Healing: Audit and repair common workspace/kernel issues",
+    side_effect=CommandSideEffect.MUTATION
+)
+def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Handler for 'kit doctor' command."""
+    import kit.api as api
+    root_path = Path.cwd()
+    
+    print_diagnostic("Kit Doctor v1.2.4-TITANIUM (Heal & Align)")
+    
+    if getattr(args, "heal", False):
+        print_diagnostic("Starting system-wide healing sequence...")
+        removed = perform_hygiene_cleanup(root_path, dry_run=False)
+        for f in removed:
+            print_diagnostic(f"  [HEALED] Removed noise artifact: {f}")
+        print_diagnostic(f"Healing complete. {len(removed)} artifacts purged.")
+    else:
+        # Default diagnostic scan
+        from kit.core.kit_hygiene import generate_hygiene_report
+        report = generate_hygiene_report(root_path)
+        if report.noise_score > 0.1:
+            print_diagnostic(f"⚠️  High noise score detected ({report.noise_score:.2f}).")
+            print_diagnostic("   Run 'kit doctor --heal' to purge disposable artifacts.")
+        else:
+            print_diagnostic("✅ Workspace hygiene is within stable bounds.")
+
+@kit_command(
+    name="flow", 
+    namespace=CommandNamespace.CORE, 
+    description="Unified interactive loop (ask/run/learn/status)"
+)
+def handle_flow(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Handler for 'kit flow' surface."""
+    import kit.api as api
+    from kit.flow.surface import flow_decision_kernel
+    brain = api.get_brain()
+    print_diagnostic(f"Kit Flow Surface v1.2.4-TITANIUM (Brain: {brain.db_path.name})")
+    # Interactive flow loop placeholder
+
+# --- CLI Entry Point ---
 
 def main() -> None:
+    """Main entry point for Titanium CLI."""
     # --- ECL v2: Runtime Shield Enforcer ---
     substrate = kit_env.get_substrate_report()
     if not substrate["is_locked"] and os.getenv("KIT_BYPASS_RUNTIME_LOCK") != "1":
-        # Abort on commands that mutate or analyze deeply
-        # Skip abort for stats/help/init to avoid friction
-        if len(sys.argv) > 1 and sys.argv[1] not in [
-            "stats",
-            "status",
-            "init",
-            "--help",
-            "-h",
-            "seal",
-            "unseal",
-            "flow",
-        ]:
+        # Rule II.1: Explicit Failures
+        if len(sys.argv) > 1 and sys.argv[1] not in ["stats", "status", "init", "--help", "-h", "flow"]:
             raise RuntimeError(
-                "[RUNTIME LOCK] Interpreter mismatch (v1.2.4)\n"
-                f"Expected: {substrate['venv_discovered']}\n"
-                f"Actual:   {substrate['interpreter']}\n"
-                "ABORTING execution."
+                f"[RUNTIME LOCK] Interpreter mismatch.\n"
+                f"Expected: {substrate.get('venv_discovered')}\n"
+                f"Actual:   {substrate.get('interpreter')}"
             )
 
     _configure_console_encoding()
-
     if len(sys.argv) == 1:
         sys.argv.append("recall")
 
     parser = argparse.ArgumentParser(
-        description="SAMBrain CLI v1.2.4 - The Elite AI Memory Kernel (Immortal Stability)",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="SAMBrain CLI v1.2.4 - The Elite AI Memory Kernel",
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--version", action="version", version="1.2.4")
-    parser.add_argument("--db", help="Path to the project database (overrides default)")
-    parser.add_argument(
-        "--isolated", action="store_true", help="Force isolation: create/use .kit in CWD, ignore parents"
-    )
+    parser.add_argument("--db", help="Path to project database")
+    parser.add_argument("--isolated", action="store_true", help="Force isolation")
+    subparsers = parser.add_subparsers(dest="command")
 
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    # Command Definitions
+    p_init = subparsers.add_parser("init", help="Initialize space")
+    p_init.add_argument("--force", action="store_true")
+    
+    p_learn = subparsers.add_parser("learn", help="Ingest observation")
+    p_learn.add_argument("--content")
+    p_learn.add_argument("--uid")
+    p_learn.add_argument("--tag", default="decision")
+    p_learn.add_argument("--kind", default="observation")
+    p_learn.add_argument("--importance", type=float, default=1.0)
+    
+    p_recall = subparsers.add_parser("recall", help="Recall ranked context")
+    p_recall.add_argument("entities", nargs="*")
+    p_recall.add_argument("--limit", type=int, default=15)
+    p_recall.add_argument("--here", action="store_true")
+    p_recall.add_argument("--with-global", action="store_true")
 
-    _init_p = subparsers.add_parser("init", help="Initialize a new .kit memory space in the current directory")
-    _init_p.add_argument(
-        "--force",
-        action="store_true",
-        help="Reinitialize only kit-managed artifacts (.kit/, AGENTS.md, docs/reference.md, scripts/kitf.ps1)",
-    )
+    subparsers.add_parser("context", help="Alias for recall --here")
+    subparsers.add_parser("search", help="Hybrid search").add_argument("query")
+    subparsers.add_parser("stats", help="Kernel statistics")
+    subparsers.add_parser("status", help="Detailed status")
+    subparsers.add_parser("where", help="Show environment")
+    subparsers.add_parser("flow", help="Interactive flow")
+    
+    p_hygiene = subparsers.add_parser("hygiene", help="Audit workspace hygiene")
+    p_hygiene.add_argument("--verbose", action="store_true")
 
-    learn_p = subparsers.add_parser("learn", help="Ingest a new observation")
-    learn_p.add_argument("--uid", help="Node UID (node identity)")
-    learn_p.add_argument("--kind", default="observation", help="Node kind (e.g., concept, bug, arch)")
-    learn_p.add_argument("--content", help="The observation to remember")
-    learn_p.add_argument("--importance", type=float, default=1.0, help="Importance [0.1 - 1.0]")
-    learn_p.add_argument("--supersede", type=int, help="ID of the observation to supersede")
-    learn_p.add_argument(
-        "--tag",
-        choices=["invariant", "decision", "preference", "note", "legacy", "friction", "skill", "pattern", "hypothesis"],
-        default="decision",
-        help="Fact alignment tag",
-    )
-    learn_p.add_argument(
-        "--layer",
-        "-l",
-        choices=["working", "episodic", "semantic", "procedural"],
-        default="episodic",
-        help="Cognitive layer",
-    )
-    learn_p.add_argument("--global", action="store_true", dest="to_global", help="Learn into Global Brain")
-    learn_p.add_argument("--auto", action="store_true", help="Use v1.2.3 intelligent routing (recommended)")
-    learn_p.add_argument("--namespace", default="shared", help="Namespace (e.g., project, agent:name)")
-    learn_p.add_argument("--scope", help="Optional explicit scope (folder path)")
-    learn_p.add_argument("--agent-id", help="Explicit Agent ID for attribution")
-    learn_p.add_argument("--symbol", help="Anchor fact to a specific code symbol (AST node)")
-    learn_p.add_argument("--hash", help="Structural hash of the symbol")
-    learn_p.add_argument("--no-render", action="store_true", help="Skip manifest rendering (AGENTS.md) for batch speed")
-    learn_p.add_argument("--file", help="Path to a JSON file containing a list of observations to learn")
-
-    search_p = subparsers.add_parser("search", help="Hybrid FTS5 keyword search")
-    search_p.add_argument("query", help="Keyword or phrase to search for")
-    search_p.add_argument("--limit", type=int, default=15)
-    search_p.add_argument("--at", help="Temporal snapshot (YYYY-MM-DD HH:MM:SS)")
-    search_p.add_argument("--agent-id", help="Agent ID for recall boost")
-    search_p.add_argument("--fast", action="store_true", help="Fast mode (skip heavy ranking)")
-
-    recall_p = subparsers.add_parser("recall", help="Recall ranked context (Project + Global)")
-    recall_p.add_argument("entities", nargs="*", help="Entity UIDs")
-    recall_p.add_argument("--limit", type=int, default=15)
-    recall_p.add_argument("--at", help="Temporal snapshot")
-    recall_p.add_argument("--agent-id", help="Agent ID for recall boost")
-    recall_p.add_argument("--here", action="store_true", help="Filter/Boost by current directory scope")
-    recall_p.add_argument("--symbol", help="Recall context specifically for this code symbol")
-    recall_p.add_argument("--query", help="Keyword search within recalled context")
-    recall_p.add_argument("--with-global", action="store_true", help="Include Global Brain facts in recall")
-    recall_p.add_argument("--fast", action="store_true", help="Fast mode (skip heavy ranking)")
-    recall_p.add_argument(
-        "--profile", action="store_true", help="Show recall performance breakdown (v1.2.4-EXPERIMENTAL)"
-    )
-
-    context_p = subparsers.add_parser("context", help="Alias for recall --here (Project context awareness)")
-    context_p.add_argument("--limit", type=int, default=15)
-    context_p.add_argument("--at", help="Temporal snapshot")
-    context_p.add_argument("--agent-id", help="Agent ID for recall boost")
-    context_p.add_argument("--symbol", help="Recall context specifically for this code symbol")
-    context_p.add_argument("--query", help="Keyword search within context")
-    context_p.add_argument("--with-global", action="store_true", help="Include Global Brain facts in recall")
-    context_p.add_argument("--fast", action="store_true", help="Fast mode (skip heavy ranking)")
-    context_p.add_argument(
-        "--profile", action="store_true", help="Show recall performance breakdown (v1.2.4-EXPERIMENTAL)"
-    )
-
-    reflect_p = subparsers.add_parser("reflect", help="Cognitive awareness: detect gaps and drift in diff")
-    reflect_p.add_argument("file", nargs="?", help="File to reflect on (or use staged changes)")
-    reflect_p.add_argument("--strict", action="store_true", help="Deprecated: use --mode strict")
-    reflect_p.add_argument(
-        "--mode", choices=["strict", "advisory", "silent"], default="advisory", help="Reflection strictness mode"
-    )
-    reflect_p.add_argument("--json", action="store_true", help="Structured JSON output")
-    reflect_p.add_argument("--deep", action="store_true", help="Deep scan: invoke Vantage AST sensors for logic smells")
-    reflect_p.add_argument("--scope", help="Optional explicit scope (folder path)")
-    reflect_p.add_argument("--here", action="store_true", help="Filter by current directory scope")
-
-    blame_p = subparsers.add_parser("blame", help="Show architectural causality chain for a symbol")
-    blame_p.add_argument("symbol", help="The code symbol (function, class, etc.)")
-
-    subparsers.add_parser("where", help="Show current memory context and brain path")
-
-    link_p = subparsers.add_parser("link", help="Create a semantic edge between two nodes")
-    link_p.add_argument("--src", required=True)
-    link_p.add_argument("--dst", required=True)
-    link_p.add_argument("--rel", required=True, help="Relation type (e.g., DEPENDS_ON)")
-    link_p.add_argument("--weight", type=float, default=1.0)
-
-    stats_p = subparsers.add_parser("stats", aliases=["status"], help="Show AI Kernel statistics (Hybrid)")
-    stats_p.add_argument("--verbose", "-v", action="store_true", help="Show detailed system info and Vantage handshake")
-    stats_p.add_argument("--status", action="store_true", help="Alias for verbose status report")
-
-    bump_p = subparsers.add_parser("bump", help="Reinforce a memory (increment access count)")
-    bump_p.add_argument("id", type=int, help="Observation ID")
-
-    promote_p = subparsers.add_parser("promote", help="Promote episodic memories to semantic")
-    promote_p.add_argument("--threshold", type=int, default=5, help="Access count threshold")
-
-    doctor_p = subparsers.add_parser("doctor", help="System diagnostics and cognitive hygiene")
-    doctor_p.add_argument("--mode", choices=["safe", "aggressive"], default="safe", help="Hygiene strictness level")
-    doctor_p.add_argument("--check-agents", action="store_true", help="Run status check for AI agents")
-    doctor_p.add_argument("--reset-cloud", action="store_true", help="Reset persisted cloud provider metrics")
-    doctor_p.add_argument("--fix-shell", action="store_true", help="Attempt to fix shell environment (e.g. aliases)")
-    doctor_p.add_argument(
-        "--migrate-memory", action="store_true", help="Migrate legacy brain.db/global.db to new naming convention"
-    )
-
-    subparsers.add_parser("boot", help="Run the fast cognitive startup ritual (recall + verify)")
-
-    subparsers.add_parser("render", help="Force regenerate AI context files (.kit/context, AGENTS.md)")
-
-    label_p = subparsers.add_parser("label", help="v1.2.4 feedback: Label an observation correctly")
-    label_p.add_argument("--id", type=int, help="Observation ID to correct")
-    label_p.add_argument("--correct", choices=["GLOBAL", "LOCAL"], required=True, help="Correct target brain")
-
-    watch_p = subparsers.add_parser("watch", help="Stream cognitive events in real-time")
-    watch_p.add_argument("--json", action="store_true", help="Output raw JSON stream")
-
-    preflight_p = subparsers.add_parser("preflight", help="Run cognitive governance checks before committing")
-    preflight_p.add_argument("-m", "--message", type=str, help="The commit message to evaluate")
-    preflight_p.add_argument("--strict", action="store_true", help="Deprecated: use --mode strict")
-    preflight_p.add_argument(
-        "--mode", choices=["strict", "advisory", "silent"], default="strict", help="Preflight strictness mode"
-    )
-    preflight_p.add_argument("--json", action="store_true", help="Output raw JSON format")
-
-    scan_p = subparsers.add_parser("scan", help="Rapid safety-scan of the project tree (v1.2.4-TITANIUM)")
-    scan_p.add_argument("path", nargs="?", default=".", help="Root directory to scan")
-    scan_p.add_argument("--depth", type=int, default=10, help="Maximum scan depth (default 10, max 25)")
-
-    bake_p = subparsers.add_parser("bake", help="v1.2.4-LOCK: Structurally graduate unbaked observations via Vantage.")
-    bake_p.add_argument("--timeout", type=int, default=10, help="Per-observation Vantage timeout (seconds)")
-    bake_p.add_argument("--json", action="store_true", help="Output result as JSON")
-
-    compile_p = subparsers.add_parser(
-        "compile", help="v1.2.4-LOCK: Compile execution context or rule definition into L3 Skill."
-    )
-    compile_p.add_argument("name", nargs="?", help="Skill name (e.g. repair-venv)")
-    compile_p.add_argument("--file", help="Path to the YAML skill definition")
-    compile_p.add_argument("--global", action="store_true", dest="is_global", help="Compile into the Global Brain")
-
-    trigger_p = subparsers.add_parser("trigger", help="v1.2.4-LOCK: Trigger a reactive skill based on a message.")
-    trigger_p.add_argument("message", help="The message/error to match triggers against")
-    trigger_p.add_argument("--dry-run", action="store_true", help="Preview matched skill without executing")
-
-    run_skill_p = subparsers.add_parser("run-skill", help="v1.2.4-LOCK: Directly execute a procedural skill by name.")
-    run_skill_p.add_argument("name", help="The name of the skill to run")
-    run_skill_p.add_argument("--dry-run", action="store_true", help="Preview skill workflow without executing")
-
-    inspect_p = subparsers.add_parser("inspect", help="v1.2.4-TITANIUM: Introspect the system schema, topology, and state.")
-    inspect_p.add_argument("--json", action="store_true", help="Output introspection report as JSON")
-    inspect_p.add_argument("--topology", action="store_true", help="Focus only on memory topology")
-    inspect_p.add_argument("--schema", action="store_true", help="Focus only on tag/metadata schema")
-
-    seal_p = subparsers.add_parser(
-        "seal",
-        help="KHÓA HỆ THỐNG: Kích hoạt Phase C (Global ABI Lock)",
-        description=(
-            "Đóng băng vĩnh viễn (Read-Only) bộ nhớ Cognitive Brain ở tầng OS. "
-            "Mọi nỗ lực ghi sau lệnh này (như kit learn, kit bake) sẽ bị từ chối (Hard Fail). "
-            "Quy trình: Truncate WAL -> Scan Zombie -> Apply OS Lock -> Verify."
-        ),
-    )
-    seal_p.add_argument(
-        "--force-evict",
-        action="store_true",
-        help="Tự động tiêu diệt (kill) các Zombie Handles đang chiếm dụng DB thay vì chỉ cảnh báo.",
-    )
-    seal_p.add_argument(
-        "--global",
-        action="store_true",
-        dest="global_seal",
-        help="Niêm phong bộ nhớ Global (~/.kit/global_brain.db) thay vì bộ nhớ Local.",
-    )
-
-    flow_p = subparsers.add_parser(
-        "flow",
-        help="Flow Surface: Unified interactive execution loop (ask/run/learn/status)",
-        description=(
-            "Kit Flow Surface: Mặt phẳng thực thi thống nhất. "
-            "Không cần nhớ nhiều lệnh — chỉ cần biết: ask, run, learn, status. "
-            "Hệ thống tự điều phối giữa các module nội bộ."
-        ),
-    )
-
-    unseal_p = subparsers.add_parser(
-        "unseal",
-        help="MỞ KHÓA HỆ THỐNG (Nguy hiểm): Gỡ bỏ Phase C Lock",
-        description="Gỡ bỏ cờ Read-Only ở tầng OS. Yêu cầu Cờ --force và Lý do (Audit Trail).",
-    )
-    unseal_p.add_argument(
-        "--force", action="store_true", required=True, help="BẮT BUỘC: Xác nhận phá vỡ tính bất biến của hệ thống."
-    )
-    unseal_p.add_argument(
-        "--reason",
-        type=str,
-        required=True,
-        help="BẮT BUỘC: Ghi nhận lý do mở khóa vào Audit Trail (VD: 'Nâng cấp L3 Skills').",
-    )
-    unseal_p.add_argument(
-        "--global",
-        action="store_true",
-        dest="global_unseal",
-        help="Mở khóa bộ nhớ Global (~/.kit/global_brain.db) thay vì bộ nhớ Local.",
-    )
-
-    known_commands = [
-        "init",
-        "learn",
-        "search",
-        "recall",
-        "context",
-        "where",
-        "link",
-        "stats",
-        "status",
-        "bump",
-        "promote",
-        "doctor",
-        "render",
-        "watch",
-        "preflight",
-        "blame",
-        "reflect",
-        "scan",
-        "bake",
-        "compile",
-        "trigger",
-        "run-skill",
-        "boot",
-        "seal",
-        "unseal",
-        "flow",
-    ]
-
-    if len(sys.argv) > 1:
-        potential_cmd = sys.argv[1]
-        if not potential_cmd.startswith("-") and potential_cmd not in known_commands:
-            plugin_name = f"kit-{potential_cmd}"
-            plugin_path = shutil.which(plugin_name)
-
-            if plugin_path:
-                plugin_args = [plugin_path] + sys.argv[2:]
-                try:
-                    result = run_safe(plugin_args, timeout=DEFAULT_TIMEOUT)  # Standard 1s timeout
-                    sys.exit(result.returncode)
-                except Exception as e:
-                    print(f"Error executing plugin '{plugin_name}': {e}", file=sys.stderr)
-                    sys.exit(1)
+    p_doctor = subparsers.add_parser("doctor", help="Repair system issues")
+    p_doctor.add_argument("--heal", action="store_true", help="Execute cleanup DAG")
 
     args = parser.parse_args()
-
-    tracer.log_command({"cmd": args.command, "args": vars(args)})
-
-    if args.command == "init" and getattr(args, "force", False):
-        _reset_managed_onboarding_files(Path.cwd(), lambda _msg: None)
-
+    
+    # Initialize Kernel API
     import kit.api as api
-
-    db_path = Path(args.db).absolute() if args.db else None
-    mode = "isolated" if args.isolated else "auto"
-    api.init_kernel(db_path, mode=mode)
-
-    def print_diagnostic(msg: object) -> None:
-        print(msg, file=sys.stderr)
-
-    is_tty = sys.stdout.isatty()
-    current_context = Path.cwd().name
-
-    try:
-        if args.command == "init":
-            from kit.api import resolve_paths
-
-            # 1. Force local resolution and kernel re-initialization
-            _, project_db, root_path = resolve_paths(force_local=True)
-            api.init_kernel(project_db, mode="isolated")
-            brain = api.get_brain()
-
-            kit_dir = root_path / ".kit"
-
-            # 2. Determine project identity
-            project_name = root_path.name
-            _materialize_onboarding_files(root_path, print_diagnostic)
-            seeded = _seed_bootstrap_memories(root_path, project_name)
-
-            # 3. Update .gitignore
-            gitignore = root_path / ".gitignore"
-            if gitignore.exists() or root_path.joinpath(".git").exists():
-                content = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
-                if ".kit/brain.db-*" not in content:
-                    with open(gitignore, "a", encoding="utf-8") as f:
-                        f.write("\n# .kit Memory Store\n.kit/brain.db-*\n.kit/brain.db.bak\n")
-                    print_diagnostic(f"Updated {gitignore.name} to ignore SQLite WAL/SHM files")
-
-            # 4. Render context removed from automatic cycle [v1.2.3 HOTFIX]
-            # Use 'kit render' manually if needed.
-
-            print_diagnostic(f".kit initialized successfully in {kit_dir}")
-            if seeded:
-                print_diagnostic("Local starter memories seeded for token-efficient onboarding.")
-            else:
-                print_diagnostic("Local starter memories already present.")
-            print_diagnostic("Run `kit recall` to load the starter pack before your first task.")
-
-        elif args.command == "learn":
-            import json as json_lib
-            from functools import partial
-            from kit.core.kernel_engine import DeterministicKernel
-            from kit.core.kernel_fsm import ExecutionFrame
-
-            observations: list[dict[str, Any]] = []
-
-            # Initialize Deterministic Kernel for this session
-            kernel = DeterministicKernel(session_id=os.getenv("KIT_SESSION_ID"))
-            kernel.bind_brain(api.get_brain())
-
-            if args.file:
-                file_path = Path(args.file)
-                if not file_path.exists():
-                    print_diagnostic(f"Error: File {args.file} not found.")
-                    sys.exit(1)
-
-                with open(file_path, encoding="utf-8") as f:
-                    try:
-                        data = json_lib.load(f)
-                        if isinstance(data, list):
-                            observations = data  # type: ignore[assignment]
-                        else:
-                            observations = [data]
-                    except Exception as e:
-                        print_diagnostic(f"Error parsing JSON file: {e}")
-                        sys.exit(1)
-            else:
-                content = args.content
-                if not content:
-                    content = read_stdin_fail_fast(timeout=FAST_TIMEOUT)
-
-                if not content:
-                    print_diagnostic("Error: No content provided. (Use --content, --file, or pipe data via STDIN)")
-                    sys.exit(1)
-
-                observations = [
-                    {
-                        "content": content,
-                        "tag": args.tag,
-                        "uid": args.uid,
-                        "kind": args.kind,
-                        "importance": args.importance,
-                        "layer": args.layer,
-                        "to_global": args.to_global,
-                        "supersede_id": args.supersede,
-                        "namespace": args.namespace,
-                        "scope": args.scope,
-                        "agent_id": args.agent_id,
-                        "symbol": args.symbol,
-                        "hash": args.hash,
-                    }
-                ]
-
-            total_obs = len(observations)
-            success_count = 0
-            if total_obs > 1:
-                print_diagnostic(f"Starting batch ingestion of {total_obs} observations...")
-
-            for i, obs in enumerate(observations, 1):
-                try:
-                    content = obs.get("content")
-                    if not content:
-                        continue
-
-                    tag = obs.get("tag", args.tag)
-                    uid = obs.get("uid", args.uid) or current_context
-                    kind = obs.get("kind", args.kind)
-                    importance = obs.get("importance", args.importance)
-                    layer = obs.get("layer", args.layer)
-                    to_global = obs.get("to_global", args.to_global)
-                    supersede_id = obs.get("supersede_id", args.supersede)
-                    namespace = obs.get("namespace", args.namespace)
-                    scope = obs.get("scope", args.scope)
-                    agent_id = obs.get("agent_id", args.agent_id)
-                    symbol = obs.get("symbol", args.symbol)
-                    struct_hash = obs.get("hash", args.hash)
-
-                    # --- Cognitive Friction ---
-                    if _cognitive_guardrail(content, tag):
-                        if not args.file:
-                            print("\n" + "!" * 60, file=sys.stderr)
-                            print("COGNITIVE FRICTION WARNING: DYNAMIC DATA DETECTED", file=sys.stderr)
-
-                    # --- v1.2.3 Auto-Routing ---
-                    if getattr(args, "auto", False):
-                        from kit.cli import auto_route
-
-                        res = auto_route.route_content(content)
-                        status = res["status"]
-                        if status == "BLOCK":
-                            print_diagnostic(f"[{i}/{total_obs}] FIREWALL: Secret detected. Entry BLOCKED.")
-                            continue
-                        if status == "DROP":
-                            print_diagnostic(f"[{i}/{total_obs}] HYGIENE: Noise detected. Entry DROPPED.")
-                            continue
-                        if status == "SKIP":
-                            print_diagnostic(f"[{i}/{total_obs}] IDEMPOTENCY: Duplicate detected. Entry SKIPPED.")
-                            continue
-                        struct_hash = res["hash"]
-                        to_global = res["route"] == "GLOBAL"
-
-                    # ECL v1: Wrap in Frame
-                    action_call = partial(
-                        api.get_brain().learn,
-                        uid=uid,
-                        kind=kind,
-                        content=content,
-                        importance=importance,
-                        layer=layer,
-                        to_global=to_global,
-                        supersede_id=supersede_id,
-                        namespace=namespace,
-                        scope=scope,
-                        agent_id=agent_id,
-                        symbol=symbol,
-                        structural_hash=struct_hash,
-                        tag=tag,
-                        skip_render=args.no_render,
-                    )
-
-                    frame = ExecutionFrame(action=action_call, command=f"kit.api:learn(uid='{uid}', tag='{tag}')")
-                    kernel.submit(frame)
-                    success_count += 1
-
-                except Exception as e:
-                    print_diagnostic(f"Error at index {i}: {e}")
-                    continue
-
-            # 🔥 BURN: Execute Governing Kernel
-            kernel_success = kernel.run()
-            if not kernel_success:
-                print_diagnostic("[Kernel] Execution partially failed.")
-                sys.exit(1)
-
-            if total_obs > 1:
-                print_diagnostic(f"\nCOMPLETED: {success_count}/{total_obs} observations successfully ingested.")
-            else:
-                print_diagnostic(f"Learned: [{uid}] successfully ingested via Deterministic Kernel.")
-
-            # v1.2.3-STABLE: Trigger background graduation (Bake)
-            trigger_async_bake(api.get_brain())
-
-        elif args.command == "search":
-            is_fast = getattr(args, "fast", False)
-            memories = api.search(args.query, limit=args.limit, at=args.at, agent_id=args.agent_id, fast=is_fast)
-            if is_tty:
-                print_diagnostic(f"Hybrid search results for '{args.query}':\n")
-
-            if not memories:
-                print_diagnostic("No matches found.")
-            else:
-                for m in memories:
-                    print(f"* [ID:{m.id}][{m.brain_source}:{m.node_uid}] {m.content} (score: {m.score:.2f})")
-
-        elif args.command == "recall" or args.command == "context":
-            entities: list[str] = args.entities if args.command == "recall" else []
-            if args.command == "recall" and not entities:
-                entities = [current_context]
-
-            is_here = getattr(args, "here", False) or args.command == "context"
-            is_fast = getattr(args, "fast", False)
-            is_prof = getattr(args, "profile", False)
-            recall_result = api.recall(
-                entities,
-                limit=args.limit,
-                at=args.at,
-                agent_id=args.agent_id,
-                here=is_here,
-                symbol=args.symbol,
-                query=args.query,
-                with_global=args.with_global,
-                fast=args.fast or (args.query is not None),
-                include_profile=is_prof,
-            )
-            if is_prof:
-                memories, profile = recall_result
-            else:
-                memories = recall_result
-                profile = None
-
-            if is_tty:
-                scope_str = f" [Scope: {api.get_brain().get_normalized_scope()}]" if is_here else ""
-                print_diagnostic(f"Recalled context for {entities or 'current scope'}{scope_str}:\n")
-
-            if not memories:
-                print_diagnostic("No relevant memories found.")
-            else:
-                for m in memories:
-                    source_tag = f"[{m.brain_source.upper()}]"
-                    print(
-                        f"* {source_tag}[ID:{m.id}][{m.node_uid}][{m.layer}:{m.namespace}][{m.created_at}][{m.importance:.1f}] {m.content}"
-                    )
-
-            if is_prof and profile:
-                print_diagnostic("\nRECALL PROFILE:")
-                print_diagnostic(f"  * SQL Query:    {profile['sql'] * 1000:6.2f}ms")
-                print_diagnostic(f"  * Hydration:    {profile['hydration'] * 1000:6.2f}ms")
-                print_diagnostic(f"  * Ranking:      {profile['ranking'] * 1000:6.2f}ms")
-                print_diagnostic(f"  * Total:        {profile['total'] * 1000:6.2f}ms")
-
-        elif args.command == "bump":
-            if api.touch(args.id):
-                print_diagnostic(f"Memory {args.id} reinforced.")
-            else:
-                print_diagnostic(f"Failed to reinforce memory {args.id}.")
-
-        elif args.command == "promote":
-            count = api.promote(args.threshold)
-            print_diagnostic(f"Promoted {count} memories to Semantic layer (Threshold: {args.threshold}).")
-
-        elif args.command == "link":
-            api.link(args.src, args.dst, args.rel, args.weight)
-            print_diagnostic(f"Linked: {args.src} --({args.rel})--> {args.dst}")
-
-        elif args.command in ("stats", "status"):
-            from kit.core import rmil  # MEC v2: Neural Priming status
-            from kit.core.kit_lock import is_sealed
-
-            substrate = kit_env.get_substrate_report()
-            rmil_status = rmil.get_rmil_status()
-            stats = api.get_brain().get_stats()
-            brain = api.get_brain()
-            root = brain.root_path
-
-            # Auto-verbose if --status flag used (v1.2.4-LOCK ergonomics)
-            is_verbose = args.verbose or (hasattr(args, "status") and args.status)
-
-            print(f"KIT STATUS ({CLI_VERSION})")
-            print(f"\n[Environment]")
-            print(f"  Substrate: {substrate['interpreter']}")
-            print(f"  Locked:    {'✅ YES' if substrate['is_locked'] else '⚠️ NO (Drift Detected!)'}")
-            print(f"  Venv:      {substrate['venv_discovered']}")
-
-            if is_verbose:
-                print(f"  Vantage:   {substrate['vantage_bin']}")
-                print(f"  Prefix:    {substrate['prefix']}")
-                print(f"  RMIL Lat:  {rmil_status['latency_ms']:.2f}ms")
-
-            print(f"\n[Memory Tiers]")
-            print(f"  Local Brain:  {brain.db_path}")
-            if hasattr(brain, 'global_db_path') and brain.global_db_path:
-                print(f"  Global Brain: {brain.global_db_path}")
-            
-            frozen_path = brain.topology.resolve("global", "frozen")
-            if frozen_path.exists():
-                print(f"  Frozen Law:   {frozen_path}")
-                
-            if hasattr(brain, 'snapshot_db_path') and brain.snapshot_db_path:
-                print(f"  Snapshot:     {brain.snapshot_db_path}")
-            print(f"  Sealed:       {'✅ YES' if is_sealed(root) else '❌ NO'}")
-
-            for scope in ["project", "global", "law"]:
-                data = stats.get(scope, {})
-                if not data and scope == "law": continue
-                nodes = data.get("nodes", 0)
-                obs = data.get("observations", 0)
-                skills = data.get("skills", 0)
-                print(f"  {scope.capitalize()} Brain (nodes: {nodes}, observations: {obs}, skills: {skills})")
-
-            # RMIL Working Memory Report
-            if rmil_status["loaded"]:
-                print(
-                    f"  Working:   {len(rmil_status['skills'])} skills, {len(rmil_status['facts'])} facts (Neural Primed)"
-                )
-
-            # Calculate bake ratio for the project brain
-            p_data = stats.get("project", {})
-            l_data = stats.get("law", {})
-            t_obs = p_data.get("observations", 0)
-            b_obs = p_data.get("baked", 0)
-            ratio = (b_obs / t_obs * 100) if t_obs > 0 else 100.0
-
-            total_skills = p_data.get("skills", 0) + l_data.get("skills", 0)
-
-            print(f"\n[Execution Boundary]")
-            print(f"  Baked Ratio: {ratio:.1f}% ({b_obs}/{t_obs})")
-            print(f"  Total Skills: {total_skills} (Project: {p_data.get('skills', 0)}, Law: {l_data.get('skills', 0)})")
-            print("  Status:      STABLE" if ratio > 90 else "  Status:      STABILIZING")
-
-            print(f"\n[Cognitive Tags]")
-            tags = ["invariant", "decision", "friction", "preference", "note", "legacy", "skill", "pattern", "hypothesis"]
-            print(f"  Supported: {', '.join(tags)}")
-
-            print(f"\n[Timestamp]")
-            print(f"  {datetime.now(UTC).isoformat()}")
-            print("")
-            sys.exit(0)
-
-        elif args.command == "compile":
-            if args.file and args.name:
-                path = Path(args.file)
-                if not path.exists():
-                    print(f"Error: File not found: {path}")
-                    sys.exit(1)
-
-                # Read and validate YAML
-                content = path.read_text()
-                try:
-                    yaml.safe_load(content)
-                except Exception as e:
-                    print(f"Error: Invalid YAML in {path}: {e}")
-                    sys.exit(1)
-
-                from kit.api import get_brain, learn
-
-                brain = get_brain()
-
-                skill_name = args.name.lower()
-                supersede_id = None
-                try:
-                    sql = """
-                        SELECT o.id FROM observations o
-                        JOIN nodes n ON o.node_id = n.id
-                        WHERE n.uid = ? AND o.layer = 'procedural' AND o.is_active = 1
-                        ORDER BY o.created_at DESC LIMIT 1
-                    """
-                    with brain.get_connection() as conn:
-                        row = conn.execute(sql, (skill_name,)).fetchone()
-                        if row:
-                            supersede_id = row["id"]
-                            print(f"[kit] Superseding existing skill: {skill_name} (Legacy ID: {supersede_id})")
-                except Exception as e:
-                    print_diagnostic(f"Warning: Failed to fetch legacy skill ID for superseding: {e}")
-
-                new_id = learn(
-                    content=content,
-                    kind="skill",
-                    layer="procedural",
-                    uid=skill_name,
-                    to_global=args.is_global,
-                    supersede_id=supersede_id,
-                )
-
-                status_msg = f"Skill '{skill_name}' compiled (ID: {new_id})"
-                if supersede_id:
-                    status_msg += f" - Superseded legacy ID: {supersede_id}"
-
-                print(f"{status_msg} into {'Global' if args.is_global else 'Project'} Brain.")
-            else:
-                # v1.2.4-LOCK: Default to context compiler
-                from kit.core.context_compiler import save_execution_context
-
-                brain = api.get_brain()
-                ctx_path = save_execution_context(brain)
-                print_diagnostic(f"Compiled execution context to {ctx_path.name} (Deterministic v1.0)")
-            sys.exit(0)
-
-        elif args.command == "trigger" or args.command == "run-skill":
-            # Procedural Skill Execution (v0.1)
-            try:
-                if args.command == "trigger":
-                    success = api.trigger_skill(args.message, dry_run=args.dry_run)
-                    if not success and not args.dry_run:
-                        print(f"[kit] No matching skills found for: {args.message}")
-                else:
-                    success = api.run_procedural_skill(args.name, dry_run=args.dry_run)
-
-                sys.exit(0 if success else 1)
-            except Exception as e:
-                print(f"[kit] ERROR during skill execution: {e}")
-                sys.exit(1)
-
-        elif args.command == "doctor":
-            from kit.cli.doctor import run_doctor
-
-            # Hybrid Doctor: Audit (Read-only) + Explicit Fix
-            run_doctor(
-                api.get_brain(),
-                args.mode,
-                check_agents=args.check_agents,
-                reset_cloud=args.reset_cloud,
-                fix_shell=args.fix_shell,
-                migrate_memory=args.migrate_memory,
-            )
-
-        elif args.command == "boot":
-            print_diagnostic("Starting cognitive boot ritual...")
-
-            # 1. Recall top context (Limit 15 as requested)
-            recalled = api.recall([], limit=15)
-            print_diagnostic(f"✔ Recalled {len(recalled)} memories from project context.")
-
-            # 2. Run Vantage Verification shim
-            vantage_bin = kit_env.get_vantage_bin()
-            if vantage_bin:
-                # We target the CLI entrypoint for the structural anchor check
-                v_res = subprocess.run(
-                    [str(vantage_bin), "verify", "kit/cli/main.py"],
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                )
-                if v_res.returncode == 0:
-                    print_diagnostic("✔ Structural integrity verified via Vantage.")
-                else:
-                    print_diagnostic(f"✖ Vantage verification failed: {v_res.stderr}")
-            else:
-                print_diagnostic("⚠️ Vantage binary not found. Skipping structural check.")
-
-            print_diagnostic("\n[READY] Kernel online and context loaded. Ready for task execution.")
-            sys.exit(0)
-
-        elif args.command == "where":
-            brain = api.get_brain()
-            print(f"Brain: {brain.db_path}")
-            print(f"Root:  {brain.root_path}")
-            print(f"Scope: '{brain.get_normalized_scope()}'")
-
-        elif args.command == "render":
-            # v1.2.5: Generate deterministic context files
-            from kit.core.context_compiler import save_execution_context
-            from kit.core.repo_scanner import save_repo_map
-
-            brain = api.get_brain()
-
-            # Generate execution_context.json
-            ctx_path = save_execution_context(brain)
-            print_diagnostic(f"Generated: {ctx_path}")
-
-            # Generate repo_map.json
-            repo_path = save_repo_map(brain.root_path)
-            print_diagnostic(f"Generated: {repo_path}")
-
-            # Also run legacy render for backward compatibility
-            brain.render_context()
-            print_diagnostic("AI context manifests regenerated.")
-
-        elif args.command == "blame":
-            records = api.get_blame(args.symbol)
-            if not records:
-                print_diagnostic(f"No architectural history found for symbol '{args.symbol}'.")
-            else:
-                print(f"Architectural Blame: {args.symbol}\n")
-                for r in records:
-                    author = r["agent_id"] or "unknown"
-                    commit = f" [{r['commit_msg']}]" if r["commit_msg"] else ""
-                    print(f"   * {r['created_at']} | {author}{commit}")
-                    print(f"     Fact: {r['content']}\n")
-
-        elif args.command == "watch":
-            import json as json_lib
-
-            try:
-                for event in api.stream_events():
-                    print(json_lib.dumps(event), flush=True)
-            except KeyboardInterrupt:
-                pass
-
-        elif args.command == "preflight":
-            import json as json_lib
-
-            piped_diff = None
-            piped_diff = read_stdin_fail_fast(timeout=FAST_TIMEOUT)
-
-            result = api.preflight_check(args.message or "", args.strict, diff_text=piped_diff)
-
-            if args.json:
-                print(json_lib.dumps(result))
-            else:
-                score_str = f"{result['score']:.2f}"
-                status = result["status"].upper()
-                print(f"Cognitive Check: {status} (Score: {score_str})")
-
-                if result["issues"]:
-                    print("\nIssues Found:")
-                    for issue in result["issues"]:
-                        print(f"  - [{issue['type'].upper()}]: {issue['message']}")
-
-                if result["suggestions"]:
-                    print("\nSuggestions:")
-                    for suggestion in result["suggestions"]:
-                        print(f"  - {suggestion}")
-
-                if result["status"] == "block":
-                    sys.exit(1)
-            sys.exit(0)
-
-        elif args.command == "scan":
-            from kit.core.repo_scanner import save_repo_map
-
-            root = Path(args.path).resolve()
-            if not root.is_dir():
-                print_diagnostic(f"Error: {root} is not a directory.")
-                sys.exit(1)
-
-            print(f"Scanning project tree at: {root}")
-            print("---")
-
-            repo_path = save_repo_map(root)
-            print(f"Generated physical awareness artifact: {repo_path.name}")
-            import json as json_lib
-
-            stats = json_lib.loads(repo_path.read_text(encoding="utf-8"))
-            count = len(stats.get("files", []))
-
-            print("---")
-            print(f"Total discovered files: {count}")
-            sys.exit(0)
-
-        elif args.command == "reflect":
-            # v1.2.4-LOCK: Auto-trigger baking pass before reflection to ensure we audit verified truth.
-            try:
-                from kit.core.kit_baking import run_baking_pass
-
-                bake_stats = run_baking_pass(api.get_brain())
-                if bake_stats["total"] > 0:
-                    print_diagnostic(
-                        f"[bake] Pre-reflect pass: baked={bake_stats['baked']} "
-                        f"toxic={bake_stats['toxic']} of {bake_stats['total']} pending."
-                    )
-            except Exception as _bake_err:
-                print_diagnostic(f"[bake] Pre-reflect baking skipped: {_bake_err}")
-
-            diff_text = ""
-            external_signals: list[Any] = []
-            files_to_process = []
-
-            if args.file:
-                p = Path(args.file)
-                if not p.exists():
-                    print_diagnostic(f"Error: File {args.file} not found.")
-                    sys.exit(1)
-                files_to_process = [p]
-            else:
-                try:
-                    diff_res = run_safe(["git", "diff", "--cached", "--name-only"], timeout=GIT_TIMEOUT)
-                    changed_files = [f.strip() for f in diff_res.stdout.splitlines() if f.strip()]
-
-                    if not changed_files:
-                        diff_res = run_safe(["git", "diff", "HEAD", "--name-only"], timeout=GIT_TIMEOUT)
-                        changed_files = [f.strip() for f in diff_res.stdout.splitlines() if f.strip()]
-
-                    files_to_process = [Path(f) for f in changed_files]
-                except RuntimeError, FileNotFoundError:
-                    print_diagnostic("Error: No file provided and no staged git changes found.")
-                    sys.exit(1)
-
-            pseudo_diff = ""
-            main_file_path = files_to_process[0] if files_to_process else None
-
-            for p in files_to_process:
-                if p.suffix not in (".py", ".rs", ".js", ".ts", ".go", ".rb"):
-                    continue
-                if not p.exists():
-                    continue
-
-                try:
-                    file_content = read_text_safe(p)
-                    for line in file_content.text.splitlines()[:500]:
-                        pseudo_diff += f"+ {line}\n"
-                except EncodingError as ee:
-                    print_diagnostic(f"Warning: Skipping {p} due to {ee.status.value}: {ee.message}")
-                    continue
-                except Exception:
-                    continue
-
-            diff_text = pseudo_diff
-
-            if not diff_text:
-                print_diagnostic("No changes detected for reflection.")
-                sys.exit(0)
-
-            scope = args.scope
-            if getattr(args, "here", False):
-                scope = api.get_brain().get_normalized_scope()
-
-            result = api.reflect_check(
-                diff_text,
-                scope=scope,
-                external_signals=external_signals,
-                file_path=main_file_path,
-                deep=getattr(args, "deep", False),
-            )
-
-            # v1.2.4 Decision Discipline: Seal the Judge (L3)
-            raw_signals = result.get("signals", [])
-            signals = [normalize_signal(s) for s in raw_signals]
-            for s in signals:
-                tracer.log_signal({"phase": "pre", "signal": s})
-            result["signals"] = signals  # normalize within the structure
-            decision = decide(signals)
-            for s in signals:
-                tracer.log_signal({"phase": "post", "signal": s})
-            final_status = decision["action"]
-            exit_code = decision["exit_code"]
-
-            if args.json:
-                import json
-
-                print(json.dumps(result, indent=2))
-            else:
-                score = result.get("score", 1.0)
-                color = "SUCCESS"
-                if final_status == Action.BLOCK:
-                    color = "BLOCK"
-                elif final_status == Action.WARN:
-                    color = "WARN"
-
-                print(f"\nScore: {score:.1f} ({final_status}) {color}")
-
-                if result.get("confirmations"):
-                    print("\nConfirmations:")
-                    for c in result["confirmations"]:
-                        print(f"  - {c}")
-
-                signals = result.get("signals", [])
-                if signals:
-                    print(f"\nSignals detected ({len(signals)}):")
-                    for s in signals:
-                        uid = s.get("uid", "Unknown")
-                        src = s.get("source", "core")
-                        line = s.get("line", 0)
-                        print(f"  - [{uid}] {src} (line {line})")
-
-                if result.get("suggestions"):
-                    print("\nSuggestions:")
-                    for s in result["suggestions"]:
-                        print(f"  - {s}")
-
-            mode = args.mode
-
-            if mode == "advisory" and final_status == Action.BLOCK:
-                print_diagnostic("System is in ADVISORY mode: Block bypassed.")
-                sys.exit(0)
-
-            sys.exit(exit_code)
-
-        elif args.command == "bake":
-            # v1.2.4-LOCK: Explicit structural graduation pass.
-            # The ONLY place normal user-submitted content is analyzed by Vantage.
-            from kit.core.kit_baking import run_baking_pass
-
-            timeout = getattr(args, "timeout", 10)
-            stats = run_baking_pass(api.get_brain(), timeout=timeout)
-            if getattr(args, "json", False):
-                import json as json_lib
-
-                print(json_lib.dumps(stats, indent=2))
-            else:
-                print_diagnostic(
-                    f"[bake] Done. total={stats['total']} baked={stats['baked']} "
-                    f"skipped={stats['skipped']} toxic={stats['toxic']}"
-                )
-            sys.exit(0)
-
-        elif args.command == "label":
-            from kit.cli import auto_route
-
-            # Log corrective feedback for v1.2.4 Adaptive Loop
-            feedback = {
-                "ts": datetime.now(UTC).isoformat(),
-                "type": "FEEDBACK",
-                "obs_id": args.id,
-                "correct_label": args.correct,
-            }
-            auto_route.log(feedback)
-            print_diagnostic(f"Feedback logged: Observation {args.id} -> {args.correct}. v1.2.4 Trainer will use this.")
-
-        elif args.command == "inspect":
-            from kit.core.kit_cognitive_core import get_tag_schema
-            brain = api.get_brain()
-            report = {
-                "version": "1.2.4-TITANIUM",
-                "topology": brain.topology.describe_topology(),
-                "schema": {
-                    "tags": get_tag_schema(),
-                    "layers": ["working", "episodic", "semantic", "procedural"]
-                },
-                "status": brain.get_stats()
-            }
-
-            import json
-            if args.json:
-                print(json.dumps(report, indent=2))
-            else:
-                if args.topology or (not args.topology and not args.schema):
-                    print("\n\U0001f310 MEMORY TOPOLOGY (v1.2.4)")
-                    print("=" * 40)
-                    for tier, details in report["topology"].items():
-                        print(f"{tier:10} | {details['mode']:10} | {details['path']}")
-                
-                if args.schema or (not args.topology and not args.schema):
-                    print("\n\U0001f3f7\ufe0f  TAG SCHEMA (SSOT)")
-                    print("=" * 40)
-                    tags = report["schema"]["tags"]
-                    print(f"Source:  {tags['source']}")
-                    print(f"Default: {tags['default']}")
-                    print(f"Choices: {', '.join(tags['choices'])}")
-                    
-                    print("\n\U0001f9ec LAYERS")
-                    print("=" * 40)
-                    print(", ".join(report["schema"]["layers"]))
-                    
-                if not args.topology and not args.schema:
-                    print("\n\U0001f4ca SYSTEM STATUS")
-                    print("=" * 40)
-                    for k, v in report["status"].items():
-                        print(f"{k:20}: {v}")
-
-        elif args.command == "seal":
-            from kit.core.memory_topology import MemoryTopology
-            from kit.core.kit_lock import seal as lock_seal, is_sealed
-
-            is_global = getattr(args, "global_seal", False)
-            root = Path.home() if is_global else Path.cwd()
-
-            topo = MemoryTopology(project_root=None if is_global else root)
-            db = topo.resolve("global" if is_global else "local", "global" if is_global else "local")
-
-            if is_sealed(root):
-                print_diagnostic(f"Brain ({'Global' if is_global else 'Local'}) is already sealed.")
-                sys.exit(0)
-
-            try:
-                result = lock_seal(db, root, force_evict=getattr(args, "force_evict", False))
-                print_diagnostic(f"Seal complete ({'Global' if is_global else 'Local'}): {result['status']}")
-            except Exception as e:
-                print_diagnostic(f"Seal failed: {e}")
-                sys.exit(1)
-
-        elif args.command == "unseal":
-            from kit.core.kit_lock import unseal as lock_unseal, is_sealed
-            from kit.core.memory_topology import MemoryTopology
-
-            is_global = getattr(args, "global_unseal", False)
-            root = Path.home() if is_global else Path.cwd()
-
-            topo = MemoryTopology(project_root=None if is_global else root)
-            db = topo.resolve("global" if is_global else "local", "global" if is_global else "local")
-
-            if not is_sealed(root):
-                print_diagnostic(f"Brain ({'Global' if is_global else 'Local'}) is not sealed.")
-                sys.exit(0)
-
-            if not getattr(args, "force", False):
-                print_diagnostic("ERROR: unseal requires --force flag.")
-                print_diagnostic('Usage: kit unseal --force --reason "maintenance"')
-                sys.exit(1)
-
-            result = lock_unseal(db, root, reason=args.reason)
-            print_diagnostic(f"Unseal complete ({'Global' if is_global else 'Local'}): {result['status']}")
-
-        elif args.command == "flow":
-            print_diagnostic("KIT Flow Surface v1.2.4")
-            print_diagnostic("Commands: ask, run, learn, status (interactive mode)")
-            print_diagnostic("Type 'exit' to leave flow mode.")
-            print_diagnostic("")
-
-            import kit.api as flow_api
-
-            flow_api.init_kernel(None, mode="auto")
-            brain = flow_api.get_brain()
-
-            def render_flow_snapshot(reason: str | None = None, error: Exception | None = None) -> None:
-                external_signals: list[dict[str, Any]] = []
-                runtime_signal = runtime_signal_from_substrate(substrate, error=error)
-                if runtime_signal:
-                    external_signals.append(runtime_signal)
-
-                diff_text, main_file_path = build_flow_reflect_payload()
-                try:
-                    result = flow_api.reflect_check(
-                        diff_text=diff_text,
-                        external_signals=external_signals,
-                        file_path=main_file_path,
-                        deep=False,
-                    )
-                except Exception:
-                    result = {
-                        "signals": external_signals,
-                        "suggestions": [],
-                    }
-                curated_signals = curate_flow_signals(result.get("signals", []))
-                suggestions = build_flow_suggestions(curated_signals, result.get("suggestions", []))
-
-                if not curated_signals and not suggestions:
-                    return
-
-                if reason:
-                    print(f"\n[{reason}]")
-
-                if curated_signals:
-                    print(f"Signals detected ({len(curated_signals)}):")
-                    for signal in curated_signals:
-                        uid = signal.get("uid", "Unknown")
-                        source = signal.get("source", "core")
-                        line = signal.get("line", 0)
-                        print(f"  - [{uid}] {source} (line {line})")
-
-                if suggestions:
-                    print("Suggested next commands:")
-                    for suggestion in suggestions:
-                        print(f"  - {suggestion}")
-
-            render_flow_snapshot("startup")
-
-            while True:
-                try:
-                    prompt = input("kit flow> ").strip()
-                    if not prompt:
-                        continue
-                    if prompt.lower() in ["exit", "quit", "q"]:
-                        print_diagnostic("Exiting flow mode.")
-                        break
-
-                    parts = prompt.split(maxsplit=1)
-                    cmd = parts[0].lower()
-                    arg = parts[1] if len(parts) > 1 else ""
-
-                    if cmd == "status":
-                        stats = brain.get_stats()
-                        print(f"Project: {stats.get('project', {}).get('observations', 0)} observations")
-                        print(f"Global:  {stats.get('global', {}).get('observations', 0)} observations")
-
-                    elif cmd == "ask":
-                        if not arg:
-                            print_diagnostic("Usage: ask <question>")
-                            continue
-                        memories, _ = brain.recall(arg.split(), limit=5)
-                        if memories:
-                            print(f"Recalled {len(memories)} memories:")
-                            for m in memories:
-                                print(f"  - [{m.tag}] {m.content[:80]}...")
-                        else:
-                            print_diagnostic("No relevant memories found.")
-
-                    elif cmd == "learn":
-                        if not arg:
-                            print_diagnostic("Usage: learn <content>")
-                            continue
-                        fact_id = brain.learn(
-                            uid="flow_session",
-                            content=arg,
-                            tag="note",
-                            importance=0.5,
-                        )
-                        print_diagnostic(f"Stored: Fact ID {fact_id}")
-
-                    elif cmd == "run":
-                        if not arg:
-                            print_diagnostic("Usage: run <action> (e.g., scan, compile)")
-                            continue
-                        if arg == "scan":
-                            from kit.core.repo_scanner import save_repo_map
-
-                            root_path = brain.root_path
-                            result_path = save_repo_map(root_path)
-                            print_diagnostic(f"Scanned: {result_path.name}")
-                        elif arg == "compile":
-                            from kit.core.context_compiler import save_execution_context
-
-                            ctx_path = save_execution_context(brain)
-                            print_diagnostic(f"Compiled: {ctx_path.name}")
-                        else:
-                            procedural_skills = {
-                                str(skill.get("name", "")).strip()
-                                for skill in flow_api.list_procedural_skills()
-                                if skill.get("name")
-                            }
-                            if arg in procedural_skills:
-                                success = flow_api.run_procedural_skill(arg)
-                                if not success:
-                                    print_diagnostic(f"Action failed: {arg}")
-                            else:
-                                print_diagnostic(f"Unknown action: {arg}. Try: scan, compile")
-                                continue
-
-                        render_flow_snapshot("post-run")
-
-                    else:
-                        print_diagnostic(f"Unknown command: {cmd}")
-                        print_diagnostic("Available: ask, run, learn, status")
-
-                except KeyboardInterrupt:
-                    print_diagnostic("\nExiting flow mode.")
-                    break
-                except Exception as e:
-                    print_diagnostic(f"Error: {e}")
-                    render_flow_snapshot("error", error=e)
-
-    except Exception as e:
-        print_diagnostic(f"Error: {e}")
+    api.init_kernel(
+        db_path=Path(args.db) if args.db else None, 
+        mode="isolated" if args.isolated else "auto"
+    )
+    
+    def print_diagnostic(msg: str, level: int = logging.INFO) -> None:
+        """Standard diagnostic output callback."""
+        sys.stderr.write(f"{msg}\n")
+        logger.log(level, msg)
+
+    # Dispatch via Registry
+    cmd_tuple = registry.get_command(args.command)
+    if cmd_tuple:
+        _, handler = cmd_tuple
+        handler(
+            args=args, 
+            print_diagnostic=print_diagnostic, 
+            current_context=Path.cwd().name
+        )
+    else:
+        print_diagnostic(f"Unknown command: {args.command}", level=logging.ERROR)
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

@@ -187,7 +187,11 @@ class MemoryTopology:
         
         # Check 1: LOCAL kit home should not be inside GLOBAL kit home
         if self.local_kit_home:
-            is_subpath = str(self.local_kit_home).startswith(str(self.GLOBAL_KIT_HOME))
+            # Use resolve() to handle symlinks and relative segments correctly
+            global_abs = self.GLOBAL_KIT_HOME.resolve()
+            local_abs = self.local_kit_home.resolve()
+            
+            is_subpath = str(local_abs).startswith(str(global_abs) + os.sep) or local_abs == global_abs
             checks["local_not_inside_global"] = not is_subpath
             
             if is_subpath:

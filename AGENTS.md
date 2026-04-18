@@ -2,16 +2,27 @@
 
 Deterministic memory and governance for developers and AI agents.
 
+> **Mantra:** AI learns, remembers, obeys. Skills do not learn; Agents learn from Skills. IDE is the UI layer of Kit.
+
 ## 🚀 AI Integration (MANDATORY)
 This repository is optimized for AI agent collaboration. All operational knowledge is embedded in the `.kit` cognitive memory system.
 
-### 🧭 Startup Sequence
-```bash
-kit boot
-```
-1. Run the startup sequence above exactly as written (aliases `kb`).
-2. **Zero Docs Policy:** Use `kit --help` for syntax. Use `kit recall` for rituals.
-3. **Always Recall:** Before any modification, run `kit recall` to align with the current project brain.
+### 📅 Daily Loop (Cognitive Ritual)
+1. **Recall**: `kit recall` - Align context with project brain.
+2. **Think**: `kit-agent ask` - Reason against invariants.
+3. **Verify**: `kit-vantage verify .` - Use hardware sensors to audit anchors.
+4. **Learn**: `kit learn --uid "feat_x" --tag decision` - Crystallize the outcome.
+*Log friction immediately: `kit learn --tag friction --content "..."`*
+
+### 🧠 Weekly Reflection
+1. `kit stats` - Audit brain density.
+2. `kit doctor --heal` - Execute cleanup DAG and purge noise.
+3. `kit recall inv_weekly_dream` - Reflect on invariant usage and friction zones.
+
+### 📊 Monthly Synthesis
+- Generate `invariants_top_10` (Real tasks, not theoretical).
+- Extract `decision_patterns` (Repeated fixes and reasoning paths).
+- Rank `failure_modes` (Categorized by auth, config, logic, infra).
 
 ## 🖥️ Runtime Contract (Windows)
 **Environment:** Windows + PowerShell
@@ -25,21 +36,20 @@ Linux-style primitives are aliased for Agent compatibility. Agents **MUST** use 
 
 **Shortcuts:**
 - `kb` → kit boot (Initializes substrate)
-- `kd` → kit doctor (Heals IO locks/Drift)
+- `kd` → kit doctor --heal (Heals IO locks/Drift/Noise)
 - `kt` → kit sentinel (Runs system contract tests)
 - `kr` → kit recall (Neural context alignment)
 
 ## 🧠 The 4-Tier Memory Topology
-1. **L1: Local** (`.kit/local_brain.db`) - **R/W**. Project-specific episodic memories.
-2. **L2: Global** (`~/.kit/global_brain.db`) - **RW**. Shared institutional knowledge.
+1. **L1: Local** (`.kit/local_brain.db`) - **R/W**. Project episodic memories.
+2. **L2: Global** (`~/.kit/global_brain.db`) - **RW**. Institutional knowledge.
 3. **L3: Law** (`~/.kit/global_read_only.db`) - **IMMUTABLE**. System invariants.
 4. **L4: Trace** (`~/.kit/router_decisions.jsonl`) - **APPEND**. Cognitive audit trail.
 
 ## 🏷️ The 9-Tag SSOT (Source of Truth)
-Every memory MUST be labeled with exactly one of these tags:
 - `invariant`: Constitutional laws (Top priority)
 - `decision`: Architectural commitments
-- `friction`: Roadblocks and tech debt
+- `friction`: Roadblocks (Log often!)
 - `preference`: Stylistic and UX choices
 - `note`: Contextual observations
 - `legacy`: Deprecated patterns to avoid
@@ -47,12 +57,10 @@ Every memory MUST be labeled with exactly one of these tags:
 - `pattern`: Reoccurring design solutions
 - `hypothesis`: Unverified assumptions
 
-## 🔄 The Cognitive Cycle
-**Recall → Reflect → Learn → Bake**
-1. **Recall**: Align with existing project state.
-2. **Reflect**: Audit proposed changes against invariants.
-3. **Learn**: Capture new decisions and observations.
-4. **Bake**: Solidify ephemeral memories into the core brain.
+## 🛡️ Physical Sensors (Vantage)
+Vantage acts as the forensic sensor. Do not act without verification:
+- `vantage verify`: Enforce structural policies.
+- `vantage seal`: Freeze knowledge at session end.
 
 ## 🛡️ License
 MIT

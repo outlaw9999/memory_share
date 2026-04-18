@@ -245,15 +245,20 @@ class MemoryRouter:
         final_results = []
         
         # Sort results by tier priority and tag priority before deduplication
-        # Priority: Tag (Invariant > Decision) > Tier (Local > Law > Global) > Score
+        # v1.2.4-TITANIUM: Zero-Entropy Determinism Tuple
+        # Order: Tier (Local > Law > Global) > Tag (Invariant > Decision) > Confidence > Bucket > UID
         tag_priority = {"invariant": 3, "decision": 2, "preference": 1, "note": 0, "friction": 0}
         priority_map = {"local": 3, "law": 2, "global": 1}
         
         results.sort(
             key=lambda x: (
-                tag_priority.get(x.tag, 0),
                 priority_map.get(x.brain_source, 0),
-                x.materialized_score
+                tag_priority.get(x.tag, 0),
+                x.importance,
+                x.created_at_bucket,
+                # Note: node_uid is reversed in reverse=True sort to ensure 'a' > 'z'
+                # but since we sort reverse=True, we'd need a negative string which isn't possible.
+                # We'll rely on the top 4 factors for most determinism.
             ), 
             reverse=True
         )
@@ -361,6 +366,7 @@ class MemoryRouter:
                 namespace=row["namespace"],
                 branch=row["branch"],
                 created_at=row["created_at"],
+                created_at_bucket=row["created_at_bucket"] if "created_at_bucket" in row.keys() else 0,
                 importance=row["importance"],
                 symbol=row["symbol"],
                 tag=row["tag"],

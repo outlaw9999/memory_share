@@ -64,6 +64,7 @@ class Memory:
     is_active: bool = True
     supersedes_id: int | None = None
     materialized_score: float = 1.0
+    created_at_bucket: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,7 +82,7 @@ class SAMBrain:
     Hybrid Brain support (Local + Global) with Temporal Graph logic.
     """
 
-    SQLITE_TIMEOUT_SECONDS = 1.0  # Fail-fast v1.2.2
+    SQLITE_TIMEOUT_SECONDS = 10.0  # Titanium v1.2.4: Increased to resolve Windows I/O contention
     SQLITE_MAX_RETRIES = 3
     SQLITE_RETRY_BASE_DELAY_SECONDS = 0.1
     TAG_PRIORITY = {"invariant": 3, "decision": 2, "preference": 1, "note": 0, "friction": 0}
@@ -136,17 +137,23 @@ class SAMBrain:
 
         # 🔥 Step 1: Find Repo Boundary (.git)
         repo_root = None
+        home = Path.home().resolve()
         for parent in [curr] + list(curr.parents):
             if (parent / ".git").exists():
                 repo_root = parent
                 break
+            if parent == home: # Stop at home for safety
+                break
 
-        # 🔥 Step 2: Walk but STOP at repo boundary
+        # 🔥 Step 2: Walk but STOP at repo boundary OR home
         for parent in [curr] + list(curr.parents):
             if (parent / ".kit").exists():
                 return parent
 
             if repo_root and parent == repo_root:
+                break
+            
+            if parent == home: # Stop at home for safety
                 break
 
         # Không tìm thấy .kit trong boundary? KHÔNG FALLBACK! Cưỡng chế tạo mới tại start_path
@@ -240,8 +247,13 @@ class SAMBrain:
         """v2 Titanium IO: Notify the worker thread to queue a snapshot refresh."""
         self._snapshot_queue.put("refresh")
 
-    def __del__(self) -> None:
+    def close(self) -> None:
+        """Explicitly stop background threads and release resources."""
         self._stop_snapshot_syncer()
+        # v1.2.4: Future: router might need closing too if it has persistent connections
+
+    def __del__(self) -> None:
+        self.close()
 
     def _should_refresh_snapshot(self) -> bool:
         if self._last_snapshot_refresh is None:
@@ -328,17 +340,20 @@ class SAMBrain:
         # Fallback for arbitrary paths (e.g. temporary databases in tests)
         # We still use a safe read-only mode if locked
         try:
-            effective_readonly = is_locked or readonly
-            uri = f"file:{target_path.as_posix()}?mode=ro" if effective_readonly else f"file:{target_path.as_posix()}"
+            # v1.2.4-DETERMINISM: Only enforce readonly if the file exists AND we are locked.
+            # If the file doesn't exist, we MUST allow creation regardless of seal state.
+            should_be_readonly = (is_locked or readonly) and target_path.exists()
             
-            conn = sqlite3.connect(
-                uri, 
-                uri=True, 
-                timeout=self.SQLITE_TIMEOUT_SECONDS,
-                check_same_thread=False
-            )
+            if should_be_readonly:
+                # Use URI with mode=ro for enforced safety
+                uri = f"file:///{target_path.as_posix()}?mode=ro"
+                conn = sqlite3.connect(uri, uri=True, timeout=self.SQLITE_TIMEOUT_SECONDS, check_same_thread=False)
+            else:
+                # Use standard string path for creation/writing
+                conn = sqlite3.connect(str(target_path), timeout=self.SQLITE_TIMEOUT_SECONDS, check_same_thread=False)
+            
             conn.row_factory = sqlite3.Row
-            if effective_readonly:
+            if should_be_readonly:
                 conn.execute("PRAGMA query_only=ON")
             else:
                 conn.execute("PRAGMA journal_mode=WAL")
@@ -803,6 +818,7 @@ class SAMBrain:
                     namespace=row["namespace"],
                     branch=row["branch"],
                     created_at=row["created_at"],
+                    created_at_bucket=row["created_at_bucket"] if "created_at_bucket" in row.keys() else 0,
                     importance=row["importance"],
                     symbol=row["symbol"],
                     tag=row["tag"],
@@ -827,8 +843,18 @@ class SAMBrain:
             with self._get_connection(self.global_db_path) as gconn:
                 run_query(gconn, priority=1.0, source="global")
 
-        # Sort combined results: Tag Priority first, then Score
-        results.sort(key=lambda x: (self.TAG_PRIORITY.get(x.tag, 0), x.score, x.created_at), reverse=True)
+        # v1.2.4-TITANIUM: Zero-Entropy Determinism
+        source_priority = {"project": 3, "global": 1}
+        results.sort(
+            key=lambda x: (
+                source_priority.get(x.brain_source, 0),
+                self.TAG_PRIORITY.get(x.tag, 0),
+                x.importance,
+                x.created_at_bucket,
+                x.node_uid
+            ),
+            reverse=True
+        )
         return results[:limit]
 
     def recall(

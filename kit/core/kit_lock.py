@@ -99,64 +99,6 @@ def scan_zombie_handles(db_path: Path, timeout_seconds: float = 5.0) -> list[dic
 
     return zombies
 
-    db_str = str(db_path.resolve())
-    logger.info(f"scan_zombie_handles: Looking for {db_str}")
-
-    try:
-        logger.info("scan_zombie_handles: Iterating processes...")
-        count = 0
-        for proc in psutil.process_iter(["pid", "name", "open_files"]):
-            count += 1
-            if count % 50 == 0:
-                logger.info(f"scan_zombie_handles: Checked {count} processes")
-
-            try:
-                of = proc.info.get("open_files")
-                if of is None:
-                    continue
-
-                for f in of:
-                    fpath = getattr(f, "path", None)
-                    if fpath and db_str.lower() in str(fpath).lower():
-                        zombies.append(
-                            {
-                                "pid": proc.info["pid"],
-                                "name": proc.info["name"],
-                                "path": str(fpath),
-                            }
-                        )
-            except psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess:
-                continue
-        logger.info(f"scan_zombie_handles: Done. Checked {count} processes, found {len(zombies)} zombies")
-    except Exception as e:
-        logger.warning(f"Handle scan failed: {e}")
-
-    return zombies
-
-    db_str = str(db_path.resolve())
-
-    try:
-        for proc in psutil.process_iter(["pid", "name", "open_files"]):
-            try:
-                of = proc.info.get("open_files")
-                if of is None:
-                    continue
-
-                for f in of:
-                    fpath = getattr(f, "path", None)
-                    if fpath and db_str.lower() in str(fpath).lower():
-                        zombies.append(
-                            {
-                                "pid": proc.info["pid"],
-                                "name": proc.info["name"],
-                                "path": str(fpath),
-                            }
-                        )
-            except psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess:
-                continue
-    except Exception as e:
-        logger.warning(f"Handle scan failed: {e}")
-
     return zombies
 
 

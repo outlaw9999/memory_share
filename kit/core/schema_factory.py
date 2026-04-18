@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS observations (
     materialized_score REAL NOT NULL DEFAULT 1.0,
     access_count INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at_bucket INTEGER GENERATED ALWAYS AS (CAST(strftime('%Y%m%d%H', created_at) AS INTEGER)) VIRTUAL,
     superseded_at DATETIME,
     last_accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     namespace TEXT DEFAULT 'shared',
@@ -300,6 +301,18 @@ def init_db(conn: sqlite3.Connection):
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_metrics_event ON metrics(event_type)")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE observations ADD COLUMN created_at_bucket INTEGER GENERATED ALWAYS AS (CAST(strftime('%Y%m%d%H', created_at) AS INTEGER)) VIRTUAL")
+        logger.info("Migrated: Added created_at_bucket to observations")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_bucket ON observations(created_at_bucket, importance)")
+        logger.info("Migrated: Added idx_obs_bucket")
     except sqlite3.OperationalError:
         pass
 
