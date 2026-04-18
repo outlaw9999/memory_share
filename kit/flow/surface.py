@@ -35,8 +35,8 @@ FLOW_CONFIDENCE_VALUE = {
     "low": 0.3,
 }
 FLOW_REFLECT_SUFFIXES = {".py", ".rs", ".js", ".ts", ".go", ".rb"}
-FLOW_MIN_CONFIDENCE = 0.6
-FLOW_TOP_K = 3
+FLOW_MIN_CONFIDENCE = 0.7
+FLOW_TOP_K = 2
 
 
 def normalize_signal(signal: Any) -> dict[str, Any]:
