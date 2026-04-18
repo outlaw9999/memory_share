@@ -150,6 +150,44 @@ def runtime_signal_from_substrate(substrate: dict[str, Any], error: Exception | 
     }
 
 
+def flow_decision_kernel(input_text: str, brain=None) -> dict[str, Any]:
+    """
+    Flow Decision Micro-Kernel (v1.2.4 FINAL)
+    
+    input -> reflect -> signals -> suggestions -> shaped decision
+    
+    This closes the cognitive loop:
+    - Pre-reflection: detect risk/gap/drift before execution
+    - Signal shaping: convert issues to actionable suggestions
+    - Decision dispatch: return shaped commands
+    """
+    from kit.core.kit_reflect import run_reflect
+    from kit.api import get_brain
+    
+    try:
+        brain = brain or get_brain()
+        
+        # Phase 1: Pre-reflection (detect signals before execution)
+        if len(input_text) > 3:
+            report = run_reflect(brain, input_text, scope="working")
+            signals = report.signals if hasattr(report, 'signals') else []
+        else:
+            signals = []
+        
+        # Phase 2: Signal shaping
+        suggestions = build_flow_suggestions(signals) if signals else []
+        
+        # Phase 3: Decision shaping
+        return {
+            "signals": signals,
+            "suggestions": suggestions[:FLOW_TOP_K],
+            "signal_count": len(signals),
+            "ready": len(suggestions) > 0
+        }
+    except Exception as e:
+        return {"signals": [], "suggestions": [], "signal_count": 0, "ready": False, "error": str(e)}
+
+
 def map_flow_action(uid: str) -> str | None:
     exact_match = FLOW_EXACT_ACTIONS.get(uid)
     if exact_match:
