@@ -36,9 +36,10 @@ class MemoryTopology:
     - LOCAL memory: <project_root>/.kit/ (per-project state)
     """
     
-    # System-level shared directory (home)
-    # v1.2.4-TEST-ISOLATION: Allow override via environment variable
-    GLOBAL_KIT_HOME = Path(os.environ.get("KIT_GLOBAL_HOME", Path.home() / ".kit"))
+    @property
+    def GLOBAL_KIT_HOME(self) -> Path:
+        """Resolve the system-level shared directory (home) dynamically."""
+        return Path(os.environ.get("KIT_GLOBAL_HOME", Path.home() / ".kit"))
     
     # Database filenames (consistent across all scopes)
     DB_LOCAL = "local_brain.db"
@@ -262,16 +263,11 @@ class MemoryTopology:
         else:
             is_readonly = readonly
         
-        # v1.2.4-INITIALIZATION-FIX: If file doesn't exist, we must connect in RW mode 
-        # to allow schema creation, even for "frozen" tier.
-        base_uri = path.absolute().as_uri()
-        if is_readonly and not path.exists():
-            logger.debug(f"Read-only DB {path} does not exist. Connecting in RW mode for initialization.")
-            uri = base_uri
-            effective_readonly = False
-        else:
-            uri = f"{base_uri}?mode=ro" if is_readonly else base_uri
-            effective_readonly = is_readonly
+        # v1.2.4-TITANIUM: Unified URI construction for Windows compatibility
+        mode = "ro" if is_readonly else "rwc"
+        uri = f"file:{path.as_posix()}?mode={mode}"
+        effective_readonly = is_readonly
+        
 
         try:
             conn = sqlite3.connect(

@@ -16,7 +16,8 @@
 import json
 import logging
 import sqlite3
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -131,7 +132,7 @@ class MemoryTierRules:
     
     THRESHOLD_LOCAL = 0.30           # Minimum to store at all
     THRESHOLD_GLOBAL = 0.60          # Promote to cross-project
-    THRESHOLD_FROZEN = 0.85          # Immutable status
+    THRESHOLD_FROZEN = 0.95          # Immutable status
     MAX_ERROR_RATE = 0.10            # If error_rate > 10%, reject
     MIN_FREQUENCY = 1
     
@@ -216,6 +217,7 @@ class MemoryRouter:
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
 
         self._decision_log: list[WriteDecisionRecord] = []
+        self._decision_lock = threading.Lock()
         self._write_buffer = RouterWriteBuffer()
 
         logger.info(f"MemoryRouter v1.2.4 (TITANIUM) initialized")
@@ -244,31 +246,43 @@ class MemoryRouter:
             results.extend(self._query_tier(MemoryTier.FROZEN, request))
             
         # 4. Final Aggregation & Ranking (Shadowing Logic)
-        # Unique by UID, keeping the one with higher Tier priority (Local > Law > Global for skills)
-        # Note: Law has high priority in recall, but Local can override.
-        seen_uids = set()
-        final_results = []
-        
-        # Sort results by tier priority and tag priority before deduplication
-        # v1.2.4-TITANIUM: Zero-Entropy Determinism Tuple
-        # Order: Tier (Local > Law > Global) > Tag (Invariant > Decision) > Confidence > Bucket > UID
+        # v1.2.4-TITANIUM: Unified Multi-Tier Ranking with Proximity Boosts
         tag_priority = {"invariant": 3, "decision": 2, "preference": 1, "note": 0, "friction": 0}
         priority_map = {"local": 3, "law": 2, "global": 1}
         
-        results.sort(
+        # Calculate final scores with boosts
+        scored_results = []
+        for m in results:
+            boost = 0.0
+            # Namespace Boost: If memory belongs to the requesting agent's namespace
+            if request.agent_id and m.namespace == request.agent_id:
+                boost += 0.5
+            
+            # Scope Proximity Boost: If memory scope matches exactly
+            if request.scope and m.scope == request.scope:
+                boost += 0.3
+            elif request.scope and request.scope.startswith(m.scope) and m.scope != "":
+                boost += 0.1 # Parent directory boost
+                
+            # Final Score for sorting and confidence assessment
+            final_score = m.materialized_score + boost
+            
+            # Update memory object with final score (for SAMBrain assessment)
+            scored_m = replace(m, score=final_score)
+            scored_results.append(scored_m)
+
+        # Sort results: Tier > Tag > Final Score > Bucket > UID
+        scored_results.sort(
             key=lambda x: (
                 priority_map.get(x.brain_source, 0),
                 tag_priority.get(x.tag, 0),
-                x.importance,
+                x.score,
                 x.created_at_bucket,
-                # Note: node_uid is reversed in reverse=True sort to ensure 'a' > 'z'
-                # but since we sort reverse=True, we'd need a negative string which isn't possible.
-                # We'll rely on the top 4 factors for most determinism.
             ), 
             reverse=True
         )
         
-        return results[:request.limit]
+        return scored_results[:request.limit]
 
     def _query_tier(self, tier: MemoryTier, request: MemoryReadRequest) -> list[Any]:
         """Execute query against a specific tier using optimal PRAGMAs."""
@@ -281,11 +295,11 @@ class MemoryRouter:
             
         # Authority Pattern: Use topology to connect with Read-Only guards
         try:
-            # v1.2.4: If path is overridden, we still use topology.connect logic but on the specific path
             if tier == MemoryTier.LOCAL and self.local_db_path != self.topology.resolve("local", "local"):
                 # Fallback connection for isolated paths
+                uri = f"file:{path.as_posix()}?mode=ro"
                 conn = sqlite3.connect(
-                    f"file:{path.as_posix()}?mode=ro", 
+                    uri, 
                     uri=True,
                     timeout=10.0,
                     check_same_thread=False,
@@ -323,26 +337,32 @@ class MemoryRouter:
             where_clauses.append(f"(o.scope IN ({placeholders}) OR o.scope = '')")
             params.extend(scopes)
             
-        # 2. Entity/FTS Filter
+        # 2. Entity/FTS Filter (v1.2.4-TITANIUM SSOT)
         entity_where = ""
         if request.entities:
             placeholders = ",".join(["?"] * len(request.entities))
-            uid_clause = f"n.uid IN ({placeholders})"
-            params.extend([e.lower() for e in request.entities])
+            # Authority Fix: Match by o.symbol (the semantic tag) not n.uid (the UUID)
+            # If symbol is also provided, use symbol filter only (entities act as secondary match)
+            if request.symbol:
+                # Use the explicit symbol filter for exact match
+                where_clauses.append("o.symbol = ?")
+                params.append(request.symbol)
+            else:
+                symbol_clause = f"o.symbol IN ({placeholders})"
+                params.extend([e for e in request.entities])
+                entity_where = symbol_clause
             
             # Hybrid FTS support (if query is present)
-            if request.query:
+            if request.query and not request.symbol:
                 fts_clause = "o.id IN (SELECT rowid FROM observations_fts WHERE observations_fts MATCH ?)"
-                entity_where = f"({uid_clause} OR {fts_clause})"
+                entity_where = f"({symbol_clause} OR {fts_clause})"
                 params.append(request.query)
-            else:
-                entity_where = uid_clause
                 
         if entity_where:
             where_clauses.append(entity_where)
             
-        # 3. Symbol Filter
-        if request.symbol:
+        # 3. Symbol Filter (only if no entities were provided)
+        if request.symbol and not request.entities:
             where_clauses.append("o.symbol = ?")
             params.append(request.symbol)
             
@@ -365,7 +385,7 @@ class MemoryRouter:
                 id=row["id"],
                 node_uid=row["node_uid"],
                 content=row["content"],
-                score=0.0,
+                score=row["materialized_score"],
                 brain_source="local" if tier == MemoryTier.LOCAL else ("law" if tier == MemoryTier.FROZEN else "global"),
                 layer=row["layer"],
                 namespace=row["namespace"],
@@ -432,7 +452,7 @@ class MemoryRouter:
         
         return decision
     
-    def _write_to_tier(self, tier: MemoryTier, request: MemoryWriteRequest) -> None:
+    def _write_to_tier(self, tier: MemoryTier, request: MemoryWriteRequest) -> int:
         """Write memory to the assigned tier's database with Titanium Schema enforcement."""
         
         # v1.2.4-COLLAPSE-SAFE: Frozen Tier Architecture Invariant
@@ -445,14 +465,18 @@ class MemoryRouter:
             # Isolated path connection for tests
             path = self.local_db_path
             path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # v1.2.4-TITANIUM: Standard Windows URI for Python 3.14
+            uri = f"file:{path.as_posix()}?mode=rwc"
             conn = sqlite3.connect(
-                f"file:{path.as_posix()}", 
+                uri, 
                 uri=True,
                 timeout=10.0,
                 check_same_thread=False,
                 isolation_level=None
             )
             conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA query_only=OFF")
             conn.execute("PRAGMA journal_mode=WAL")
         else:
             conn = self.topology.connect(
@@ -521,7 +545,7 @@ class MemoryRouter:
             if "locked" in str(e).lower() or "busy" in str(e).lower():
                 logger.warning(f"DB locked, buffering to memory: {request.key}")
                 self._write_buffer.add({"request": request, "tier": tier})
-                return
+                return 0 # v1.2.4: Return 0 when buffered
             raise
         finally:
             conn.close()
@@ -542,7 +566,8 @@ class MemoryRouter:
     
     def _record_decision(self, decision: WriteDecisionRecord) -> None:
         """Log routing decision to JSONL file."""
-        self._decision_log.append(decision)
+        with self._decision_lock:
+            self._decision_log.append(decision)
         
         try:
             with open(self.history_path, "a", encoding="utf-8") as f:
@@ -563,7 +588,8 @@ class MemoryRouter:
     
     def stats(self) -> dict[str, Any]:
         """Quick statistics on routing behavior."""
-        log = self._decision_log
+        with self._decision_lock:
+            log = self._decision_log.copy()
         
         accepted = sum(1 for d in log if d.decision == WriteDecision.ACCEPTED)
         rejected = sum(1 for d in log if d.decision == WriteDecision.REJECTED)

@@ -45,7 +45,7 @@ kit-vantage = "scripts.vantage_shim:main"
 kit-ingest = "scripts.governance_ingest:ingest_governance"
 
 [tool.hatch.envs.default]
-python = "3.14.3"
+python = "3.14.4"
 dependencies = [
     "pytest>=8.0.0",
     "ruff>=0.9.0",

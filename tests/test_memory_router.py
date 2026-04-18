@@ -77,22 +77,23 @@ def test_route_to_global():
 
 
 def test_route_to_frozen():
-    """Confidence >= 0.85 → FROZEN tier."""
+    """Confidence >= 0.95 → FROZEN tier."""
     req = MemoryWriteRequest(
         source=WriteSource.TRAINER,
         key="test",
         content="content",
-        confidence=0.90,
+        confidence=0.96,
         metadata={},
     )
     tier = MemoryTierRules.route_to_tier(req)
     assert tier == MemoryTier.FROZEN
-    print("✓ Route confidence 0.90 → FROZEN")
+    print("✓ Route confidence 0.96 → FROZEN")
 
 
 def test_accept_valid_memory():
     """Valid request → ACCEPTED."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        os.environ["KIT_GLOBAL_HOME"] = str(Path(tmpdir) / "global")
         project_root = Path(tmpdir)
         router = MemoryRouterFactory.create(project_root)
         
@@ -113,6 +114,7 @@ def test_accept_valid_memory():
 def test_reject_low_confidence():
     """Low confidence → REJECTED."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        os.environ["KIT_GLOBAL_HOME"] = str(Path(tmpdir) / "global")
         project_root = Path(tmpdir)
         router = MemoryRouterFactory.create(project_root)
         
@@ -132,6 +134,7 @@ def test_reject_low_confidence():
 def test_statistics():
     """Router tracks statistics."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        os.environ["KIT_GLOBAL_HOME"] = str(Path(tmpdir) / "global")
         project_root = Path(tmpdir)
         router = MemoryRouterFactory.create(project_root)
         
@@ -166,6 +169,7 @@ def test_statistics():
 def test_deterministic_routing():
     """INVARIANT: Same confidence → same tier (always)."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        os.environ["KIT_GLOBAL_HOME"] = str(Path(tmpdir) / "global")
         project_root = Path(tmpdir)
         router = MemoryRouterFactory.create(project_root)
         

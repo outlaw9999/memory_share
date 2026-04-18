@@ -22,6 +22,7 @@ def run_doctor(
     reset_cloud: bool = False,
     fix_shell: bool = False,
     migrate_memory: bool = False,
+    heal: bool = False,
 ) -> None:
     print(f"AI Kernel Health Check (Mode: {mode})", file=sys.stderr)
 
@@ -105,6 +106,7 @@ def run_doctor(
             print(f"  - Merged {merged_count} duplicate facts safely.", file=sys.stderr)
 
         print("Optimizing Storage...", file=sys.stderr)
+        conn.commit()  # Ensure no active transaction
         conn.execute("VACUUM")
         conn.execute("PRAGMA optimize")
 
@@ -173,6 +175,19 @@ def run_doctor(
                 print(f"  ✔ Global memory migrated.")
             except Exception as e:
                 print(f"  ✖ Global migration failed: {e}")
+
+    if heal:
+        print("\n[HYGIENE HEALING]", file=sys.stderr)
+        from kit.core.kit_hygiene import perform_hygiene_cleanup
+        removed = perform_hygiene_cleanup(brain.root_path, dry_run=False)
+        if removed:
+            print(f"  ✔ Removed {len(removed)} disposable artifacts.", file=sys.stderr)
+            for r in removed[:5]: # Print first 5
+                print(f"    - {r}", file=sys.stderr)
+            if len(removed) > 5:
+                print(f"    - ... and {len(removed)-5} more", file=sys.stderr)
+        else:
+            print("  ✔ Workspace is already clean.", file=sys.stderr)
 
     print("\n[SYSTEM AUDIT]", file=sys.stderr)
     from pathlib import Path

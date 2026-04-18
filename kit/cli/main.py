@@ -458,15 +458,26 @@ def handle_flow(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, *
 
 def main() -> None:
     """Main entry point for Titanium CLI."""
-    # --- ECL v2: Runtime Shield Enforcer ---
+# --- ECL v2: Runtime Shield Enforcer ---
     substrate = kit_env.get_substrate_report()
     if not substrate["is_locked"] and os.getenv("KIT_BYPASS_RUNTIME_LOCK") != "1":
         # Rule II.1: Explicit Failures
         if len(sys.argv) > 1 and sys.argv[1] not in ["stats", "status", "init", "--help", "-h", "flow"]:
+            # Check if .kit exists for helpful message
+            kit_dir = Path.cwd() / ".kit"
+            hint = ""
+            if not kit_dir.exists():
+                hint = (
+                    "\n"
+                    "Hint: Workspace not initialized.\n"
+                    "Run: kit init\n"
+                    "Then retry your command."
+                )
             raise RuntimeError(
                 f"[RUNTIME LOCK] Interpreter mismatch.\n"
                 f"Expected: {substrate.get('venv_discovered')}\n"
                 f"Actual:   {substrate.get('interpreter')}"
+                f"{hint}"
             )
 
     _configure_console_encoding()

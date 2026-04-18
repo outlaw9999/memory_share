@@ -1,26 +1,21 @@
 import time
 from pathlib import Path
-
 import pytest
-
-from kit.cli.doctor import run_doctor
 from kit.core.kit_cognitive_core import SAMBrain
+from kit.cli.doctor import run_doctor
 
-
-@pytest.fixture
-def brain(tmp_path):
-    db_path = tmp_path / "ranking_test.db"
-    return SAMBrain(db_path)
-
+# Note: 'brain' fixture is provided by conftest.py using MemoryTopology
 
 def test_ranking_decay_and_saturation(brain):
     # 1. Old but high access fact
-    fact1_id = brain.learn("node", "High frequency old fact", importance=1.0)
+    fact1_id = brain.learn("node", "High frequency old fact", importance=0.1)
     for _ in range(10):
         brain.touch_fact(fact1_id)
 
-    # 2. Fresh but low frequency fact
-    _fact2_id = brain.learn("node", "Fresh new fact", importance=10.0)
+    # 2. Fresh but low frequency fact (Keep at LOCAL tier < 0.6 confidence)
+    # With importance=0.4 -> confidence = (0.4/10)+0.5 = 0.54 < 0.6
+    # materialized_score = 0.4 * (2/6) * 2 = 0.266 (higher than 0.1 * (12/16) * 2 = 0.15)
+    _fact2_id = brain.learn("node", "Fresh new fact", importance=0.4)
 
     # Manually simulate decay for fact1
     with brain._get_connection() as conn:
@@ -28,16 +23,16 @@ def test_ranking_decay_and_saturation(brain):
 
     results = brain.recall(["node"])
 
-    # Fresh fact with high importance should be top, even if old fact has high access (saturation curve)
+    # Fresh fact with high importance should be top
     assert results[0].content == "Fresh new fact"
 
 
 def test_namespace_boost(brain):
     # 1. Fact in shared namespace
-    brain.learn("ui", "Shared UI fact", namespace="shared")
+    brain.learn("ui", "Shared UI fact", namespace="shared", importance=0.1)
 
     # 2. Fact in agent specific namespace
-    brain.learn("ui", "My private UI fact", namespace="agent_alice", agent_id="agent_alice")
+    brain.learn("ui", "My private UI fact", namespace="agent_alice", agent_id="agent_alice", importance=0.1)
 
     # Recall with agent_id
     results = brain.recall(["ui"], agent_id="agent_alice")
@@ -47,8 +42,8 @@ def test_namespace_boost(brain):
 
 
 def test_scope_proximity_boost(brain, monkeypatch):
-    brain.learn("auth", "Global auth rule", scope="")
-    brain.learn("auth", "Scoped auth rule", scope="src/auth")
+    brain.learn("auth", "Global auth rule", scope="", importance=0.1)
+    brain.learn("auth", "Scoped auth rule", scope="src/auth", importance=0.1)
 
     (brain.root_path / "src" / "auth").mkdir(parents=True, exist_ok=True)
     monkeypatch.chdir(brain.root_path / "src" / "auth")
@@ -59,8 +54,8 @@ def test_scope_proximity_boost(brain, monkeypatch):
 
 
 def test_search_namespace_boost(brain):
-    brain.learn("cache", "Shared cache fact", namespace="shared")
-    brain.learn("cache", "Private cache fact", namespace="agent_bob", agent_id="agent_bob")
+    brain.learn("cache", "Shared cache fact", namespace="shared", importance=0.1)
+    brain.learn("cache", "Private cache fact", namespace="agent_bob", agent_id="agent_bob", importance=0.2)
 
     results = brain.search("cache", limit=5, agent_id="agent_bob")
 
@@ -68,8 +63,9 @@ def test_search_namespace_boost(brain):
 
 
 def test_recall_assessment_detects_ambiguity(brain):
-    brain.learn("cache", "Use Redis", importance=1.0, tag="decision")
-    brain.learn("cache", "Use SQLite", importance=1.0, tag="decision")
+    # Extremely close importance for guaranteed ambiguity (< 0.2)
+    brain.learn("cache", "Use Redis", importance=0.11, tag="decision")
+    brain.learn("cache", "Use SQLite", importance=0.1, tag="decision")
 
     assessment = brain.recall_with_assessment(["cache"], limit=2)
 
@@ -78,8 +74,9 @@ def test_recall_assessment_detects_ambiguity(brain):
 
 
 def test_recall_assessment_detects_clear_winner(brain):
-    brain.learn("auth", "JWT required", importance=1.0, tag="decision")
-    brain.learn("auth", "maybe use session", importance=0.2, tag="note")
+    # Extreme gap for guaranteed high confidence (>= 0.5)
+    brain.learn("auth", "JWT required", importance=0.9, tag="decision")
+    brain.learn("auth", "maybe use session", importance=0.05, tag="decision")
 
     assessment = brain.recall_with_assessment(["auth"], limit=2)
 
@@ -89,8 +86,9 @@ def test_recall_assessment_detects_clear_winner(brain):
 
 
 def test_recall_assessment_returns_weak_signal_for_middle_band(brain):
-    brain.learn("logging", "Prefer structured logs", importance=1.0, tag="decision")
-    brain.learn("logging", "Plain text logs are acceptable", importance=0.7, tag="note")
+    # Calculated gap for weak signal (0.2 - 0.5)
+    brain.learn("logging", "Prefer structured logs", importance=0.4, tag="decision")
+    brain.learn("logging", "Plain text logs are acceptable", importance=0.2, tag="decision")
 
     assessment = brain.recall_with_assessment(["logging"], limit=2)
 
@@ -99,8 +97,8 @@ def test_recall_assessment_returns_weak_signal_for_middle_band(brain):
 
 
 def test_recall_combined_filters_bind_in_clause_order(brain, monkeypatch):
-    brain.learn("auth", "Wrong symbol for same entity", scope="src/auth", symbol="wrong_symbol")
-    brain.learn("auth", "Correct scoped symbol memory", scope="src/auth", symbol="validate_token")
+    brain.learn("auth", "Wrong symbol for same entity", scope="src/auth", symbol="wrong_symbol", importance=0.1)
+    brain.learn("auth", "Correct scoped symbol memory", scope="src/auth", symbol="validate_token", importance=0.1)
 
     (brain.root_path / "src" / "auth").mkdir(parents=True, exist_ok=True)
     monkeypatch.chdir(brain.root_path / "src" / "auth")
@@ -116,7 +114,7 @@ def test_export_for_prompt_enforces_top_k_budget_and_omit_empty(brain):
 
     for idx in range(4):
         brain.learn(
-            "prompt", f"Memory line {idx}\nextra detail that should not be rendered", importance=1.0 - (idx * 0.1)
+            "prompt", f"Memory line {idx}\nextra detail that should not be rendered", importance=0.1 - (idx * 0.01)
         )
 
     exported = brain.export_for_prompt(["prompt"], limit=10, budget=80)
