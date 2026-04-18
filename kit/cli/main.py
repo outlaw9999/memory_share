@@ -32,17 +32,13 @@ class DiagnosticPrinter(Protocol):
 BOOTSTRAP_SENTINEL: Final[str] = ".kit/bootstrap_v1_2_4.seed"
 CLI_VERSION: Final[str] = "v1.2.4-TITANIUM"
 BOOTSTRAP_FACTS: Final[list[tuple[str, str]]] = [
-    ("kit_startup", "kit startup begins with kit recall"),
-    ("kit_rituals", "Daily: recall & verify. Weekly: stats & doctor. Monthly: seal."),
-    ("vantage_law", "Structural signals from Vantage (v1.2.4) are physical truth. No hallucinations."),
-    ("memory_law", "Markdown is volatile. SQLite is Truth. Log friction via kitf.ps1."),
-    ("arch_lighthouse", "AGENTS.md is the root lighthouse; .kit/ is the private cognitive vault."),
-    ("arch_layers", "L1 (Fast Guard) -> L2 (Structural/Vantage) -> L3 (Cognitive/SQLite)."),
-    ("token_law", "Minimize static docs. Use 'kit --help' for syntax and 'kit recall' for rituals."),
-    (
-        "execution_contract",
-        "CANONICAL ENTRYPOINT INVARIANT: All kit operations MUST route through 'python -m kit' or the installed 'kit' CLI.",
-    ),
+    ("kit_startup", "kit startup begins with kit recall project_identity"),
+    ("kit_rituals", "Daily: recall & verify. Weekly: hygiene & doctor. Monthly: seal."),
+    ("flow_law", "Multi-step work MUST use 'kit flow run'. Isolation via transactions (v0.1.2)."),
+    ("memory_law", "SQLite is Truth. observations.is_baked=1 is the only valid state for long-term memory."),
+    ("arch_lighthouse", "AGENTS.md is the root contract; .kit/ is the private cognitive vault."),
+    ("governance", "Maintain Entropy < 0.10. Run 'kit doctor --heal' to purge noise."),
+    ("execution_contract", "All kit operations MUST route through 'kit' CLI (v1.2.4-TITANIUM)."),
 ]
 
 # --- Console & Safety Helpers ---
@@ -71,15 +67,24 @@ def _cognitive_guardrail(text: str, tag: Optional[str]) -> bool:
     return False
 
 def _bootloader_template() -> str:
-    """Returns the canonical AGENTS.md template."""
+    """Returns the canonical portable AGENTS.md template (v1.2.4)."""
     return (
-        "# memory-share-kit (v1.2.4-TITANIUM)\n\n"
-        "Deterministic memory and governance for developers and AI agents.\n\n"
-        "### ðŸ§­ Startup Sequence\n"
-        "```bash\n"
-        "kit recall\n"
-        "```\n"
-        "1. **Zero Docs Policy:** Use `kit --help` for syntax.\n"
+        "# AGENTS.md (v1.2.4-TITANIUM)\n\n"
+        "## ðŸ§  Kit System Contract\n\n"
+        "Kit is a deterministic workflow runtime for AI agents.\n\n"
+        "All operations MUST go through `kit` CLI.\n\n"
+        "---\n\n"
+        "## ðŸš€ Execution Model (Flow v0.1.2)\n\n"
+        "All multi-step tasks MUST use Flow Engine.\n\n"
+        "### Lifecycle\n"
+        "- PLAN â†’ YAML DAG definition\n"
+        "- EXECUTE â†’ step-level isolated execution\n"
+        "- COMMIT â†’ final bake of results (`is_baked=1`)\n\n"
+        "--- \n\n"
+        "## ðŸ¤  Cross-Repo Rule\n\n"
+        "1. Start with: `kit recall project_identity`\n"
+        "2. Never bypass CLI â†’ no direct DB access\n"
+        "3. All mutations MUST go through `kit learn` or Flow Engine\n"
     )
 
 def _packaged_asset_root() -> Optional[Path]:
@@ -160,9 +165,9 @@ def _materialize_onboarding_files(root_path: Path, print_diagnostic: DiagnosticP
         if not _copy_if_missing(asset_root, "AGENTS.md", root_path):
             agents_md.write_text(_bootloader_template(), encoding="utf-8")
     
-    onboarding_files = ["scripts/kitf.ps1"]
+    onboarding_files = ["scripts/kitf.ps1", "bootstrap_agent.yaml"]
     for rel_path in onboarding_files:
-        _copy_if_missing(asset_root, rel_path, kit_dir)
+        _copy_if_missing(asset_root, rel_path, kit_dir if "scripts" in rel_path else root_path)
 
 def _seed_bootstrap_memories(root_path: Path, project_name: str) -> bool:
     """Seeds deterministic starter pack memories (Rule III.2)."""
@@ -377,10 +382,32 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
     
     if getattr(args, "heal", False):
         print_diagnostic("Starting system-wide healing sequence...")
+        # 1. Physical Hygiene
         removed = perform_hygiene_cleanup(root_path, dry_run=False)
         for f in removed:
             print_diagnostic(f"  [HEALED] Removed noise artifact: {f}")
-        print_diagnostic(f"Healing complete. {len(removed)} artifacts purged.")
+            
+        # 2. Cognitive Hygiene (Flow v0.1.2)
+        print_diagnostic("  [HEALED] Purging stale cognitive transactions...")
+        with api.get_brain().get_connection() as conn:
+            # Delete unbaked observations from failed/stale transactions
+            cursor = conn.execute("""
+                DELETE FROM observations 
+                WHERE is_baked = 0 
+                AND json_extract(metadata, '$._flow_id') IS NOT NULL
+                AND json_extract(metadata, '$._flow_id') IN (SELECT id FROM flow_runs WHERE state = 'failed')
+            """)
+            obs_removed = cursor.rowcount
+            
+            # Clean up failed transactions older than 1 hour
+            cursor = conn.execute("""
+                DELETE FROM flow_transactions 
+                WHERE state = 'failed' 
+                AND finished_at < datetime('now', '-1 hour')
+            """)
+            tx_removed = cursor.rowcount
+            
+        print_diagnostic(f"Healing complete. {len(removed)} artifacts purged. {obs_removed} unbaked observations cleaned. {tx_removed} failed transactions archived.")
     else:
         # Default diagnostic scan
         from kit.core.kit_hygiene import generate_hygiene_report
