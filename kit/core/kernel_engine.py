@@ -149,3 +149,23 @@ class DeterministicKernel:
             frame.update_state("rolled_back")
             
         print(" [Kernel] ROLLBACK COMPLETE.")
+        
+        # BUGFIX: Auto-unseal after rollback to restore write capability
+        self._auto_unseal()
+    
+    def _auto_unseal(self):
+        """Auto-unseal after rollback recovery."""
+        try:
+            from kit.core.kit_lock import unseal, is_sealed
+            from pathlib import Path
+            
+            root = Path.cwd()
+            if is_sealed(root):
+                print("  [Rollback] Auto-unsealing system...")
+                try:
+                    unseal(Path(".kit/local_brain.db"), root, "rollback_recovery")
+                    print("  [Rollback] Write path restored.")
+                except Exception as e:
+                    print(f"  [Rollback] Auto-unseal failed: {e}")
+        except ImportError:
+            pass

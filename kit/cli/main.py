@@ -341,7 +341,7 @@ def main() -> None:
     learn_p.add_argument("--supersede", type=int, help="ID of the observation to supersede")
     learn_p.add_argument(
         "--tag",
-        choices=["invariant", "decision", "preference", "note", "legacy", "friction"],
+        choices=["invariant", "decision", "preference", "note", "legacy", "friction", "skill", "pattern"],
         default="decision",
         help="Fact alignment tag",
     )

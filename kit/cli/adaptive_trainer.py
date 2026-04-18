@@ -6,7 +6,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-TELEMETRY_PATH = Path.home() / ".kit" / "routing_telemetry.jsonl"
+TELEMETRY_PATH = Path.home() / ".kit" / "router_decisions.jsonl"
 
 
 def run_trainer():
