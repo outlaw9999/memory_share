@@ -49,8 +49,12 @@ class UnifiedValidator:
         self._temp_dir = tempfile.TemporaryDirectory(prefix="kit_val_")
         self.validation_home = Path(self._temp_dir.name)
 
-    def run_command(self, cmd: str, cwd: Optional[Path] = None) -> tuple[bool, str, str]:
-        """Run a command and return success status, stdout, stderr."""
+    def run_command(self, cmd: str | list, cwd: Optional[Path] = None) -> tuple[bool, str, str]:
+        """Run a command and return success status, stdout, stderr.
+        
+        Accepts either a list of args (preferred, cross-platform safe) or
+        a simple string command for backward compat (no quoting/spaces in args).
+        """
         if cwd is None:
             cwd = self.repo_root
 
@@ -61,30 +65,18 @@ class UnifiedValidator:
         env["KIT_LOCAL_HOME"] = str(self.validation_home / "local")
         env["PYTHONPATH"] = str(self.repo_root)
         env["PYTHONUTF8"] = "1"
-        
-        # Ensure the command uses the current interpreter if it starts with 'python'
-        if isinstance(cmd, str) and cmd.startswith("python "):
-            cmd = cmd.replace("python ", f'"{sys.executable}" ', 1)
-        elif isinstance(cmd, str) and cmd.startswith("pytest "):
-            cmd = cmd.replace("pytest ", f'"{sys.executable}" -m pytest ', 1)
+
+        # Build list args — safe for all platforms with spaces in paths
+        if isinstance(cmd, list):
+            args = cmd
+        else:
+            # Simple split only; callers must NOT include spaces-in-paths in string form
+            import shlex
+            args = shlex.split(cmd, posix=(os.name == 'posix'))
 
         try:
-            # v1.2.4-CROSS-PLATFORM: Avoid shell=True to prevent escaping/shell differences
-            if isinstance(cmd, str):
-                import shlex
-                if os.name == 'posix':
-                    args = shlex.split(cmd)
-                else:
-                    # Windows-safe splitting (shlex might struggle with \ in paths)
-                    import subprocess
-                    args = cmd 
-                    # Actually, on Windows, subprocess.run(string) is fine and handles quoting
-            else:
-                args = cmd
-
             result = subprocess.run(
                 args,
-                shell=(os.name != 'nt' and isinstance(args, str)), # Only shell=True for strings on non-Windows
                 cwd=str(cwd),
                 env=env,
                 capture_output=True,
@@ -97,9 +89,9 @@ class UnifiedValidator:
         except Exception as e:
             return False, "", str(e)
 
-    def get_pytest_cmd(self) -> str:
-        """Standardized pytest command via current interpreter."""
-        return f"{sys.executable} -m pytest"
+    def get_pytest_cmd(self) -> list:
+        """Standardized pytest args via current interpreter."""
+        return [sys.executable, "-m", "pytest"]
 
     def validate_component(self, name: str, command: str, cwd: Optional[Path] = None) -> ValidationResult:
         """Validate a single component."""
@@ -131,85 +123,67 @@ class UnifiedValidator:
 
     def validate_semantic_contracts(self) -> ValidationResult:
         """Validate critical API contracts (e.g. recall tuple return)."""
-        # Ensure recall returns the correct types (tuple when queried directly)
-        # Use a more robust multi-line command
-        cmd_lines = [
-            "import sys",
-            "from kit.core.kit_cognitive_core import SAMBrain",
-            "import tempfile",
-            "from pathlib import Path",
-            "with tempfile.TemporaryDirectory() as tmp:",
-            "    b = SAMBrain(Path(tmp)/'test.db')",
-            "    res = b.recall(['test'])",
-            "    if not isinstance(res, tuple) or len(res) != 2:",
-            "        print(f'Contract Violation: recall returned {type(res)} instead of tuple')",
-            "        sys.exit(1)",
-            "    print('Contract OK')"
-        ]
-        cmd = f"python -c \"{'; '.join(cmd_lines)}\"".replace("with tempfile.TemporaryDirectory() as tmp:;", "with tempfile.TemporaryDirectory() as tmp:")
-        # Actually, it's easier to just use a single line without 'with' or with a simpler structure
-        cmd = (
-            f"{sys.executable} -c \""
+        snippet = (
             "import sys; from kit.core.kit_cognitive_core import SAMBrain; from pathlib import Path; "
             "import tempfile; tmp = tempfile.mkdtemp(); "
             "b = SAMBrain(Path(tmp)/'test.db'); "
             "res = b.recall(['test']); "
             "valid = isinstance(res, tuple) and len(res) == 2; "
             "print('Contract OK' if valid else 'FAIL'); "
-            "sys.exit(0 if valid else 1)\""
+            "sys.exit(0 if valid else 1)"
         )
-        return self.validate_component("Semantic Contracts", cmd)
+        return self.validate_component("Semantic Contracts", [sys.executable, "-c", snippet])
 
     def validate_runtime_integrity(self) -> ValidationResult:
         """Validate core runtime components."""
+        snippet = "from kit.api import *; from kit.core.kit_cognitive_core import SAMBrain; print('Runtime OK')"
         return self.validate_component(
             "Runtime Integrity",
-            f"{sys.executable} -c \"from kit.api import *; from kit.core.kit_cognitive_core import SAMBrain; print('Runtime OK')\""
+            [sys.executable, "-c", snippet]
         )
 
     def validate_flow_correctness(self) -> ValidationResult:
         """Validate flow state machine correctness."""
         return self.validate_component(
             "Flow Correctness",
-            f"{self.get_pytest_cmd()} {self.repo_root / 'tests' / 'test_flow_v124_core.py'} -v --tb=short"
+            self.get_pytest_cmd() + [str(self.repo_root / 'tests' / 'test_flow_v124_core.py'), "-v", "--tb=short"]
         )
 
     def validate_resilience(self) -> ValidationResult:
         """Validate system resilience under failure conditions."""
         return self.validate_component(
             "System Resilience",
-            f"{self.get_pytest_cmd()} {self.repo_root / 'tests' / 'test_v124_resilience.py'} -v --tb=short"
+            self.get_pytest_cmd() + [str(self.repo_root / 'tests' / 'test_v124_resilience.py'), "-v", "--tb=short"]
         )
 
     def validate_adaptive_learning(self) -> ValidationResult:
         """Validate adaptive learning and feedback loops."""
         return self.validate_component(
             "Adaptive Learning",
-            f"{self.get_pytest_cmd()} {self.repo_root / 'tests' / 'test_evolutionary_loop.py'} -v --tb=short"
+            self.get_pytest_cmd() + [str(self.repo_root / 'tests' / 'test_evolutionary_loop.py'), "-v", "--tb=short"]
         )
 
     def validate_deterministic_core(self) -> ValidationResult:
         """Validate deterministic behavior."""
         return self.validate_component(
             "Deterministic Core",
-            f"{self.get_pytest_cmd()} {self.repo_root / 'tests' / 'test_deterministic.py'} -v --tb=short"
+            self.get_pytest_cmd() + [str(self.repo_root / 'tests' / 'test_deterministic.py'), "-v", "--tb=short"]
         )
 
     def validate_ci_smoke_test(self) -> ValidationResult:
         """Validate CI smoke tests (minimal example + API)."""
-        # Test minimal example
         example_result = self.validate_component(
             "Minimal Example",
-            f'"{sys.executable}" {self.repo_root / "examples" / "minimal_example.py"}'
+            [sys.executable, str(self.repo_root / "examples" / "minimal_example.py")]
         )
 
         if example_result.status == 'FAIL':
             return example_result
 
-        # Test API imports
+        api_snippet = "from kit.api import *; print('API imports successful')"
         return self.validate_component(
             "API Imports",
-            f"{sys.executable} -c \"from kit.api import *; print('API imports successful')\""
+            [sys.executable, "-c", api_snippet]
         )
 
     def validate_legacy_compatibility(self) -> ValidationResult:
