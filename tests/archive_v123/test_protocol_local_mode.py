@@ -5,9 +5,9 @@ from typing import Any
 
 import pytest
 
-from kit_agent.core.cache import SemanticCache
-from kit_agent.core.metrics import ModelMetrics
-from kit_agent.core.protocol import AMSBProtocol
+from kit.core.cache import SemanticCache
+from kit.core.metrics import ModelMetrics
+from kit.core.protocol import AMSBProtocol
 
 
 class StubProvider:

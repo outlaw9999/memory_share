@@ -1,7 +1,7 @@
 import time
 
-from kit_agent.core.metrics import ModelMetrics
-from kit_agent.core.router import ModelRouter
+from kit.core.metrics import ModelMetrics
+from kit.core.router import ModelRouter
 
 
 def test_router_skips_provider_in_active_cooldown() -> None:

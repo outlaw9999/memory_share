@@ -279,7 +279,7 @@ def run_reflect(
     processed_raw = raw_signals[:20]
 
     for signal in processed_raw:
-        memories = brain.recall([signal], limit=10, fast=True)
+        memories, _ = brain.recall([signal], limit=10, fast=True)
 
         # Arbitrate conflicts
         res = resolve_cognitive_conflict(memories, current_scope, signal)

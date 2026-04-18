@@ -24,7 +24,7 @@ def test_authority_hierarchy(brain):
     brain.learn("db_choice", "Maybe use Redis", tag="note", importance=1.0)
     
     # Recall
-    results = brain.recall(["db_choice"])
+    results, _ = brain.recall(["db_choice"])
     
     for i, r in enumerate(results):
         print(f"  {i + 1}. [{r.tag}] Score: {r.score:.4f} - {r.content}")
@@ -85,12 +85,16 @@ def test_immutable_ledger_supersede(brain):
     """
     Test 2: Immutable Ledger (Lineage & is_active)
     """
-    id1 = brain.learn("auth", "Use JWT", tag="decision")
+    # Use unique content to avoid idempotency hits from other tests
+    content1 = f"Use JWT {time.time()}"
+    content2 = f"Use OAuth2 {time.time()}"
+    
+    id1 = brain.learn("auth", content1, tag="decision")
     
     # Supersede id1 with id2
-    id2 = brain.learn("auth", "Use OAuth2", tag="decision", supersede_id=id1)
+    id2 = brain.learn("auth", content2, tag="decision", supersede_id=id1)
     
-    with brain._get_connection() as conn:
+    with brain.get_connection() as conn:
         # Check id1 (Old)
         row1 = conn.execute("SELECT is_active, superseded_at FROM observations WHERE id = ?", (id1,)).fetchone()
         assert row1["is_active"] == 0
@@ -109,11 +113,11 @@ def test_compute_at_write_materialized_score(brain):
     """
     fact_id = brain.learn("cache", "Use Redis", tag="decision", importance=0.8)
     
-    with brain._get_connection() as conn:
+    with brain.get_connection() as conn:
         row = conn.execute("SELECT materialized_score FROM observations WHERE id = ?", (fact_id,)).fetchone()
         assert row["materialized_score"] > 0
-        # Formula: 0.8 * log10(0+2) * (1/sqrt(0+1)) = 0.8 * 0.301 * 1 = 0.2408
-        assert pytest.approx(row["materialized_score"], 0.01) == 0.2408
+        # Formula v1.2.4: 0.8 * log10(1+2) * (1/sqrt(0+1)) = 0.8 * 0.4771 * 1 = 0.3817
+        assert pytest.approx(row["materialized_score"], 0.01) == 0.3817
 
 
 def test_preflight_blocks_invariant_violation(brain):
@@ -135,7 +139,8 @@ def test_preflight_blocks_invariant_violation(brain):
     # The Decision wins the score but because an Invariant exists for the same signal, 
     # resolve_cognitive_conflict should return is_violation=True.
     assert report.status == "BLOCK"
-    assert "security" in report.violations
+    assert "security" in report.resolutions
+    assert report.resolutions["security"].is_violation is True
 
 
 def test_full_cognitive_loop(brain):
@@ -146,7 +151,7 @@ def test_full_cognitive_loop(brain):
     brain.learn("auth_service", "Auth tokens must have 30s skew tolerance", tag="invariant")
     
     # 2. Recall (Internal check)
-    memories = brain.recall(["auth_service"])
+    memories, _ = brain.recall(["auth_service"])
     assert len(memories) > 0
     assert "30s" in memories[0].content
     
@@ -169,7 +174,7 @@ def test_hard_authority_invariant_wins(brain):
     brain.learn("db", "Use Postgres", tag="decision", scope="src", importance=1.0)
     
     # In recall, Invariant should still be prioritized by the engine due to tag sort
-    results = brain.recall(["db"], here=True)
+    results, _ = brain.recall(["db"], here=True)
     assert results[0].tag == "invariant"
     
     # In reflect, resolve_cognitive_conflict should return violation if any invariant is overridden
@@ -186,8 +191,9 @@ def test_stdlib_ignored_in_gaps(brain):
     diff = "import os\nimport sys\nimport datetime\n+ print(now)"
     report = run_reflect(brain, diff)
     
-    # None of these should be in gaps
-    assert len(report.gaps) == 0
+    # None of these should be in gaps (gaps are reported as signals with GAP: prefix)
+    gaps = [s for s in report.signals if s.uid.startswith("GAP:")]
+    assert len(gaps) == 0
     assert report.status == "PASS"
 
 

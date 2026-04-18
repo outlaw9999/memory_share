@@ -418,7 +418,8 @@ class MemoryRouterFactory:
                 continue
 
             # Authority Connection
-            conn = topology.connect(scope, db_type)
+            # v1.2.4: Always use RW for initialization
+            conn = topology.connect(scope, db_type, readonly=False)
             try:
                 conn.execute("BEGIN IMMEDIATE")
                 conn.executescript(cls.SCHEMA_SQL)

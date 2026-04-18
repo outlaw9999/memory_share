@@ -490,6 +490,10 @@ class ConcurrencySafetyValidator:
                 if conf < 0.30:
                     assert decision == WriteDecision.REJECTED, \
                         f"Confidence {conf} should be rejected"
+                elif conf >= 0.85:
+                    # v1.2.4 Invariant: Direct writes to FROZEN are REJECTED
+                    assert decision == WriteDecision.REJECTED, \
+                        f"Confidence {conf} (FROZEN) should be rejected by architecture"
                 else:
                     assert decision == WriteDecision.ACCEPTED, \
                         f"Confidence {conf} should be accepted"

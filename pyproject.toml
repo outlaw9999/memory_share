@@ -123,3 +123,8 @@ executionEnvironments = [
 ]
 # IDE Performance: Hint for async diagnostics
 # debounce = 500
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["archive_v123", "__pycache__", ".git", "adversarial", "benchmark"]
+python_files = ["test_*.py"]

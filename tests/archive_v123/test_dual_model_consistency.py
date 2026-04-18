@@ -4,11 +4,11 @@ from typing import Any
 
 import pytest
 
-from kit_agent.core.cache import SemanticCache
-from kit_agent.core.metrics import ModelMetrics
-from kit_agent.core.protocol import AMSBProtocol
-from kit_agent.providers.gemini import GeminiProvider
-from kit_agent.providers.local import LocalLLMProvider
+from kit.core.cache import SemanticCache
+from kit.core.metrics import ModelMetrics
+from kit.core.protocol import AMSBProtocol
+from kit.providers.gemini import GeminiProvider
+from kit.providers.local import LocalLLMProvider
 
 
 class StubRouter:

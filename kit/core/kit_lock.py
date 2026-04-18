@@ -249,11 +249,18 @@ def save_lock_state(root_path: Path, state: dict[str, Any]) -> None:
 
 
 def log_unseal_audit(root_path: Path, reason: str) -> None:
-    audit_file = root_path / ".kit" / "router_decisions.jsonl"
+    from kit.core.memory_topology import MemoryTopologyFactory
+    
+    # v1.2.4-TITANIUM: Route audit traces to Global Trace Layer (L4)
+    topo = MemoryTopologyFactory.for_project(root_path)
+    audit_file = topo.resolve("global", "audit")
+    
     audit_file.parent.mkdir(parents=True, exist_ok=True)
 
+    import uuid
     entry = {
-        "timestamp": str(Path(__file__).stat().st_mtime),
+        "timestamp": datetime.now(UTC).isoformat(),
+        "session_id": str(uuid.uuid4()),
         "action": "unseal",
         "reason": reason,
         "user": os.environ.get("USERNAME", "unknown"),

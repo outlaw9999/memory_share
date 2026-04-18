@@ -1,4 +1,4 @@
-# memory-share-kit (v1.2.3.4-NEURAL)
+# memory-share-kit (v1.2.4-TITANIUM)
 
 Deterministic memory and governance for developers and AI agents.
 
@@ -11,6 +11,7 @@ kit boot
 ```
 1. Run the startup sequence above exactly as written (aliases `kb`).
 2. **Zero Docs Policy:** Use `kit --help` for syntax. Use `kit recall` for rituals.
+3. **Always Recall:** Before any modification, run `kit recall` to align with the current project brain.
 
 ## 🖥️ Runtime Contract (Windows)
 **Environment:** Windows + PowerShell
@@ -23,26 +24,35 @@ Linux-style primitives are aliased for Agent compatibility. Agents **MUST** use 
 - `touch` → New-Item
 
 **Shortcuts:**
-- `kb` → kit boot
-- `kd` → kit doctor
-- `kt` → run sentinel tests
+- `kb` → kit boot (Initializes substrate)
+- `kd` → kit doctor (Heals IO locks/Drift)
+- `kt` → kit sentinel (Runs system contract tests)
+- `kr` → kit recall (Neural context alignment)
 
-## 🧠 Iron Laws Of Memory
-1. **Markdown is volatile.** `.kit/brain.db` is the source of truth.
-2. **Log Friction.** Use `.kit/scripts/kitf.ps1` or `kit learn --auto` to capture decisions.
-3. **Inspect First.** Never guess paths or symbol structure.
+## 🧠 The 4-Tier Memory Topology
+1. **L1: Local** (`.kit/local_brain.db`) - **R/W**. Project-specific episodic memories.
+2. **L2: Global** (`~/.kit/global_brain.db`) - **RW**. Shared institutional knowledge.
+3. **L3: Law** (`~/.kit/global_read_only.db`) - **IMMUTABLE**. System invariants.
+4. **L4: Trace** (`~/.kit/router_decisions.jsonl`) - **APPEND**. Cognitive audit trail.
 
-## 🛠️ Human Quickstart
-```bash
-pip install .
-kit init
-kit recall
-```
+## 🏷️ The 9-Tag SSOT (Source of Truth)
+Every memory MUST be labeled with exactly one of these tags:
+- `invariant`: Constitutional laws (Top priority)
+- `decision`: Architectural commitments
+- `friction`: Roadblocks and tech debt
+- `preference`: Stylistic and UX choices
+- `note`: Contextual observations
+- `legacy`: Deprecated patterns to avoid
+- `skill`: Reusable procedural knowledge
+- `pattern`: Reoccurring design solutions
+- `hypothesis`: Unverified assumptions
 
-## 📂 Navigation
-1. `AGENTS.md` (Constitutional Laws / This file)
-2. `.kit/brain.db` (The local brain SQLite store)
-3. `.kit/scripts/kitf.ps1` (Friction Logger)
+## 🔄 The Cognitive Cycle
+**Recall → Reflect → Learn → Bake**
+1. **Recall**: Align with existing project state.
+2. **Reflect**: Audit proposed changes against invariants.
+3. **Learn**: Capture new decisions and observations.
+4. **Bake**: Solidify ephemeral memories into the core brain.
 
 ## 🛡️ License
 MIT

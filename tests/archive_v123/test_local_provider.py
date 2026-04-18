@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 import requests
 
-from kit_agent.providers.local import LocalLLMProvider
+from kit.providers.local import LocalLLMProvider
 
 
 class DummyResponse:

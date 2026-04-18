@@ -1,13 +1,13 @@
 {
   "commands": [
     {
-      "cmd": "status",
+      "cmd": "seal",
       "args": {
         "db": null,
         "isolated": false,
-        "command": "status",
-        "verbose": false,
-        "status": false
+        "command": "seal",
+        "force_evict": true,
+        "global_seal": false
       }
     }
   ],
@@ -15,17 +15,17 @@
     {
       "node": "api.search",
       "status": "success",
-      "latency_ms": 7.092199999533477
+      "latency_ms": 2.4687000004632864
     },
     {
       "node": "api.recall",
       "status": "success",
-      "latency_ms": 2.534499999455875
+      "latency_ms": 3.230400001484668
     },
     {
       "node": "api.search",
       "status": "success",
-      "latency_ms": 1.692199999524746
+      "latency_ms": 2.2444000005634734
     }
   ],
   "signals": []

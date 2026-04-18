@@ -6,7 +6,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-TELEMETRY_PATH = Path.home() / ".kit" / "router_decisions.jsonl"
+from kit.core.memory_topology import MemoryTopologyFactory
+# v1.2.4-TITANIUM: Resolve telemetry path via authoritative topology
+_topo = MemoryTopologyFactory.for_project(Path.cwd())
+TELEMETRY_PATH = _topo.resolve("global", "audit")
 
 
 def run_trainer():

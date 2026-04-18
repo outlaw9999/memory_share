@@ -22,11 +22,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install .
         
-    - name: Core Stability Check
+    - name: Unified System Validation
       run: |
-        python examples/minimal_example.py
-        
-    - name: API Import Honor Check
-      run: |
-        python -c "from kit.api import *; print('API imports successful')"
-        python -c "import runtime; print('Runtime accessible')"
+        python scripts/unified_validator.py

@@ -1,5 +1,6 @@
 import json
 import logging
+import queue
 import sqlite3
 import threading
 import time
@@ -7,7 +8,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from kit.core.kit_invariants import enforce_no_global_contamination, sanitize_global_metadata
 from kit.core.schema_factory import enable_wal, init_db
@@ -22,6 +23,19 @@ class FactTag(StrEnum):
     PREFERENCE = "preference"
     NOTE = "note"
     FRICTION = "friction"
+    LEGACY = "legacy"
+    SKILL = "skill"
+    PATTERN = "pattern"
+    HYPOTHESIS = "hypothesis"
+
+def get_tag_schema() -> dict:
+    """Runtime Introspection: Return the authoritative 9-tag schema (v1.2.4 SSOT)."""
+    return {
+        "choices": [t.value for t in FactTag],
+        "default": FactTag.DECISION.value,
+        "source": "kit.core.kit_cognitive_core.FactTag",
+        "version": "1.2.4-TITANIUM"
+    }
 
 
 class SAMBrainError(Exception):
@@ -75,6 +89,8 @@ class SAMBrain:
     HIGH_CONFIDENCE_THRESHOLD = 0.5
     SNAPSHOT_REFRESH_SECONDS = 30
     SNAPSHOT_SYNC_INTERVAL_SECONDS = 2
+    SNAPSHOT_BATCH_WINDOW_SECONDS = 0.25  # v2: Adaptive burst window
+    SNAPSHOT_IDLE_DELAY_SECONDS = 0.05    # v2: Idle debounce delay
 
     # ECL v1: Kernel Context
     active_frame: Optional[Any] = None  # Will hold ExecutionFrame from kernel_fsm
@@ -91,6 +107,8 @@ class SAMBrain:
         self._snapshot_sync_stop_event: threading.Event | None = None
         self._snapshot_refresh_event: threading.Event | None = None
         self._snapshot_sync_thread: threading.Thread | None = None
+        self._snapshot_queue: queue.Queue = queue.Queue()  # v2: Async IO Queue
+        self._snapshot_io_lock: threading.Lock = threading.Lock()  # v2: Serialized IO Guard
         self._init_db()
         self._refresh_version()
         self._start_snapshot_syncer()
@@ -155,9 +173,9 @@ class SAMBrain:
         self._snapshot_sync_stop_event = threading.Event()
         self._snapshot_refresh_event = threading.Event()
         self._snapshot_sync_thread = threading.Thread(
-            target=self._snapshot_sync_loop,
+            target=self._snapshot_worker_loop,  # v2: Switch to worker loop
             daemon=True,
-            name="SAMBrainSnapshotSync",
+            name="SAMBrainSnapshotWorker",
         )
         self._snapshot_sync_thread.start()
 
@@ -168,33 +186,54 @@ class SAMBrain:
         if self._snapshot_sync_thread and self._snapshot_sync_thread.is_alive():
             self._snapshot_sync_thread.join(timeout=1.0)
 
-    def _snapshot_sync_loop(self) -> None:
-        """Background loop that refreshes the snapshot whenever the local brain changes."""
-        while self._snapshot_sync_stop_event is not None and not self._snapshot_sync_stop_event.wait(
-            self.SNAPSHOT_SYNC_INTERVAL_SECONDS
-        ):
+    def refresh_snapshot_sync(self) -> None:
+        """Force an immediate asynchronous snapshot refresh (v2: Pushes to queue)."""
+        self._snapshot_queue.put("force")
+        # Update mtime to prevent the background loop from doing redundant work
+        source_path = self.topology.resolve("local", "local")
+        if source_path.exists():
+            self._snapshot_source_mtime = source_path.stat().st_mtime
+
+    def _snapshot_worker_loop(self) -> None:
+        """v2 Titanium IO Worker: Processes snapshot requests with adaptive batching."""
+        while self._snapshot_sync_stop_event is not None and not self._snapshot_sync_stop_event.is_set():
             try:
-                source_path = self.topology.resolve("local", "local")
-                if not source_path.exists():
+                # Wait for a request with a small idle delay
+                try:
+                    request = self._snapshot_queue.get(timeout=self.SNAPSHOT_IDLE_DELAY_SECONDS)
+                except queue.Empty:
+                    # No work, sleep briefly and check again
+                    if self._snapshot_sync_stop_event.wait(self.SNAPSHOT_SYNC_INTERVAL_SECONDS):
+                        break
                     continue
 
-                current_mtime = source_path.stat().st_mtime
-                if self._snapshot_refresh_event and self._snapshot_refresh_event.is_set():
-                    self._snapshot_refresh_event.clear()
+                # We have at least one request. Start the batch window.
+                batch_start = time.time()
+                requests_in_batch = 1
+                
+                # Drain the queue for up to the batch window
+                while time.time() - batch_start < self.SNAPSHOT_BATCH_WINDOW_SECONDS:
+                    try:
+                        self._snapshot_queue.get_nowait()
+                        requests_in_batch += 1
+                        if requests_in_batch >= 50:  # Safety cap for burst
+                            break
+                    except queue.Empty:
+                        break
+                
+                # v2: Perform the actual snapshot (serialized)
+                with self._snapshot_io_lock:
                     self._prepare_local_snapshot(force=True)
-                    self._snapshot_source_mtime = current_mtime
-                    continue
-
-                if self._snapshot_source_mtime is None or current_mtime != self._snapshot_source_mtime:
-                    self._prepare_local_snapshot(force=True)
-                    self._snapshot_source_mtime = current_mtime
+                
+                logger.debug(f"IO v2: Batched {requests_in_batch} snapshot requests.")
+                
             except Exception as e:
-                logger.debug(f"Snapshot sync loop skipped refresh: {e}")
+                logger.error(f"IO v2 Worker Error: {e}")
+                time.sleep(1.0)  # Panic backoff
 
     def _signal_snapshot_refresh(self) -> None:
-        """Notify the background syncer that the source local brain changed."""
-        if self._snapshot_refresh_event:
-            self._snapshot_refresh_event.set()
+        """v2 Titanium IO: Notify the worker thread to queue a snapshot refresh."""
+        self._snapshot_queue.put("refresh")
 
     def __del__(self) -> None:
         self._stop_snapshot_syncer()
@@ -203,8 +242,6 @@ class SAMBrain:
         if self._last_snapshot_refresh is None:
             return True
         return (time.time() - self._last_snapshot_refresh) >= self.SNAPSHOT_REFRESH_SECONDS
-
-    def _prepare_local_snapshot(self, force: bool = False) -> Path:
         """Create or refresh a read-only local snapshot for safe preflight analysis."""
         snapshot_path = self._snapshot_path()
         snapshot_path.parent.mkdir(parents=True, exist_ok=True)
@@ -219,6 +256,7 @@ class SAMBrain:
             return snapshot_path
 
         try:
+            # v2: Unify WAL mode and PRAGMAs for snapshot consistency
             with self.topology.connect("local", "local", timeout=10.0, readonly=True) as src_conn:
                 dst = sqlite3.connect(
                     f"file:{snapshot_path.as_posix()}?mode=rwc",
@@ -229,7 +267,7 @@ class SAMBrain:
                 )
                 dst.row_factory = sqlite3.Row
                 dst.execute("PRAGMA foreign_keys=ON")
-                dst.execute("PRAGMA journal_mode=DELETE")
+                dst.execute("PRAGMA journal_mode=WAL")  # v2: Match core WAL mode
                 dst.execute("PRAGMA synchronous=NORMAL")
                 dst.execute(f"PRAGMA busy_timeout={int(10000)}")
                 src_conn.backup(dst, pages=100)
@@ -254,23 +292,48 @@ class SAMBrain:
 
         is_locked = is_sealed(self.root_path)
         target_path = db_path or self.db_path
+        
+        # v1.2.4-DETERMINISM: Standardize connection via Topology Authority
+        # This ensures consistent PRAGMAs (WAL, NORMAL, busy_timeout)
+        
+        # Check if it's the Global DB
+        if self.global_db_path and target_path == self.global_db_path:
+            return self.topology.connect("global", "global", readonly=(is_locked or readonly))
+            
+        # Check if it's the Local DB
+        local_db = self.topology.resolve("local", "local")
+        if target_path == local_db:
+            return self.topology.connect("local", "local", readonly=(is_locked or readonly))
+            
+        # Check if it's the Snapshot
+        snapshot_db = self.topology.resolve("local", "snapshot")
+        if target_path == snapshot_db:
+            return self.topology.connect("local", "snapshot", readonly=True)
 
-        if is_locked or readonly:
-            # Read-only connection for sealed brain or snapshot access
-            conn = sqlite3.connect(f"file:{target_path.as_posix()}?mode=ro", uri=True, timeout=self.SQLITE_TIMEOUT_SECONDS)
+        # Fallback for arbitrary paths (e.g. temporary databases in tests)
+        # We still use a safe read-only mode if locked
+        try:
+            effective_readonly = is_locked or readonly
+            uri = f"file:{target_path.as_posix()}?mode=ro" if effective_readonly else f"file:{target_path.as_posix()}"
+            
+            conn = sqlite3.connect(
+                uri, 
+                uri=True, 
+                timeout=self.SQLITE_TIMEOUT_SECONDS,
+                check_same_thread=False
+            )
             conn.row_factory = sqlite3.Row
+            if effective_readonly:
+                conn.execute("PRAGMA query_only=ON")
+            else:
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA synchronous=NORMAL")
+            
             conn.execute("PRAGMA foreign_keys=ON")
-            conn.execute("PRAGMA query_only=ON")
             conn.execute(f"PRAGMA busy_timeout={int(self.SQLITE_TIMEOUT_SECONDS * 1000)}")
             return conn
-
-        try:
-            if db_path == self.global_db_path and self.global_db_path:
-                return self.topology.connect("global", "global")
-
-            return self.topology.connect("local", "local")
         except sqlite3.Error as e:
-            raise SAMBrainError(f"Database connection failed: {e}") from e
+            raise SAMBrainError(f"Database connection failed at {target_path}: {e}") from e
 
     def get_connection(self, db_path: Path | None = None) -> sqlite3.Connection:
         """Public alias for _get_connection to allow external access."""
@@ -955,7 +1018,7 @@ class SAMBrain:
         with_global: bool = False,
         fast: bool = False,
     ) -> RankingAssessment:
-        memories = self.recall(
+        memories, _ = self.recall(
             entities,
             limit=limit,
             at=at,
@@ -1109,7 +1172,7 @@ class SAMBrain:
     def export_for_prompt(self, entities: list[str], limit: int = 3, budget: int = 200) -> str:
         """Compact memory export for LLM prompts."""
         bounded_limit = min(limit, 3)
-        memories = self.recall(entities, bounded_limit)
+        memories, _ = self.recall(entities, bounded_limit)
         if not memories:
             return ""
 

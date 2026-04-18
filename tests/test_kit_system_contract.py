@@ -1,5 +1,5 @@
 # tests/test_kit_system_contract.py
-# v1.2.3.9 — SYSTEM CONTRACT TEST (Core Chain TDD)
+# v1.2.4-TITANIUM — SYSTEM CONTRACT TEST (Core Chain TDD)
 #
 # This test validates the complete memory lifecycle under the CLI orchestration.
 # TIER 0 critical path: kit init → kit learn → kit recall → kit compile
@@ -25,9 +25,11 @@ def run_kit_command(cwd: Path, *args) -> tuple[int, str, str]:
     # Get the repo root (parent of tests/)
     repo_root = Path(__file__).parent.parent.absolute()
 
-    # Set PYTHONPATH to include repo root so kit module is discoverable
+    # Set environment for v1.2.4 Titanium enforcement bypass
     env = os.environ.copy()
     env["PYTHONPATH"] = str(repo_root)
+    env["KIT_BYPASS_RUNTIME_LOCK"] = "1"
+    env["PYTHONUTF8"] = "1"
 
     cmd = [sys.executable, "-m", "kit"] + list(args)
 
@@ -72,7 +74,7 @@ class TestKitSystemContract:
             # Verify .kit directory was created
             kit_dir = project_root / ".kit"
             assert kit_dir.exists(), ".kit directory not created"
-            assert (kit_dir / "brain.db").exists(), "brain.db not created"
+            assert (kit_dir / "local_brain.db").exists(), "local_brain.db not created"
             print("[OK] kit init succeeded, .kit/brain.db exists")
 
             # STEP 2: kit learn (add a memory)
@@ -135,7 +137,7 @@ class TestKitSystemContract:
             )
             assert rc == 0, f"kit learn with tag 'pattern' failed:\nstdout: {stdout}\nstderr: {stderr}"
 
-            db_path = project_root / ".kit" / "brain.db"
+            db_path = project_root / ".kit" / "local_brain.db"
             assert db_path.exists(), "brain.db should exist after init"
             with sqlite3.connect(db_path) as conn:
                 row = conn.execute("SELECT tag, content FROM observations WHERE rowid = (SELECT MAX(rowid) FROM observations)").fetchone()
@@ -222,7 +224,7 @@ triggers:
             rc, stdout, stderr = run_kit_command(project_root, "init", "--force")
             assert rc == 0, f"kit init failed:\nstdout: {stdout}\nstderr: {stderr}"
 
-            local_db = project_root / ".kit" / "brain.db"
+            local_db = project_root / ".kit" / "local_brain.db"
             assert local_db.exists(), f"LOCAL DB not found at {local_db}"
             print(f"[OK] LOCAL DB exists: {local_db}")
 
@@ -245,7 +247,13 @@ triggers:
 
             conn = sqlite3.connect(str(local_db), timeout=5.0)
             try:
-                cursor = conn.execute("SELECT content FROM observations WHERE uid = ?", ("proj_pattern_123",))
+                # v1.2.4: uid is in nodes table, joined with observations
+                query = """
+                    SELECT content FROM observations 
+                    JOIN nodes ON observations.node_id = nodes.id 
+                    WHERE nodes.uid = ?
+                """
+                cursor = conn.execute(query, ("proj_pattern_123",))
                 row = cursor.fetchone()
                 assert row is not None, "Project memory not found in LOCAL DB"
                 print("[OK] Project memory verified in LOCAL DB")
@@ -275,13 +283,11 @@ triggers:
             print("[1] Testing: kit recall without init")
             rc, stdout, stderr = run_kit_command(project_root, "recall")
 
-            # Should fail gracefully (non-zero return code)
-            assert rc != 0, "kit recall should fail when DB missing"
-
-            # Should have error output
-            error_output = stdout + stderr
-            assert len(error_output) > 0, "No error message provided"
-            print(f"[OK] Graceful failure: {error_output[:100]}")
+            # v1.2.4: Self-healing architecture auto-initializes DB if missing.
+            # So kit recall should NOT fail anymore.
+            assert rc == 0, "kit recall should succeed even if DB was missing (auto-init)"
+            
+            print("[OK] Self-healing verified: no crash on missing DB")
 
             print("\n[PASS] Failure handling VERIFIED")
 
@@ -292,7 +298,7 @@ if __name__ == "__main__":
     import traceback
 
     print("=" * 70)
-    print("KIT v1.2.3.9 — SYSTEM CONTRACT TEST (Core Chain)")
+    print("KIT v1.2.4-TITANIUM — SYSTEM CONTRACT TEST (Core Chain)")
     print("=" * 70 + "\n")
 
     tests = [

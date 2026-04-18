@@ -51,4 +51,4 @@ Thumbs.db
 # Workspace Hygiene (v1.2.4)
 scratch/
 audit_test.json
-archive_backup/
+archive_backup/.antigravity_cache/

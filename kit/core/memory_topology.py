@@ -11,6 +11,7 @@
 # No hardcoded paths elsewhere. All path resolution goes through this layer.
 
 import logging
+import os
 import sqlite3
 from pathlib import Path
 from typing import Optional, Literal
@@ -36,7 +37,8 @@ class MemoryTopology:
     """
     
     # System-level shared directory (home)
-    GLOBAL_KIT_HOME = Path.home() / ".kit"
+    # v1.2.4-TEST-ISOLATION: Allow override via environment variable
+    GLOBAL_KIT_HOME = Path(os.environ.get("KIT_GLOBAL_HOME", Path.home() / ".kit"))
     
     # Database filenames (consistent across all scopes)
     DB_LOCAL = "local_brain.db"
@@ -117,6 +119,46 @@ class MemoryTopology:
         
         return path
     
+    def describe_topology(self) -> dict:
+        """Return a portable, self-describing map of the memory stack."""
+        def _portable_path(p: Path | None) -> str:
+            if not p: return "none"
+            try:
+                # v1.2.4-TITANIUM: Prefer relative or home-based paths for portability
+                if p.is_relative_to(self.GLOBAL_KIT_HOME):
+                    return f"~/.kit/{p.relative_to(self.GLOBAL_KIT_HOME).as_posix()}"
+                if self.project_root and p.is_relative_to(self.project_root):
+                    return f"./{p.relative_to(self.project_root).as_posix()}"
+                # Fallback to home-relative if possible
+                if p.is_relative_to(Path.home()):
+                    return f"~/{p.relative_to(Path.home()).as_posix()}"
+            except (ValueError, AttributeError):
+                pass
+            return p.as_posix()
+
+        return {
+            "L1_local": {
+                "path": _portable_path(self.resolve("local", "local")),
+                "mode": "RW",
+                "scope": "project"
+            },
+            "L2_global": {
+                "path": _portable_path(self.resolve("global", "global")),
+                "mode": "RW",
+                "scope": "shared"
+            },
+            "L3_law": {
+                "path": _portable_path(self.resolve("global", "frozen")),
+                "mode": "RO",
+                "scope": "invariant"
+            },
+            "L4_trace": {
+                "path": _portable_path(self.resolve("global", "audit")),
+                "mode": "append_only",
+                "scope": "audit"
+            }
+        }
+
     def get_all_paths(
         self,
         scope: Literal["global", "local"],
@@ -190,7 +232,7 @@ class MemoryTopology:
         scope: Literal["global", "local"],
         db_type: str = "local",
         timeout: float = 10.0,
-        readonly: bool = False,
+        readonly: Optional[bool] = None,
     ) -> sqlite3.Connection:
         """
         Authority Pattern: Single point of entry for SQLite connections.
@@ -209,8 +251,22 @@ class MemoryTopology:
 
         is_frozen = db_type == "frozen"
         is_snapshot = db_type == "snapshot"
-        is_readonly = is_frozen or readonly or is_snapshot
-        uri = f"file:{path.as_posix()}?mode=ro" if is_readonly else f"file:{path.as_posix()}"
+        
+        # v1.2.4-ARCHITECTURE-LOCK: Default to RO for Frozen/Snapshot, but allow override
+        if readonly is None:
+            is_readonly = is_frozen or is_snapshot
+        else:
+            is_readonly = readonly
+        
+        # v1.2.4-INITIALIZATION-FIX: If file doesn't exist, we must connect in RW mode 
+        # to allow schema creation, even for "frozen" tier.
+        if is_readonly and not path.exists():
+            logger.debug(f"Read-only DB {path} does not exist. Connecting in RW mode for initialization.")
+            uri = f"file:{path.as_posix()}"
+            effective_readonly = False
+        else:
+            uri = f"file:{path.as_posix()}?mode=ro" if is_readonly else f"file:{path.as_posix()}"
+            effective_readonly = is_readonly
 
         try:
             conn = sqlite3.connect(
@@ -223,10 +279,15 @@ class MemoryTopology:
             conn.row_factory = sqlite3.Row
 
             # --- PRAGMA Architecture Lock ---
-            if not is_readonly:
+            if not effective_readonly:
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.execute("PRAGMA synchronous=NORMAL")
             else:
+                # v2 Titanium: Unify WAL for read-only replicas on Windows
+                try:
+                    conn.execute("PRAGMA journal_mode=WAL")
+                except sqlite3.Error:
+                    pass # Some readonly mounts might not support WAL toggle
                 conn.execute("PRAGMA query_only=ON")
             
             conn.execute("PRAGMA foreign_keys=ON")
