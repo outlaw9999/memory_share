@@ -1,88 +1,71 @@
-# AGENTS.md (v1.2.4-TITANIUM)
+# AGENTS.md (v1.2.4)
 
-## 🧠 Kit System Contract
-
-Kit is a deterministic workflow runtime for AI agents.
-
-All operations MUST go through `kit` CLI.
+Kit = deterministic workflow runtime for AI agents.
 
 ---
 
-## 🚀 Execution Model (Flow v0.1.2)
+## Entry Rule
 
-All multi-step tasks MUST use Flow Engine.
+Always start with:
 
-### Lifecycle
-- PLAN → YAML DAG definition
-- EXECUTE → step-level isolated execution
-- COMMIT → final bake of results (`is_baked=1`)
-
-No direct multi-step mutation outside Flow.
+```bash
+kit recall project_identity
+```
 
 ---
 
-## 🧠 Memory Rules
+## Core Principle
 
-- All knowledge is stored in `.kit/local_brain.db`
-- Observations are **unbaked by default**
-- Only COMMIT phase can set `is_baked=1`
-- Never write directly to database
-
----
-
-## ⚙️ CLI Contract
-
-### Core
-- `kit recall <query>` → retrieve memory
-- `kit learn --content <text>` → store observation
-- `kit stats` → system health
-
-### Flow
-- `kit flow run <file.yaml>` → execute workflow
-- `kit flow list` → active flows
-- `kit flow resume <id>` → resume failed flow
-
-### Diagnostics
-- `kit hygiene` → entropy + noise check
-- `kit doctor --heal` → cleanup unsafe artifacts
+* CLI is the only interface
+* No direct DB access
+* No manual state mutation
 
 ---
 
-## 🤝 Cross-Repo Rule
+## Execution Model
 
-Any external repo using Kit MUST:
+Use Flow Engine for multi-step work:
 
-1. Start with:
-   ```bash
-   kit recall project_identity
-   ```
-
-2. Never bypass CLI → no direct DB access
-
-3. All mutations MUST go through:
-   - `kit learn`
-   - or Flow Engine
-
-4. All failures MUST be logged via:
-   ```bash
-   kit learn --tag friction
-   ```
+PLAN → EXECUTE → COMMIT
 
 ---
 
-## 🏷️ Memory Tags
+## Memory Rule
 
-* invariant
-* decision
-* friction
-* pattern
-* skill
-* note
+All facts go through:
+
+* kit learn
+* kit recall
+
+Use `kit learn --help` for valid tags (authoritative source).
 
 ---
 
-## 📦 System State
+## Flow Rule
 
-Version: v1.2.4-TITANIUM
-Runtime: Flow-enabled deterministic kernel
-Mode: Production-ready (internal / controlled usage)
+kit flow run <yaml>
+
+All side effects must be inside Flow.
+
+---
+
+## Vantage Rule
+
+Use Vantage for validation:
+
+kit-vantage verify <file>
+
+---
+
+## Failure Rule
+
+On error:
+
+kit learn --tag friction
+
+---
+
+## System State
+
+v1.2.4-TITANIUM
+Mode: deterministic runtime kernel
