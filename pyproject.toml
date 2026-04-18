@@ -58,12 +58,14 @@ include = [
     "runtime/**/*.py",
     "scripts/**/*.py",
     "kit_agent/data/*",
-    "AGENTS.md"
+    "AGENTS.md",
+    "bootstrap_agent.yaml"
 ]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "AGENTS.md" = "share/memory_share_kit/AGENTS.md"
 "scripts/kitf.ps1" = "share/memory_share_kit/scripts/kitf.ps1"
+"bootstrap_agent.yaml" = "share/memory_share_kit/bootstrap_agent.yaml"
 
 [tool.hatch.build.targets.sdist]
 include = [
