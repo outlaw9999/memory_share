@@ -162,6 +162,23 @@ CREATE TABLE IF NOT EXISTS flow_checkpoints (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (flow_id) REFERENCES flow_runs(id) ON DELETE CASCADE
 );
+
+-- --- Vantage Verifier View v1.2.4 ---
+CREATE VIEW IF NOT EXISTS baked_observations AS
+SELECT
+    id,
+    node_id,
+    content,
+    tag,
+    importance,
+    created_at,
+    structural_hash
+FROM observations
+WHERE is_active = 1
+  AND is_baked = 1
+  AND superseded_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_obs_vantage_read ON observations(is_active, is_baked, superseded_at);
 """
 
 
@@ -392,6 +409,27 @@ def init_db(conn: sqlite3.Connection):
     try:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(node_type)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_nodes_status ON nodes(status)")
+    except sqlite3.OperationalError:
+        pass
+
+    # v1.2.4-TITANIUM: Vantage Read Optimization
+    try:
+        conn.execute("""
+            CREATE VIEW IF NOT EXISTS baked_observations AS
+            SELECT
+                id,
+                node_id,
+                content,
+                tag,
+                importance,
+                created_at,
+                structural_hash
+            FROM observations
+            WHERE is_active = 1
+              AND is_baked = 1
+              AND superseded_at IS NULL
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_vantage_read ON observations(is_active, is_baked, superseded_at)")
     except sqlite3.OperationalError:
         pass
 

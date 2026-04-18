@@ -264,12 +264,13 @@ class MemoryTopology:
         
         # v1.2.4-INITIALIZATION-FIX: If file doesn't exist, we must connect in RW mode 
         # to allow schema creation, even for "frozen" tier.
+        base_uri = path.absolute().as_uri()
         if is_readonly and not path.exists():
             logger.debug(f"Read-only DB {path} does not exist. Connecting in RW mode for initialization.")
-            uri = f"file:{path.as_posix()}"
+            uri = base_uri
             effective_readonly = False
         else:
-            uri = f"file:{path.as_posix()}?mode=ro" if is_readonly else f"file:{path.as_posix()}"
+            uri = f"{base_uri}?mode=ro" if is_readonly else base_uri
             effective_readonly = is_readonly
 
         try:

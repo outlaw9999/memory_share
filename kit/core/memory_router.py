@@ -163,12 +163,17 @@ class MemoryTierRules:
     
     @classmethod
     def route_to_tier(cls, request: MemoryWriteRequest) -> MemoryTier:
-        """Route request to appropriate tier based on confidence."""
+        """Route request to appropriate tier based on confidence (v1.2.4-TITANIUM)."""
         
-        if request.target_tier == MemoryTier.FROZEN:
+        # 1. Direct override (Expert/Governance mode)
+        if request.target_tier:
+            return request.target_tier
+            
+        # 2. Confidence-based routing
+        if request.confidence >= cls.THRESHOLD_FROZEN:
             return MemoryTier.FROZEN
             
-        if request.target_tier == MemoryTier.GLOBAL:
+        if request.confidence >= cls.THRESHOLD_GLOBAL:
             return MemoryTier.GLOBAL
             
         return MemoryTier.LOCAL
@@ -656,7 +661,6 @@ class MemoryRouterFactory:
             try:
                 conn.execute("BEGIN IMMEDIATE")
                 init_db(conn)
-                init_fts(conn)
                 enable_wal(conn)
                 conn.commit()
                 logger.debug(f"Initialized standardized schema and FTS for {scope}/{db_type}")
