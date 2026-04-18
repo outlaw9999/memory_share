@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS observations (
     node_id INTEGER NOT NULL,
     content TEXT NOT NULL,
     layer TEXT CHECK(layer IN ('working', 'episodic', 'semantic', 'procedural')) DEFAULT 'episodic',
-    tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference', 'note', 'legacy', 'friction')) DEFAULT 'decision',
+    tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference', 'note', 'legacy', 'friction', 'skill', 'pattern', 'hypothesis')) DEFAULT 'decision',
     importance REAL DEFAULT 1.0,
     materialized_score REAL NOT NULL DEFAULT 1.0,
     access_count INTEGER DEFAULT 0,
@@ -189,7 +189,7 @@ def init_db(conn: sqlite3.Connection):
         row = cur.fetchone()
         if row:
             schema_sql = row[0]
-            if "legacy" not in schema_sql or "note" not in schema_sql or "friction" not in schema_sql:
+            if "hypothesis" not in schema_sql or "pattern" not in schema_sql or "skill" not in schema_sql:
                 logger.info("Migrating observations table to expand tag constraints (v1.2.3.3)...")
                 # Standard SQLite table migration pattern
                 conn.execute("PRAGMA foreign_keys=OFF")
@@ -203,7 +203,7 @@ def init_db(conn: sqlite3.Connection):
                     node_id INTEGER NOT NULL,
                     content TEXT NOT NULL,
                     layer TEXT CHECK(layer IN ('working', 'episodic', 'semantic', 'procedural')) DEFAULT 'episodic',
-                    tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference', 'note', 'legacy', 'friction')) DEFAULT 'decision',
+                    tag TEXT CHECK(tag IN ('invariant', 'decision', 'preference', 'note', 'legacy', 'friction', 'skill', 'pattern', 'hypothesis')) DEFAULT 'decision',
                     importance REAL DEFAULT 1.0,
                     materialized_score REAL NOT NULL DEFAULT 1.0,
                     access_count INTEGER DEFAULT 0,
@@ -314,7 +314,13 @@ def init_db(conn: sqlite3.Connection):
 
 def enable_wal(conn: sqlite3.Connection):
     """Activate high-performance mode."""
-    conn.execute("PRAGMA journal_mode=WAL")
+    mode_row = conn.execute("PRAGMA journal_mode=WAL").fetchone()
+    if mode_row:
+        # fetchone returns a sqlite3.Row if row_factory is set, or tuple
+        mode = mode_row[0] if isinstance(mode_row, tuple) else mode_row["journal_mode"]
+        if mode.lower() != "wal":
+            logger.warning(f"Failed to enable WAL mode. Current mode: {mode}")
+
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("PRAGMA busy_timeout=5000")

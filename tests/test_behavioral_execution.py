@@ -1,6 +1,7 @@
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -94,7 +95,8 @@ class BehavioralHarness:
 
 
 def run_kit_learn(uid: str, content: str, tag: str = "decision", symbol: str = None):
-    args = ["python", "kit.py", "learn", "--uid", uid, "--content", content, "--tag", tag]
+    """v1.2.4-LOCK: Uses canonical entrypoint `python -m kit`."""
+    args = [sys.executable, "-m", "kit", "learn", "--uid", uid, "--content", content, "--tag", tag]
     if symbol:
         args += ["--symbol", symbol]
     subprocess.run(args, capture_output=True)

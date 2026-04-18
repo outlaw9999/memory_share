@@ -5,6 +5,7 @@ from typing import Any
 
 from kit.core.kit_cognitive_core import RankingAssessment, SAMBrain, SAMBrainError
 from kit.core.rmil import warmup_memory # RMIL v1.0
+from kit.core.memory_topology import MemoryTopologyFactory
 
 # v1.2.4-LOCK: Vantage is external-binary-only; called from kit_baking, NOT from learn().
 
@@ -18,63 +19,34 @@ from kit.core.kit_replay_tracer import traced
 
 def resolve_paths(force_local: bool = False, mode: str = "auto") -> tuple[Path, Path, Path]:
     """
-    Standard Path Resolver for .kit Kernel.
-    Modes:
-      - 'auto': Parent-walk up to .git boundary to find .kit (default)
-      - 'isolated': Force create .kit in CWD, ignore parents (used for tests/sub-projects)
+    Standard Path Resolver for .kit Kernel. (v1.2.4-COLLAPSE)
     """
-    kit_home = os.getenv("KIT_HOME")
-    if kit_home:
-        global_path = Path(kit_home).expanduser().resolve()
-    else:
-        global_path = (Path.home() / ".kit").resolve()
-
-    global_db = global_path / "global.db"
-    global_path.mkdir(parents=True, exist_ok=True)
-
     cwd = Path.cwd().resolve()
-
-    # --- STRATEGY 1: EXPLICIT ISOLATION ---
+    
     if force_local or mode == "isolated":
-        project_db = cwd / ".kit" / "brain.db"
-        (cwd / ".kit").mkdir(parents=True, exist_ok=True)
-        return global_db, project_db, cwd
-
-    # --- STRATEGY 2: AUTO DISCOVERY (Boundary-Aware) ---
-    project_db = None
-    root_path = cwd
-
-    # !!! Step 1: Find Repo Boundary (.git)
-    repo_root = None
-    for parent in [cwd] + list(cwd.parents):
-        if (parent / ".git").exists():
-            repo_root = parent
-            break
-
-    # !!! Step 2: Walk parent tree but STOP at repo boundary
-    for parent in [cwd] + list(cwd.parents):
-        # PRIORITY 1: Existing brain database (Marker of an active project)
-        if (parent / ".kit" / "brain.db").exists():
-            root_path = parent
-            project_db = parent / ".kit" / "brain.db"
-            break
-        # PRIORITY 2: .kit marker directory (Newly initialized project)
-        if (parent / ".kit").is_dir():
-            root_path = parent
-            project_db = parent / ".kit" / "brain.db"
-            break
-
-        # Boundary Lock: Never cross out of the nearest .git into a parent project
-        if repo_root and parent == repo_root:
-            break
-
-    # ZERO FALLBACK: If no .kit found within boundary, enforce isolation.
-    if project_db is None:
-        (cwd / ".kit").mkdir(parents=True, exist_ok=True)
-        project_db = cwd / ".kit" / "brain.db"
         root_path = cwd
-        # Signal creation
-        print(f"[kit] Initialized isolated brain at {root_path}")
+    else:
+        # Determine repo boundary (.git) as the absolute ceiling
+        repo_root = None
+        for parent in [cwd] + list(cwd.parents):
+            if (parent / ".git").exists():
+                repo_root = parent
+                break
+        
+        # Walk up to find .kit directory
+        root_path = cwd
+        for parent in [cwd] + list(cwd.parents):
+            if (parent / ".kit").exists():
+                root_path = parent
+                break
+            if repo_root and parent == repo_root:
+                root_path = parent
+                break
+
+    # v1.2.4-COLLAPSE: Authority resolution via MemoryTopology
+    topology = MemoryTopologyFactory.for_project(root_path)
+    global_db = topology.resolve("global", "global")
+    project_db = topology.resolve("local", "local")
 
     return global_db, project_db, root_path
 

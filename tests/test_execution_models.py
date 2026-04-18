@@ -1,16 +1,18 @@
 import json
 import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
 import pytest
 
 
-# Helper to run kit.py commands
-def run_kit(args: list[str], input_text: str = None) -> tuple[str, str, int]:
-    cmd = ["python", "kit.py"] + args
-    result = subprocess.run(cmd, input=input_text, capture_output=True, text=True, encoding="utf-8")
+# Helper to run kit commands via CANONICAL entrypoint
+def run_kit(args: list[str], input_text: str = None, cwd: str = None) -> tuple[str, str, int]:
+    """v1.2.4-LOCK: Uses `python -m kit` canonical entrypoint."""
+    cmd = [sys.executable, "-m", "kit"] + args
+    result = subprocess.run(cmd, input=input_text, capture_output=True, text=True, encoding="utf-8", cwd=cwd)
     return result.stdout, result.stderr, result.returncode
 
 

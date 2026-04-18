@@ -1,15 +1,20 @@
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def run_kit(*args, cwd=None):
-    """Helper to run the kit CLI."""
-    cmd = ["python", str(REPO_ROOT / "kit.py")] + list(args)
+    """Helper to run the kit CLI.
+
+    v1.2.4-LOCK: Uses canonical entrypoint `python -m kit`
+    """
+    cmd = [sys.executable, "-m", "kit"] + list(args)
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
+    env["PYTHONPATH"] = str(REPO_ROOT)
     result = subprocess.run(
         cmd,
         capture_output=True,
@@ -107,9 +112,9 @@ def test_preflight_passes_for_small_non_blocking_diff(tmp_path):
 
     subprocess.run(
         [
-            "python",
+            sys.executable,
             "-m",
-            "kit.cli.main",
+            "kit",
             "--db",
             str(db_path),
             "learn",
@@ -129,7 +134,7 @@ def test_preflight_passes_for_small_non_blocking_diff(tmp_path):
     )
 
     res = subprocess.run(
-        ["python", "-m", "kit.cli.main", "--db", str(db_path), "preflight", "-m", "feat(core): add redis path"],
+        [sys.executable, "-m", "kit", "--db", str(db_path), "preflight", "-m", "feat(core): add redis path"],
         input="import redis\ncache = redis.Redis(host='localhost')\n",
         capture_output=True,
         text=True,
@@ -147,9 +152,9 @@ def test_doctor_output_is_ascii_safe(tmp_path):
 
     subprocess.run(
         [
-            "python",
+            sys.executable,
             "-m",
-            "kit.cli.main",
+            "kit",
             "--db",
             str(db_path),
             "learn",
@@ -169,7 +174,7 @@ def test_doctor_output_is_ascii_safe(tmp_path):
     )
 
     res = subprocess.run(
-        ["python", "-m", "kit.cli.main", "--db", str(db_path), "doctor", "--mode", "safe"],
+        [sys.executable, "-m", "kit", "--db", str(db_path), "doctor", "--mode", "safe"],
         capture_output=True,
         text=True,
         encoding="utf-8",

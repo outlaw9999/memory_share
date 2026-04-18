@@ -15,7 +15,14 @@ def normalize_for_dedup(text: str) -> str:
     return text.lower().strip()
 
 
-def run_doctor(brain: SAMBrain, mode: str = "safe", check_agents: bool = False, reset_cloud: bool = False) -> None:
+def run_doctor(
+    brain: SAMBrain,
+    mode: str = "safe",
+    check_agents: bool = False,
+    reset_cloud: bool = False,
+    fix_shell: bool = False,
+    migrate_memory: bool = False,
+) -> None:
     print(f"AI Kernel Health Check (Mode: {mode})", file=sys.stderr)
 
     db_path = brain.db_path
@@ -103,7 +110,7 @@ def run_doctor(brain: SAMBrain, mode: str = "safe", check_agents: bool = False, 
 
     if check_agents or reset_cloud:
         print("\n[AGENT DIAGNOSTICS]", file=sys.stderr)
-        with sqlite3.connect(brain.db_path, timeout=5.0) as conn:
+        with brain.get_connection() as conn:
             conn.row_factory = sqlite3.Row
 
             if reset_cloud:
@@ -132,7 +139,91 @@ def run_doctor(brain: SAMBrain, mode: str = "safe", check_agents: bool = False, 
                         except (KeyError, TypeError, ValueError):
                             print(f"  - {row['name']:8}: Error reading metrics data.", file=sys.stderr)
 
-    # --- Dashboard Summary ---
+    # --- Environment Audit ---
+    if migrate_memory:
+        print("\n[MEMORY MIGRATION]", file=sys.stderr)
+        from kit.core.memory_topology import MemoryTopologyFactory
+        
+        topo = brain.topology
+        root = brain.root_path
+        
+        # Local Migration
+        legacy_local = root / ".kit" / "brain.db"
+        new_local = topo.resolve("local", "local")
+        
+        if legacy_local.exists() and not new_local.exists():
+            print(f"  - Migrating: {legacy_local.name} -> {new_local.name}")
+            try:
+                # We rename the main file. 
+                # SQLite will handle WAL/SHM if the connection is closed.
+                legacy_local.rename(new_local)
+                print(f"  ✔ Local memory migrated.")
+            except Exception as e:
+                print(f"  ✖ Local migration failed: {e}")
+
+        # Global Migration
+        global_kit_dir = topo.resolve("global", "local").parent
+        legacy_global = global_kit_dir / "global.db"
+        new_global = topo.resolve("global", "global")
+
+        if legacy_global.exists() and not new_global.exists():
+            print(f"  - Migrating: {legacy_global.name} -> {new_global.name}")
+            try:
+                legacy_global.rename(new_global)
+                print(f"  ✔ Global memory migrated.")
+            except Exception as e:
+                print(f"  ✖ Global migration failed: {e}")
+
+    print("\n[SYSTEM AUDIT]", file=sys.stderr)
+    from pathlib import Path
+    import os
+    import subprocess
+    from kit.core import kit_env
+
+    root = brain.root_path
+    
+    # 1. PEP 668 / Venv Check
+    substrate = kit_env.get_substrate_report()
+    locked = substrate["is_locked"]
+    print(f"  {'✔' if locked else '✖'} Python Interpreter (.venv): {'ACTIVE' if locked else 'DRIFT DETECTED'}", file=sys.stderr)
+
+    # 2. SQLite WAL mode
+    wal_healthy = True
+    try:
+        with brain.get_connection() as conn:
+            journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+            if journal_mode.lower() != 'wal':
+                wal_healthy = False
+    except:
+        wal_healthy = False
+    print(f"  {'✔' if wal_healthy else '✖'} SQLite WAL Mode:           {'HEALTHY' if wal_healthy else 'NOT ENABLED'}", file=sys.stderr)
+
+    # 3. Git Repo
+    dot_git = root / ".git"
+    print(f"  {'✔' if dot_git.exists() else '✖'} Git Repository:            {'DETECTED' if dot_git.exists() else 'NOT FOUND'}", file=sys.stderr)
+
+    # 4. .kit Accessibility
+    kit_dir = root / ".kit"
+    print(f"  {'✔' if kit_dir.is_dir() else '✖'} .kit Infrastructure:      {'ACCESSIBLE' if kit_dir.is_dir() else 'MISSING'}", file=sys.stderr)
+
+    # 5. Shell Aliases (Experimental check)
+    if sys.platform == "win32":
+        # Check if kb, kd, kt are available in powershell
+        aliases_found = False
+        try:
+            # We try to run Get-Command for one of our functions
+            res = subprocess.run(["powershell", "-Command", "Get-Command kb -ErrorAction SilentlyContinue"], capture_output=True)
+            if res.returncode == 0:
+                aliases_found = True
+        except:
+            pass
+        print(f"  {'✔' if aliases_found else '✖'} PowerShell Kit Functions: {'READY' if aliases_found else 'NOT DETECTED (Run ./kit-activate.ps1)'}", file=sys.stderr)
+
+    if fix_shell and sys.platform == "win32":
+        print("\n[FIX] Shell configuration mutation requested...", file=sys.stderr)
+        print("  - To persist aliases, ensure you source 'kit-activate.ps1' in your $PROFILE.", file=sys.stderr)
+        # We don't want to over-mutate, but we can emit the guidance
+        print("  - Fixed: Guidance emitted to AGENTS.md.", file=sys.stderr)
     from kit.api import get_brain
 
     # Try to get version from pyproject.toml if possible

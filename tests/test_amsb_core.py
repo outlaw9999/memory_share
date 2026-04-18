@@ -35,6 +35,52 @@ def test_authority_hierarchy(brain):
     assert results[1].tag == "decision"
 
 
+def test_preflight_snapshot_avoids_live_brain(tmp_path):
+    """
+    Test snapshot creation for read-only cognitive preflight.
+    """
+    db_path = tmp_path / ".kit" / "local_brain.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    brain = SAMBrain(db_path, root_path=tmp_path)
+    brain.learn("env", "Prefer WAL mode for SQLite", tag="decision", importance=0.7)
+
+    # Trigger metadata query path that uses snapshot copy.
+    obs = brain.get_semantic_observations(limit=5)
+    assert len(obs) == 1
+    assert obs[0]["tag"] == "decision"
+
+    snapshot_path = brain.topology.resolve("local", "snapshot")
+    assert snapshot_path.exists()
+    assert snapshot_path.stat().st_size > 0
+
+
+def test_global_brain_rejects_local_cognition_tags(brain):
+    """
+    Test contract: local cognition tags may not be promoted to GLOBAL.
+    """
+    with pytest.raises(ValueError, match="Global memory cannot store local cognition tags"):
+        brain.learn("db_choice", "Avoid global decision tagging", tag="decision", to_global=True)
+
+
+def test_snapshot_syncer_refreshes_after_local_write(tmp_path):
+    """
+    Test that background snapshot sync refreshes the read-only copy after local writes.
+    """
+    db_path = tmp_path / ".kit" / "local_brain.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    brain = SAMBrain(db_path, root_path=tmp_path)
+    brain.learn("sync", "Local change triggers snapshot refresh", tag="decision", importance=0.8)
+
+    snapshot_path = brain.topology.resolve("local", "snapshot")
+    for _ in range(10):
+        if snapshot_path.exists() and snapshot_path.stat().st_size > 0:
+            break
+        time.sleep(0.5)
+
+    assert snapshot_path.exists(), "Snapshot file should be created by syncer"
+    assert snapshot_path.stat().st_size > 0
+
+
 def test_immutable_ledger_supersede(brain):
     """
     Test 2: Immutable Ledger (Lineage & is_active)

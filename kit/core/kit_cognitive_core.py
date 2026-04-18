@@ -1,6 +1,7 @@
 import json
 import logging
 import sqlite3
+import threading
 import time
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -10,6 +11,7 @@ from typing import Any
 
 from kit.core.kit_invariants import enforce_no_global_contamination, sanitize_global_metadata
 from kit.core.schema_factory import enable_wal, init_db
+from kit.core.memory_topology import MemoryTopology, MemoryTopologyFactory
 
 logger = logging.getLogger("kit.core")
 
@@ -71,18 +73,27 @@ class SAMBrain:
     TAG_PRIORITY = {"invariant": 3, "decision": 2, "preference": 1, "note": 0, "friction": 0}
     AMBIGUITY_THRESHOLD = 0.2
     HIGH_CONFIDENCE_THRESHOLD = 0.5
+    SNAPSHOT_REFRESH_SECONDS = 30
+    SNAPSHOT_SYNC_INTERVAL_SECONDS = 2
 
     # ECL v1: Kernel Context
-    active_frame: Optional[Any] = None # Will hold ExecutionFrame from kernel_fsm
+    active_frame: Optional[Any] = None  # Will hold ExecutionFrame from kernel_fsm
 
-    def __init__(self, db_path: Path, root_path: Path | None = None) -> None:
+    def __init__(self, db_path: Path, root_path: Path | None = None, topology: MemoryTopology | None = None) -> None:
         self.db_path = db_path
         self.root_path = root_path or self._resolve_root(db_path.parent)
+        self.topology = topology or MemoryTopologyFactory.for_project(self.root_path)
         self.global_db_path: Path | None = None
         self.current_branch = "main"
         self.cognition_version = 0
+        self._last_snapshot_refresh: float | None = None
+        self._snapshot_source_mtime: float | None = None
+        self._snapshot_sync_stop_event: threading.Event | None = None
+        self._snapshot_refresh_event: threading.Event | None = None
+        self._snapshot_sync_thread: threading.Thread | None = None
         self._init_db()
         self._refresh_version()
+        self._start_snapshot_syncer()
 
     def _refresh_version(self) -> None:
         """Fetch current cognition version from DB."""
@@ -132,17 +143,132 @@ class SAMBrain:
         except ValueError:
             return ""  # Outside root
 
-    def _get_connection(self, db_path: Path | None = None) -> sqlite3.Connection:
+    def _snapshot_path(self) -> Path:
+        """Resolve the local snapshot database path."""
+        return self.topology.resolve("local", "snapshot")
+
+    def _start_snapshot_syncer(self) -> None:
+        """Start the background snapshot synchronization thread."""
+        if self._snapshot_sync_thread is not None:
+            return
+
+        self._snapshot_sync_stop_event = threading.Event()
+        self._snapshot_refresh_event = threading.Event()
+        self._snapshot_sync_thread = threading.Thread(
+            target=self._snapshot_sync_loop,
+            daemon=True,
+            name="SAMBrainSnapshotSync",
+        )
+        self._snapshot_sync_thread.start()
+
+    def _stop_snapshot_syncer(self) -> None:
+        """Signal the snapshot sync thread to stop."""
+        if self._snapshot_sync_stop_event:
+            self._snapshot_sync_stop_event.set()
+        if self._snapshot_sync_thread and self._snapshot_sync_thread.is_alive():
+            self._snapshot_sync_thread.join(timeout=1.0)
+
+    def _snapshot_sync_loop(self) -> None:
+        """Background loop that refreshes the snapshot whenever the local brain changes."""
+        while self._snapshot_sync_stop_event is not None and not self._snapshot_sync_stop_event.wait(
+            self.SNAPSHOT_SYNC_INTERVAL_SECONDS
+        ):
+            try:
+                source_path = self.topology.resolve("local", "local")
+                if not source_path.exists():
+                    continue
+
+                current_mtime = source_path.stat().st_mtime
+                if self._snapshot_refresh_event and self._snapshot_refresh_event.is_set():
+                    self._snapshot_refresh_event.clear()
+                    self._prepare_local_snapshot(force=True)
+                    self._snapshot_source_mtime = current_mtime
+                    continue
+
+                if self._snapshot_source_mtime is None or current_mtime != self._snapshot_source_mtime:
+                    self._prepare_local_snapshot(force=True)
+                    self._snapshot_source_mtime = current_mtime
+            except Exception as e:
+                logger.debug(f"Snapshot sync loop skipped refresh: {e}")
+
+    def _signal_snapshot_refresh(self) -> None:
+        """Notify the background syncer that the source local brain changed."""
+        if self._snapshot_refresh_event:
+            self._snapshot_refresh_event.set()
+
+    def __del__(self) -> None:
+        self._stop_snapshot_syncer()
+
+    def _should_refresh_snapshot(self) -> bool:
+        if self._last_snapshot_refresh is None:
+            return True
+        return (time.time() - self._last_snapshot_refresh) >= self.SNAPSHOT_REFRESH_SECONDS
+
+    def _prepare_local_snapshot(self, force: bool = False) -> Path:
+        """Create or refresh a read-only local snapshot for safe preflight analysis."""
+        snapshot_path = self._snapshot_path()
+        snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+
+        source_path = self.topology.resolve("local", "local")
+        if not source_path.exists():
+            if snapshot_path.exists():
+                return snapshot_path
+            raise SAMBrainError(f"Source brain file does not exist: {source_path}")
+
+        if snapshot_path.exists() and not force and not self._should_refresh_snapshot():
+            return snapshot_path
+
         try:
-            conn = sqlite3.connect(
-                str(db_path or self.db_path),
-                check_same_thread=False,
-                isolation_level=None,
-                timeout=self.SQLITE_TIMEOUT_SECONDS,
-            )
+            with self.topology.connect("local", "local", timeout=10.0, readonly=True) as src_conn:
+                dst = sqlite3.connect(
+                    f"file:{snapshot_path.as_posix()}?mode=rwc",
+                    uri=True,
+                    timeout=10.0,
+                    check_same_thread=False,
+                    isolation_level=None,
+                )
+                dst.row_factory = sqlite3.Row
+                dst.execute("PRAGMA foreign_keys=ON")
+                dst.execute("PRAGMA journal_mode=DELETE")
+                dst.execute("PRAGMA synchronous=NORMAL")
+                dst.execute(f"PRAGMA busy_timeout={int(10000)}")
+                src_conn.backup(dst, pages=100)
+                dst.close()
+                self._last_snapshot_refresh = time.time()
+                return snapshot_path
+        except sqlite3.Error as e:
+            logger.warning(f"Snapshot creation failed: {e}. Falling back to file copy.")
+            import shutil
+
+            shutil.copy2(source_path, snapshot_path)
+            self._last_snapshot_refresh = time.time()
+            return snapshot_path
+
+    def _get_snapshot_connection(self) -> sqlite3.Connection:
+        """Open a read-only snapshot connection for preflight queries."""
+        self._prepare_local_snapshot()
+        return self.topology.connect("local", "snapshot", timeout=10.0, readonly=True)
+
+    def _get_connection(self, db_path: Path | None = None, readonly: bool = False) -> sqlite3.Connection:
+        from kit.core.kit_lock import is_sealed
+
+        is_locked = is_sealed(self.root_path)
+        target_path = db_path or self.db_path
+
+        if is_locked or readonly:
+            # Read-only connection for sealed brain or snapshot access
+            conn = sqlite3.connect(f"file:{target_path.as_posix()}?mode=ro", uri=True, timeout=self.SQLITE_TIMEOUT_SECONDS)
             conn.row_factory = sqlite3.Row
-            enable_wal(conn)
+            conn.execute("PRAGMA foreign_keys=ON")
+            conn.execute("PRAGMA query_only=ON")
+            conn.execute(f"PRAGMA busy_timeout={int(self.SQLITE_TIMEOUT_SECONDS * 1000)}")
             return conn
+
+        try:
+            if db_path == self.global_db_path and self.global_db_path:
+                return self.topology.connect("global", "global")
+
+            return self.topology.connect("local", "local")
         except sqlite3.Error as e:
             raise SAMBrainError(f"Database connection failed: {e}") from e
 
@@ -156,6 +282,11 @@ class SAMBrain:
         return "database is locked" in message or "database table is locked" in message or "database is busy" in message
 
     def _run_write_transaction(self, operation: Any, db_path: Path | None = None) -> Any:
+        from kit.core.kit_lock import is_sealed
+
+        if is_sealed(self.root_path):
+            raise SAMBrainError("Brain is sealed. Write operations are blocked.")
+
         target_db_path = db_path or self.db_path
         last_error: sqlite3.Error | None = None
 
@@ -165,6 +296,8 @@ class SAMBrain:
                 conn.execute("BEGIN IMMEDIATE")
                 result = operation(conn)
                 conn.commit()
+                if target_db_path == self.topology.resolve("local", "local"):
+                    self._signal_snapshot_refresh()
                 return result
             except sqlite3.Error as error:
                 conn.rollback()
@@ -185,8 +318,10 @@ class SAMBrain:
         with self._get_connection(global_db_path) as gconn:
             init_db(gconn)
         from kit.core.memory_router import MemoryRouter
+        from kit.core.memory_topology import MemoryTopology
 
-        self._router = MemoryRouter(self.root_path, self.db_path, global_db_path)
+        topology = MemoryTopology(project_root=self.root_path)
+        self._router = MemoryRouter(topology)
 
     def get_workspace_id(self) -> str:
         """Return current workspace identity."""
@@ -393,7 +528,7 @@ class SAMBrain:
                             new_body = "\n".join(new_ctx_content.split("\n")[3:])
                             if old_body == new_body:
                                 should_write_ctx = False
-                    except (json.JSONDecodeError, OSError):
+                    except json.JSONDecodeError, OSError:
                         pass
 
                 if should_write_ctx:
@@ -439,18 +574,36 @@ class SAMBrain:
 
         # ECL v1: Authorize and Inject Frame Traceability
         from kit.core.kernel_fsm import StateMutationContract
+
         frame_id = StateMutationContract.authorize_mutation(self.active_frame)
         clean_metadata["_kernel_frame"] = frame_id
         if self.active_frame and hasattr(self.active_frame, "session_id"):
-             clean_metadata["_kernel_session"] = self.active_frame.session_id
+            clean_metadata["_kernel_session"] = self.active_frame.session_id
 
         # 🔥 CHUẨN HÓA TAG TRƯỚC KHI VÀO LÒ LUYỆN (Zero-Trust Boundary)
         normalized_tag = str(tag).strip().lower()
 
         # 🔥 VALIDATION (Phòng ngừa Agent / User truyền bậy)
-        VALID_TAGS = {"invariant", "decision", "preference", "note", "legacy", "friction"}
+        VALID_TAGS = {
+            "invariant",
+            "decision",
+            "preference",
+            "note",
+            "legacy",
+            "friction",
+            "skill",
+            "pattern",
+            "hypothesis",
+        }
         if normalized_tag not in VALID_TAGS:
             raise ValueError(f"[POLICY ENGINE] REJECTED: Invalid tag '{normalized_tag}'. Must be one of {VALID_TAGS}")
+
+        # --- GLOBAL TAG OWNERSHIP CONTRACT ---
+        if to_global and normalized_tag in {"decision", "preference", "friction"}:
+            raise ValueError(
+                f"[POLICY ENGINE] REJECTED: Global memory cannot store local cognition tags like '{normalized_tag}'. "
+                "Use local memory or router signals instead."
+            )
 
         # --- BƯỚC 2: CƯỠNG CHẾ BẤT BIẾN (INVARIANT ENFORCEMENT) ---
         # Đóng gói tạm dữ liệu để Thẩm phán kiểm duyệt
@@ -483,9 +636,18 @@ class SAMBrain:
                 ).fetchone()
                 commit_id = head_row["head_commit_id"] if head_row else "ROOT"
 
-                # 3. Insert Observation (Dùng clean_metadata)
+                # 3. IDEMPOTENCY GUARD (v1.2.4-LOCK) — Prevent duplicate memory
+                # Check if exact content already exists for this node
+                existing = conn.execute(
+                    "SELECT id FROM observations WHERE node_id = ? AND content = ? AND is_active = 1",
+                    (node_id, content),
+                ).fetchone()
+                if existing:
+                    return existing["id"]  # Idempotent: return existing, don't create duplicate
+
+                # 4. Insert Observation (with baseline access count = 1)
                 meta_json = json.dumps(clean_metadata)
-                m_score = self._compute_materialized_score(importance, 0)
+                m_score = self._compute_materialized_score(importance, 1)  # BASELINE: access_count = 1
 
                 sql = """
                 INSERT INTO observations (
@@ -680,10 +842,14 @@ class SAMBrain:
                     entity_filter_clause = uid_clause
 
             where_clauses: list[str] = []
-            if entity_filter_clause: where_clauses.append(entity_filter_clause)
-            if scope_filter_clause: where_clauses.append(scope_filter_clause)
-            if query_filter_clause: where_clauses.append(query_filter_clause)
-            if symbol_where_clause: where_clauses.append(f"(1=0 {symbol_where_clause})")
+            if entity_filter_clause:
+                where_clauses.append(entity_filter_clause)
+            if scope_filter_clause:
+                where_clauses.append(scope_filter_clause)
+            if query_filter_clause:
+                where_clauses.append(query_filter_clause)
+            if symbol_where_clause:
+                where_clauses.append(f"(1=0 {symbol_where_clause})")
             final_where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
 
             sql = f"""
@@ -699,17 +865,22 @@ class SAMBrain:
             where_params: list[str] = []
             if entities:
                 where_params.extend([e.lower() for e in entities])
-                if not query: where_params.append(" OR ".join(self._fts_literal(e) for e in entities))
-            if here: where_params.extend(scopes)
-            if query: where_params.append(query)
-            if symbol: where_params.append(symbol)
+                if not query:
+                    where_params.append(" OR ".join(self._fts_literal(e) for e in entities))
+            if here:
+                where_params.extend(scopes)
+            if query:
+                where_params.append(query)
+            if symbol:
+                where_params.append(symbol)
             all_params: list[Any] = where_params + [self.current_branch, candidate_limit]
 
             # !!! STAGE 1: SQL EXECTION
             s_sql = time.perf_counter()
             cur = conn.execute(sql, all_params)
             rows = cur.fetchall()
-            if profile is not None: profile["sql"] += (time.perf_counter() - s_sql)
+            if profile is not None:
+                profile["sql"] += time.perf_counter() - s_sql
 
             # !!! STAGE 2: HYDRATION & INITIAL RANKING
             for row in rows:
@@ -732,7 +903,8 @@ class SAMBrain:
                     supersedes_id=row["supersedes_id"],
                     materialized_score=row["materialized_score"],
                 )
-                if profile is not None: profile["hydration"] += (time.perf_counter() - s_hyd)
+                if profile is not None:
+                    profile["hydration"] += time.perf_counter() - s_hyd
 
                 s_rank = time.perf_counter()
                 scored_memory = replace(
@@ -745,7 +917,8 @@ class SAMBrain:
                         source_priority=priority,
                     ),
                 )
-                if profile is not None: profile["ranking"] += (time.perf_counter() - s_rank)
+                if profile is not None:
+                    profile["ranking"] += time.perf_counter() - s_rank
                 memories.append(scored_memory)
 
         with self._get_connection() as conn:
@@ -763,9 +936,10 @@ class SAMBrain:
         s_sort = time.perf_counter()
         memories.sort(key=lambda x: (self.TAG_PRIORITY.get(x.tag, 0), x.score, x.created_at), reverse=True)
         final_memories = memories[:limit]
-        if profile is not None: profile["ranking"] += (time.perf_counter() - s_sort)
+        if profile is not None:
+            profile["ranking"] += time.perf_counter() - s_sort
 
-        if profile is not None: 
+        if profile is not None:
             profile["total"] = time.perf_counter() - start_total
 
         return final_memories, profile
@@ -975,17 +1149,24 @@ class SAMBrain:
     ) -> list[dict[str, Any]]:
         """Get observations by branch and/or tags for governance checks."""
         branch = branch or self.current_branch
-        with self._get_connection() as conn:
-            sql = """
+        sql = """
             SELECT tag, content FROM observations 
             WHERE branch = ? AND (layer = 'semantic' OR tag IN (?, ?, ?))
             ORDER BY materialized_score DESC LIMIT ?
             """
-            default_tags = ("invariant", "decision", "preference")
-            tag_params = tags or list(default_tags)
-            while len(tag_params) < 3:
-                tag_params.append("note")
-            params = (branch, tag_params[0], tag_params[1], tag_params[2], limit)
+        default_tags = ("invariant", "decision", "preference")
+        tag_params = tags or list(default_tags)
+        while len(tag_params) < 3:
+            tag_params.append("note")
+        params = (branch, tag_params[0], tag_params[1], tag_params[2], limit)
+
+        try:
+            with self._get_snapshot_connection() as conn:
+                return [dict(r) for r in conn.execute(sql, params).fetchall()]
+        except Exception as snapshot_error:
+            logger.warning(f"Snapshot read failed, falling back to live DB: {snapshot_error}")
+
+        with self._get_connection() as conn:
             try:
                 return [dict(r) for r in conn.execute(sql, params).fetchall()]
             except sqlite3.OperationalError:

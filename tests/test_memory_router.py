@@ -1,142 +1,221 @@
+# tests/test_memory_router.py
+# v1.2.4 — TDD for Memory Router (Gatekeeper)
+
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
 
-sys.path.insert(0, os.getcwd())
+# Setup path for direct execution
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from kit.core.memory_router import MemoryRouter, WorkspaceId
-
-
-def test_workspace_id_generation():
-    """Test WorkspaceId computation is deterministic and path independent."""
-    root = Path.cwd()
-
-    ws1 = WorkspaceId.compute(root)
-    ws2 = WorkspaceId.compute(root)
-
-    assert ws1.id == ws2.id, "Workspace ID should be deterministic"
-    assert len(ws1.id) == 16, "Workspace ID should be 16 chars"
-    assert ws1.git_root_hash, "Should compute git root hash"
-    print(f"[PASS] Workspace ID: {ws1.id}")
+from kit.core.memory_router import (
+    MemoryRouter,
+    MemoryRouterFactory,
+    MemoryTierRules,
+    MemoryWriteRequest,
+    WriteDecision,
+    WriteSource,
+    MemoryTier,
+)
 
 
-def test_workspace_id_stability():
-    """Test workspace_id doesn't change when folder is renamed."""
-    root = Path.cwd()
+def test_validate_confidence_out_of_range():
+    """Confidence must be [0.0, 1.0]."""
+    req = MemoryWriteRequest(
+        source=WriteSource.TRAINER,
+        key="test",
+        content="content",
+        confidence=1.5,
+        metadata={},
+    )
+    is_valid, reason = MemoryTierRules.validate_request(req)
+    assert not is_valid
+    print("✓ Reject confidence > 1.0")
 
-    ws = WorkspaceId.compute(root)
 
-    assert ws.git_root_hash is not None
-    print(f"[PASS] Git root hash: {ws.git_root_hash}")
-    if ws.origin_url:
-        print(f"[PASS] Origin URL: {ws.origin_url[:50]}...")
+def test_validate_below_threshold():
+    """Confidence below LOCAL threshold → rejected."""
+    req = MemoryWriteRequest(
+        source=WriteSource.TRAINER,
+        key="test",
+        content="content",
+        confidence=0.2,
+        metadata={},
+    )
+    is_valid, reason = MemoryTierRules.validate_request(req)
+    assert not is_valid
+    print("✓ Reject confidence < 0.30")
 
-    from pathlib import Path as _p
 
+def test_route_to_local():
+    """Confidence 0.30-0.59 → LOCAL tier."""
+    req = MemoryWriteRequest(
+        source=WriteSource.TRAINER,
+        key="test",
+        content="content",
+        confidence=0.45,
+        metadata={},
+    )
+    tier = MemoryTierRules.route_to_tier(req)
+    assert tier == MemoryTier.LOCAL
+    print("✓ Route confidence 0.45 → LOCAL")
+
+
+def test_route_to_global():
+    """Confidence 0.60-0.84 → GLOBAL tier."""
+    req = MemoryWriteRequest(
+        source=WriteSource.TRAINER,
+        key="test",
+        content="content",
+        confidence=0.75,
+        metadata={},
+    )
+    tier = MemoryTierRules.route_to_tier(req)
+    assert tier == MemoryTier.GLOBAL
+    print("✓ Route confidence 0.75 → GLOBAL")
+
+
+def test_route_to_frozen():
+    """Confidence >= 0.85 → FROZEN tier."""
+    req = MemoryWriteRequest(
+        source=WriteSource.TRAINER,
+        key="test",
+        content="content",
+        confidence=0.90,
+        metadata={},
+    )
+    tier = MemoryTierRules.route_to_tier(req)
+    assert tier == MemoryTier.FROZEN
+    print("✓ Route confidence 0.90 → FROZEN")
+
+
+def test_accept_valid_memory():
+    """Valid request → ACCEPTED."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        alt_root = Path(tmpdir) / "renamed"
-        alt_root.mkdir()
-        ws2 = WorkspaceId.compute(alt_root)
-        assert ws.id != ws2.id, "Different path should give different ID"
-    print(f"[PASS] Different paths give different IDs")
-
-
-def test_memory_router_init():
-    """Test MemoryRouter initialization."""
-    root = Path.cwd()
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "brain.db"
-        router = MemoryRouter(root, db_path)
-
-        assert router.workspace_id is not None
-        assert router.db_path == db_path
-        print(f"[PASS] Router workspace: {router.workspace_id.id}")
-
-
-def test_workspace_id_column_migration():
-    """Test workspace_id column addition."""
-    from kit.core.schema_factory import init_db
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "brain.db"
-
-        conn = sqlite3.connect(str(db_path))
-        init_db(conn)
-        conn.close()
-
-        router = MemoryRouter(Path.cwd(), db_path)
-
-        conn = router.get_connection(db_path)
-        router.ensure_workspace_id(conn)
-        conn.close()
-
-        conn = router.get_connection(db_path)
-        cols = conn.execute("PRAGMA table_info(observations)").fetchall()
-        col_names = [c[1] for c in cols]
-        conn.close()
-        assert "workspace_id" in col_names, "workspace_id column should exist"
-        print("[PASS] workspace_id column exists")
-
-
-def test_scoped_learn():
-    """Test learn_scoped inserts with workspace_id."""
-    from kit.core.schema_factory import init_db
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "brain.db"
-
-        conn = sqlite3.connect(str(db_path))
-        init_db(conn)
-        conn.close()
-
-        root = Path.cwd()
-        router = MemoryRouter(root, db_path)
-
-        conn = router.get_connection(db_path)
-        router.ensure_workspace_id(conn)
-
-        conn.execute("INSERT INTO nodes (uid, kind) VALUES (?, ?)", ("test_node", "test"))
-        node_row = conn.execute("SELECT id FROM nodes WHERE uid = ?", ("test_node",)).fetchone()
-        node_id = node_row["id"]
-
-        fact_id = router.learn_scoped(
-            conn,
-            node_id=node_id,
-            content="Test observation",
-            metadata={"test": True},
-            scope="test_scope",
-            tag="decision",
+        project_root = Path(tmpdir)
+        router = MemoryRouterFactory.create(project_root)
+        
+        req = MemoryWriteRequest(
+            source=WriteSource.TRAINER,
+            key="pattern:test",
+            content={"data": "test"},
+            confidence=0.75,
+            metadata={"frequency": 5},
         )
+        decision = router.route_write(req)
+        
+        assert decision.decision == WriteDecision.ACCEPTED
+        assert decision.assigned_tier == MemoryTier.GLOBAL
+        print("✓ Accept valid memory (0.75 confidence)")
 
-        conn.commit()
 
-        assert fact_id is not None
+def test_reject_low_confidence():
+    """Low confidence → REJECTED."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        router = MemoryRouterFactory.create(project_root)
+        
+        req = MemoryWriteRequest(
+            source=WriteSource.TRAINER,
+            key="pattern:weak",
+            content={"data": "weak"},
+            confidence=0.15,
+            metadata={},
+        )
+        decision = router.route_write(req)
+        
+        assert decision.decision == WriteDecision.REJECTED
+        print("✓ Reject low confidence (0.15)")
 
-        row = conn.execute(
-            "SELECT workspace_id, content FROM observations WHERE id = ?",
-            (fact_id,),
-        ).fetchone()
 
-        conn.close()
+def test_statistics():
+    """Router tracks statistics."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        router = MemoryRouterFactory.create(project_root)
+        
+        # Accept one
+        req1 = MemoryWriteRequest(
+            source=WriteSource.TRAINER,
+            key="test1",
+            content="c1",
+            confidence=0.75,
+            metadata={},
+        )
+        router.route_write(req1)
+        
+        # Reject one
+        req2 = MemoryWriteRequest(
+            source=WriteSource.TRAINER,
+            key="test2",
+            content="c2",
+            confidence=0.15,
+            metadata={},
+        )
+        router.route_write(req2)
+        
+        stats = router.stats()
+        
+        assert stats["total_requests"] == 2
+        assert stats["accepted"] == 1
+        assert stats["rejected"] == 1
+        print("✓ Statistics: 2 requests, 1 accepted, 1 rejected")
 
-        assert row["workspace_id"] == router.workspace_id.id
-        print("[PASS] learn_scoped with workspace_id")
+
+def test_deterministic_routing():
+    """INVARIANT: Same confidence → same tier (always)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        router = MemoryRouterFactory.create(project_root)
+        
+        confidence = 0.72
+        
+        for i in range(3):
+            req = MemoryWriteRequest(
+                source=WriteSource.TRAINER,
+                key=f"test_{i}",
+                content="content",
+                confidence=confidence,
+                metadata={},
+            )
+            decision = router.route_write(req)
+            assert decision.assigned_tier == MemoryTier.GLOBAL
+        
+        print("✓ INVARIANT: Deterministic routing (0.72 → GLOBAL always)")
 
 
 if __name__ == "__main__":
+    print("\n" + "="*70)
+    print("🧠 KIT v1.2.4 Memory Router - TDD Validation")
+    print("="*70 + "\n")
+    
     tests = [
-        test_workspace_id_generation,
-        test_workspace_id_stability,
-        test_memory_router_init,
-        test_workspace_id_column_migration,
-        test_scoped_learn,
+        test_validate_confidence_out_of_range,
+        test_validate_below_threshold,
+        test_route_to_local,
+        test_route_to_global,
+        test_route_to_frozen,
+        test_accept_valid_memory,
+        test_reject_low_confidence,
+        test_statistics,
+        test_deterministic_routing,
     ]
-
-    for t in tests:
+    
+    passed = 0
+    failed = 0
+    
+    for test in tests:
         try:
-            t()
+            test()
+            passed += 1
+        except AssertionError as e:
+            print(f"✗ {test.__name__}: {e}")
+            failed += 1
         except Exception as e:
-            print(f"[FAIL] {t.__name__}: {e}")
+            print(f"✗ {test.__name__}: EXCEPTION: {e}")
+            failed += 1
+    
+    print(f"\n{'='*70}")
+    print(f"Results: {passed} passed, {failed} failed")
+    print(f"{'='*70}\n")

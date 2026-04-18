@@ -1,0 +1,14 @@
+.git/
+.kit/
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+dist/
+build/
+target/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.idea/
+.vscode/

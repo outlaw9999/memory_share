@@ -7,10 +7,25 @@ This repository is optimized for AI agent collaboration. All operational knowled
 
 ### 🧭 Startup Sequence
 ```bash
-kit recall ; kit-vantage verify kit/cli/main.py
+kit boot
 ```
-1. Run the startup sequence above exactly as written.
+1. Run the startup sequence above exactly as written (aliases `kb`).
 2. **Zero Docs Policy:** Use `kit --help` for syntax. Use `kit recall` for rituals.
+
+## 🖥️ Runtime Contract (Windows)
+**Environment:** Windows + PowerShell
+
+Linux-style primitives are aliased for Agent compatibility. Agents **MUST** use these:
+- `cat`   → Get-Content
+- `grep`  → Select-String
+- `ls`    → Get-ChildItem
+- `pwd`   → Get-Location
+- `touch` → New-Item
+
+**Shortcuts:**
+- `kb` → kit boot
+- `kd` → kit doctor
+- `kt` → run sentinel tests
 
 ## 🧠 Iron Laws Of Memory
 1. **Markdown is volatile.** `.kit/brain.db` is the source of truth.

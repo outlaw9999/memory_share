@@ -13,22 +13,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-# =========================
-# CONFIG
-# =========================
+from kit.core.memory_topology import MemoryTopologyFactory
 
-_default_db_path = Path.home() / ".kit" / "global.db"
-GLOBAL_DB_PATH: Path = (
-    Path(os.getenv("KIT_HOME", "")).expanduser() / "global.db" if os.getenv("KIT_HOME") else _default_db_path
-)
-
-_default_telemetry_path = Path.home() / ".kit" / "routing_telemetry.jsonl"
-TELEMETRY_PATH: Path = (
-    Path(os.getenv("KIT_HOME", "")).expanduser() / "routing_telemetry.jsonl"
-    if os.getenv("KIT_HOME")
-    else _default_telemetry_path
-)
-GLOBAL_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+# v1.2.4-COLLAPSE: Authority resolution
+_topo = MemoryTopologyFactory.global_only()
+GLOBAL_DB_PATH = _topo.resolve("global", "global")
+TELEMETRY_PATH = _topo.resolve("global", "telemetry")
 
 CONF_THRESHOLD = 0.85
 
@@ -192,7 +182,8 @@ def is_duplicate(hash_val: str) -> bool:
     if not GLOBAL_DB_PATH.exists():
         return False
     try:
-        conn = sqlite3.connect(str(GLOBAL_DB_PATH))
+        # Authority Connection
+        conn = _topo.connect("global", "global")
         cur = conn.cursor()
         cur.execute("SELECT 1 FROM observations WHERE structural_hash=? AND is_active=1", (hash_val,))
         result = cur.fetchone()

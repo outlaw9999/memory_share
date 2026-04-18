@@ -834,11 +834,13 @@ def main() -> None:
 
         elif args.command in ("stats", "status"):
             from kit.core import rmil  # MEC v2: Neural Priming status
+            from kit.core.kit_lock import is_sealed
 
             substrate = kit_env.get_substrate_report()
             rmil_status = rmil.get_rmil_status()
             stats = api.get_brain().get_stats()
             brain = api.get_brain()
+            root = brain.root_path
 
             # Auto-verbose if --status flag used (v1.2.4-LOCK ergonomics)
             is_verbose = args.verbose or (hasattr(args, "status") and args.status)
@@ -854,7 +856,14 @@ def main() -> None:
                 print(f"  Prefix:    {substrate['prefix']}")
                 print(f"  RMIL Lat:  {rmil_status['latency_ms']:.2f}ms")
 
-            print(f"\n[Memory]")
+            print(f"\n[Memory Tiers]")
+            print(f"  Local Brain:  {brain.db_path}")
+            if hasattr(brain, 'global_db_path') and brain.global_db_path:
+                print(f"  Global Brain: {brain.global_db_path}")
+            if hasattr(brain, 'snapshot_db_path') and brain.snapshot_db_path:
+                print(f"  Snapshot:     {brain.snapshot_db_path}")
+            print(f"  Sealed:       {'✅ YES' if is_sealed(root) else '❌ NO'}")
+
             for scope in ["project", "global"]:
                 data = stats.get(scope, {})
                 nodes = data.get("nodes", 0)
@@ -878,6 +887,13 @@ def main() -> None:
             print(f"  Baked Ratio: {ratio:.1f}% ({b_obs}/{t_obs})")
             print(f"  Skills (L3): {p_data.get('skills', 0)}")
             print("  Status:      STABLE" if ratio > 90 else "  Status:      STABILIZING")
+
+            print(f"\n[Cognitive Tags]")
+            tags = ["invariant", "decision", "friction", "preference", "note", "legacy", "skill", "pattern", "hypothesis"]
+            print(f"  Supported: {', '.join(tags)}")
+
+            print(f"\n[Timestamp]")
+            print(f"  {datetime.now(UTC).isoformat()}")
             print("")
             sys.exit(0)
 

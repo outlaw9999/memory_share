@@ -15,17 +15,17 @@
     {
       "node": "api.search",
       "status": "success",
-      "latency_ms": 7.070999999996275
+      "latency_ms": 7.092199999533477
     },
     {
       "node": "api.recall",
       "status": "success",
-      "latency_ms": 2.618800001073396
+      "latency_ms": 2.534499999455875
     },
     {
       "node": "api.search",
       "status": "success",
-      "latency_ms": 1.5423000004375353
+      "latency_ms": 1.692199999524746
     }
   ],
   "signals": []
