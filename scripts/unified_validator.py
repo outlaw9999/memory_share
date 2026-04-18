@@ -75,6 +75,7 @@ class UnifiedValidator:
             args = shlex.split(cmd, posix=(os.name == 'posix'))
 
         try:
+            import subprocess
             result = subprocess.run(
                 args,
                 cwd=str(cwd),
