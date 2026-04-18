@@ -317,6 +317,40 @@ def handle_status(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
     return handle_stats(args, print_diagnostic, **kwargs)
 
 @kit_command(
+    name="preflight",
+    namespace=CommandNamespace.MEMORY,
+    description="Run cognitive governance checks before committing",
+    side_effect=CommandSideEffect.READ_ONLY
+)
+def handle_preflight(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Handler for 'kit preflight' command."""
+    import kit.api as api
+    from kit.core.kit_governance import run_preflight
+    
+    # Preflight expects diff via stdin
+    diff_text = read_stdin_fail_fast(timeout=FAST_TIMEOUT)
+    brain = api.get_brain()
+    
+    result = run_preflight(
+        commit_msg=getattr(args, "message", ""),
+        brain=brain,
+        strict_mode=getattr(args, "strict", False),
+        diff_text=diff_text
+    )
+    
+    if result.status == "block":
+        print_diagnostic(f"❌ PREFLIGHT BLOCK: Score {result.score:.2f}")
+        for issue in result.issues:
+            print_diagnostic(f"  - [{issue['type']}] {issue['message']}")
+        sys.exit(1)
+    elif result.status == "warn":
+        print_diagnostic(f"⚠️ PREFLIGHT WARN: Score {result.score:.2f}")
+        for issue in result.issues:
+            print_diagnostic(f"  - [{issue['type']}] {issue['message']}")
+    else:
+        print_diagnostic(f"✅ PREFLIGHT PASS: Score {result.score:.2f}")
+
+@kit_command(
     name="where", 
     namespace=CommandNamespace.RUNTIME, 
     description="Show current memory context and brain path"
@@ -421,6 +455,10 @@ def main() -> None:
     subparsers.add_parser("where", help="Show environment")
     subparsers.add_parser("flow", help="Interactive flow")
     
+    p_preflight = subparsers.add_parser("preflight", help="Run commit checks")
+    p_preflight.add_argument("--message", default="")
+    p_preflight.add_argument("--strict", action="store_true")
+
     p_hygiene = subparsers.add_parser("hygiene", help="Audit workspace hygiene")
     p_hygiene.add_argument("--verbose", action="store_true")
 
@@ -456,3 +494,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+#   t i t a n i u m _ v e r i f y  
+ 
