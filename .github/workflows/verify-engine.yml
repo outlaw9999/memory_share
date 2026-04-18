@@ -12,16 +12,22 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Python 3.14
-      uses: actions/setup-python@v5
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v5
       with:
-        python-version: '3.14'
+        enable-cache: true
         
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install .
+        uv sync --all-extras
+        
+    - name: Environment Fingerprint
+      run: |
+        uv run python -c "import sys; print(f'Interpreter: {sys.executable}'); print(f'Version: {sys.version}')"
+        uv run python -c "import os; print(f'PYTHONPATH: {os.environ.get(\"PYTHONPATH\")}')"
         
     - name: Unified System Validation
+      env:
+        PYTHONUTF8: 1
       run: |
-        python scripts/unified_validator.py
+        uv run python -m scripts.unified_validator

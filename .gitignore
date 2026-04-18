@@ -52,3 +52,5 @@ Thumbs.db
 scratch/
 audit_test.json
 archive_backup/.antigravity_cache/
+validation_report.json
+runtime_call_graph.json

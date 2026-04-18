@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import json
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
@@ -44,28 +45,51 @@ class UnifiedValidator:
     def __init__(self):
         self.repo_root = Path(__file__).resolve().parents[1]
         self.results: List[ValidationResult] = []
+        # v1.2.4-PURE: Use a fresh, random temp directory for absolute statelessness
+        self._temp_dir = tempfile.TemporaryDirectory(prefix="kit_val_")
+        self.validation_home = Path(self._temp_dir.name)
 
     def run_command(self, cmd: str, cwd: Optional[Path] = None) -> tuple[bool, str, str]:
         """Run a command and return success status, stdout, stderr."""
         if cwd is None:
             cwd = self.repo_root
 
-        # v1.2.4-ISOLATION: Enforce deterministic environment for all validation steps
+        # v1.2.4-STRICT-CONTRACT: Use the exact same interpreter for all steps
         env = os.environ.copy()
-        env["KIT_GLOBAL_HOME"] = str(self.repo_root / ".kit_validation_home")
         env["KIT_BYPASS_RUNTIME_LOCK"] = "1"
-        env["PYTHONUTF8"] = "1"
+        env["KIT_GLOBAL_HOME"] = str(self.validation_home / "global")
+        env["KIT_LOCAL_HOME"] = str(self.validation_home / "local")
         env["PYTHONPATH"] = str(self.repo_root)
+        env["PYTHONUTF8"] = "1"
+        
+        # Ensure the command uses the current interpreter if it starts with 'python'
+        if isinstance(cmd, str) and cmd.startswith("python "):
+            cmd = cmd.replace("python ", f'"{sys.executable}" ', 1)
+        elif isinstance(cmd, str) and cmd.startswith("pytest "):
+            cmd = cmd.replace("pytest ", f'"{sys.executable}" -m pytest ', 1)
 
         try:
+            # v1.2.4-CROSS-PLATFORM: Avoid shell=True to prevent escaping/shell differences
+            if isinstance(cmd, str):
+                import shlex
+                if os.name == 'posix':
+                    args = shlex.split(cmd)
+                else:
+                    # Windows-safe splitting (shlex might struggle with \ in paths)
+                    import subprocess
+                    args = cmd 
+                    # Actually, on Windows, subprocess.run(string) is fine and handles quoting
+            else:
+                args = cmd
+
             result = subprocess.run(
-                cmd,
-                shell=True,
+                args,
+                shell=(os.name != 'nt' and isinstance(args, str)), # Only shell=True for strings on non-Windows
                 cwd=str(cwd),
                 env=env,
                 capture_output=True,
                 text=True,
-                timeout=300  # 5 minute timeout
+                timeout=300
             )
             return result.returncode == 0, result.stdout, result.stderr
         except subprocess.TimeoutExpired:
@@ -74,18 +98,8 @@ class UnifiedValidator:
             return False, "", str(e)
 
     def get_pytest_cmd(self) -> str:
-        """Finds a working pytest command."""
-        # Try current interpreter
-        success, _, _ = self.run_command(f"{sys.executable} -m pytest --version")
-        if success:
-            return f"{sys.executable} -m pytest"
-        
-        # Fallback to global pytest
-        success, _, _ = self.run_command("pytest --version")
-        if success:
-            return "pytest"
-            
-        return "pytest"  # Last resort
+        """Standardized pytest command via current interpreter."""
+        return f"{sys.executable} -m pytest"
 
     def validate_component(self, name: str, command: str, cwd: Optional[Path] = None) -> ValidationResult:
         """Validate a single component."""
@@ -157,28 +171,28 @@ class UnifiedValidator:
         """Validate flow state machine correctness."""
         return self.validate_component(
             "Flow Correctness",
-            f"{self.get_pytest_cmd()} tests/test_flow_v124_core.py -v --tb=short"
+            f"{self.get_pytest_cmd()} {self.repo_root / 'tests' / 'test_flow_v124_core.py'} -v --tb=short"
         )
 
     def validate_resilience(self) -> ValidationResult:
         """Validate system resilience under failure conditions."""
         return self.validate_component(
             "System Resilience",
-            f"{self.get_pytest_cmd()} tests/test_v124_resilience.py -v --tb=short"
+            f"{self.get_pytest_cmd()} {self.repo_root / 'tests' / 'test_v124_resilience.py'} -v --tb=short"
         )
 
     def validate_adaptive_learning(self) -> ValidationResult:
         """Validate adaptive learning and feedback loops."""
         return self.validate_component(
             "Adaptive Learning",
-            f"{self.get_pytest_cmd()} tests/test_evolutionary_loop.py -v --tb=short"
+            f"{self.get_pytest_cmd()} {self.repo_root / 'tests' / 'test_evolutionary_loop.py'} -v --tb=short"
         )
 
     def validate_deterministic_core(self) -> ValidationResult:
         """Validate deterministic behavior."""
         return self.validate_component(
             "Deterministic Core",
-            f"{self.get_pytest_cmd()} tests/test_deterministic.py -v --tb=short"
+            f"{self.get_pytest_cmd()} {self.repo_root / 'tests' / 'test_deterministic.py'} -v --tb=short"
         )
 
     def validate_ci_smoke_test(self) -> ValidationResult:
@@ -186,7 +200,7 @@ class UnifiedValidator:
         # Test minimal example
         example_result = self.validate_component(
             "Minimal Example",
-            f"{sys.executable} examples/minimal_example.py"
+            f'"{sys.executable}" {self.repo_root / "examples" / "minimal_example.py"}'
         )
 
         if example_result.status == 'FAIL':
@@ -235,52 +249,72 @@ class UnifiedValidator:
             generated_at=datetime.now().isoformat()
         )
 
+    def print_fingerprint(self):
+        """Print environment fingerprint for CI debugging."""
+        print("--- ENVIRONMENT FINGERPRINT ---")
+        print(f"Python: {sys.executable}")
+        print(f"Version: {sys.version.splitlines()[0]}")
+        print(f"Repo Root: {self.repo_root}")
+        print(f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'NOT SET')}")
+        print(f"Validation Home: {self.validation_home}")
+        print("-------------------------------\n")
+
     def run_full_validation(self) -> SystemValidationReport:
         """Run complete validation suite."""
-        print("🚀 Starting Unified Validation System v1.2.4")
+        self.print_fingerprint()
+        print(">>> Starting Unified Validation System v1.2.4")
         print("=" * 50)
 
         # Core runtime
-        print("📦 Validating Runtime Integrity...")
+        print("[RUNTIME] Validating Runtime Integrity...")
         self.validate_runtime_integrity()
 
-        print("📜 Validating Semantic Contracts...")
+        print("[CONTRACT] Validating Semantic Contracts...")
         self.validate_semantic_contracts()
 
         # Flow system
-        print("🔄 Validating Flow Correctness...")
+        print("[FLOW] Validating Flow Correctness...")
         self.validate_flow_correctness()
 
         # Resilience
-        print("🛡️  Validating System Resilience...")
+        print("[RESILIENCE] Validating System Resilience...")
         self.validate_resilience()
 
         # Learning
-        print("🧠 Validating Adaptive Learning...")
+        print("[LEARNING] Validating Adaptive Learning...")
         self.validate_adaptive_learning()
 
         # Deterministic behavior
-        print("🎯 Validating Deterministic Core...")
+        print("[DETERMINISM] Validating Deterministic Core...")
         self.validate_deterministic_core()
 
         # CI smoke tests
-        print("🔥 Validating CI Smoke Tests...")
+        print("[SMOKE] Validating CI Smoke Tests...")
         self.validate_ci_smoke_test()
 
         # Legacy (skip)
-        print("📜 Validating Legacy Compatibility...")
+        print("[LEGACY] Validating Legacy Compatibility...")
         self.validate_legacy_compatibility()
 
         # Generate report
         report = self.generate_report()
 
         print("\n" + "=" * 50)
-        print(f"🎯 OVERALL STATUS: {report.overall_status}")
-        print(f"📊 Success Rate: {report.summary['success_rate']:.1f}%")
-        print(f"⏱️  Total Duration: {report.summary['total_duration']:.2f}s")
-        print(f"✅ Passed: {report.summary['passed']}")
-        print(f"❌ Failed: {report.summary['failed']}")
-        print(f"⏭️  Skipped: {report.summary['skipped']}")
+        print(f"OVERALL STATUS: {report.overall_status}")
+        print(f"Summary: Success Rate: {report.summary['success_rate']:.1f}%")
+        print(f"Total Duration: {report.summary['total_duration']:.2f}s")
+        print(f"Passed: {report.summary['passed']}")
+        print(f"Failed: {report.summary['failed']}")
+        print(f"Skipped: {report.summary['skipped']}")
+
+        if report.overall_status == 'FAIL':
+            print("\n!!! FAILURE DETAILS !!!")
+            for r in report.components:
+                if r.status == 'FAIL':
+                    print(f"\n[FAIL] {r.component}")
+                    print(f"Command: {r.details['command']}")
+                    print(f"Error: {r.details['stderr']}")
+            print("!!!!!!!!!!!!!!!!!!!!!!!!\n")
 
         return report
 
@@ -308,19 +342,22 @@ class UnifiedValidator:
         with open(output_path, 'w') as f:
             json.dump(report_dict, f, indent=2)
 
-        print(f"📄 Report exported to: {output_path}")
+        print(f"Report exported to: {output_path}")
 
 
 def main():
     """Main entry point for unified validation."""
+    # Cleanup is handled by TemporaryDirectory
     validator = UnifiedValidator()
-    report = validator.run_full_validation()
-
-    # Export report
-    validator.export_report(report)
-
-    # Exit with appropriate code
-    sys.exit(0 if report.overall_status == 'PASS' else 1)
+    try:
+        report = validator.run_full_validation()
+        # Export report
+        validator.export_report(report)
+        # Exit with appropriate code
+        sys.exit(0 if report.overall_status == 'PASS' else 1)
+    finally:
+        # Explicit cleanup if needed, though TemporaryDirectory handles it
+        pass
 
 
 if __name__ == "__main__":
