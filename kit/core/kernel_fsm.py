@@ -6,6 +6,17 @@ from typing import Literal, List, Optional, Dict
 # v1.2.4-TITANIUM Execution State Machine
 ExecutionState = Literal["queued", "running", "success", "failed", "rolled_back"]
 
+@dataclass(frozen=True)
+class FlowExecutionContext:
+    """Isolation boundary for a flow step execution (v0.1.2)."""
+    flow_id: str
+    step_id: str
+    transaction_id: str
+    attempt: int
+    is_dry_run: bool = False
+    is_committable: bool = True
+
+
 @dataclass
 class ExecutionFrame:
     """
@@ -20,6 +31,9 @@ class ExecutionFrame:
     state: ExecutionState = "queued"
     retry_count: int = 0
     max_retries: int = 3
+    
+    # Flow Context Integration (v0.1.2)
+    context: Optional[FlowExecutionContext] = None
     
     stdout: Optional[str] = None
     stderr: Optional[str] = None

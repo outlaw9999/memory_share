@@ -75,7 +75,7 @@ def _bootloader_template() -> str:
     return (
         "# memory-share-kit (v1.2.4-TITANIUM)\n\n"
         "Deterministic memory and governance for developers and AI agents.\n\n"
-        "### 🧭 Startup Sequence\n"
+        "### ðŸ§­ Startup Sequence\n"
         "```bash\n"
         "kit recall\n"
         "```\n"
@@ -220,7 +220,7 @@ def handle_learn(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
         sys.exit(1)
     
     if _cognitive_guardrail(content, args.tag):
-        print_diagnostic("⚠️ COGNITIVE FRICTION: Potential dynamic/volatile data detected.")
+        print_diagnostic("âš ï¸ COGNITIVE FRICTION: Potential dynamic/volatile data detected.")
     
     action_call = partial(
         api.get_brain().learn, 
@@ -252,7 +252,7 @@ def handle_recall(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
     entities = getattr(args, "entities", None) or [current_context]
     is_here = getattr(args, "here", False)
     
-    memories, _ = api.recall(
+    memories = api.recall(
         entities, 
         limit=getattr(args, "limit", 15), 
         here=is_here, 
@@ -339,16 +339,16 @@ def handle_preflight(args: argparse.Namespace, print_diagnostic: DiagnosticPrint
     )
     
     if result.status == "block":
-        print_diagnostic(f"❌ PREFLIGHT BLOCK: Score {result.score:.2f}")
+        print_diagnostic(f"âŒ PREFLIGHT BLOCK: Score {result.score:.2f}")
         for issue in result.issues:
             print_diagnostic(f"  - [{issue['type']}] {issue['message']}")
         sys.exit(1)
     elif result.status == "warn":
-        print_diagnostic(f"⚠️ PREFLIGHT WARN: Score {result.score:.2f}")
+        print_diagnostic(f"âš ï¸ PREFLIGHT WARN: Score {result.score:.2f}")
         for issue in result.issues:
             print_diagnostic(f"  - [{issue['type']}] {issue['message']}")
     else:
-        print_diagnostic(f"✅ PREFLIGHT PASS: Score {result.score:.2f}")
+        print_diagnostic(f"âœ… PREFLIGHT PASS: Score {result.score:.2f}")
 
 @kit_command(
     name="where", 
@@ -386,10 +386,10 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
         from kit.core.kit_hygiene import generate_hygiene_report
         report = generate_hygiene_report(root_path)
         if report.noise_score > 0.1:
-            print_diagnostic(f"⚠️  High noise score detected ({report.noise_score:.2f}).")
+            print_diagnostic(f"âš ï¸  High noise score detected ({report.noise_score:.2f}).")
             print_diagnostic("   Run 'kit doctor --heal' to purge disposable artifacts.")
         else:
-            print_diagnostic("✅ Workspace hygiene is within stable bounds.")
+            print_diagnostic("âœ… Workspace hygiene is within stable bounds.")
 
 @kit_command(
     name="flow", 
@@ -397,12 +397,35 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
     description="Unified interactive loop (ask/run/learn/status)"
 )
 def handle_flow(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
-    """Handler for 'kit flow' surface."""
+    """Handler for 'kit flow' surface (v0.1.2)."""
     import kit.api as api
-    from kit.flow.surface import flow_decision_kernel
+    from kit.flow.engine import FlowPlanner, FlowExecutor
+    
     brain = api.get_brain()
-    print_diagnostic(f"Kit Flow Surface v1.2.4-TITANIUM (Brain: {brain.db_path.name})")
-    # Interactive flow loop placeholder
+    
+    if getattr(args, "flow_command", None) == "run":
+        yaml_path = Path(args.path)
+        if not yaml_path.exists():
+            print_diagnostic(f"Error: Flow file not found: {yaml_path}")
+            sys.exit(1)
+            
+        print_diagnostic(f"Flow Runtime v0.1.2 - Executing: {yaml_path.name}")
+        planner = FlowPlanner()
+        spec = planner.load(yaml_path)
+        
+        executor = FlowExecutor(brain)
+        success = executor.execute(spec)
+        
+        if success:
+            print_diagnostic(f"âœ… Flow '{spec.name}' completed and committed successfully.")
+        else:
+            print_diagnostic(f"âŒ Flow '{spec.name}' failed. Check flow_transactions for details.")
+            sys.exit(1)
+    else:
+        from kit.flow.surface import flow_decision_kernel
+        print_diagnostic(f"Kit Flow Surface v1.2.4-TITANIUM (Brain: {brain.db_path.name})")
+        # Default interactive behavior or help
+        print_diagnostic("Usage: kit flow run <path.yaml>")
 
 # --- CLI Entry Point ---
 
@@ -453,7 +476,12 @@ def main() -> None:
     subparsers.add_parser("stats", help="Kernel statistics")
     subparsers.add_parser("status", help="Detailed status")
     subparsers.add_parser("where", help="Show environment")
-    subparsers.add_parser("flow", help="Interactive flow")
+    
+    p_flow = subparsers.add_parser("flow", help="Workflow Runtime Control")
+    f_sub = p_flow.add_subparsers(dest="flow_command")
+    f_run = f_sub.add_parser("run", help="Run a flow YAML")
+    f_run.add_argument("path", help="Path to flow.yaml")
+    f_run.add_argument("--resume", action="store_true", help="Resume from checkpoint")
     
     p_preflight = subparsers.add_parser("preflight", help="Run commit checks")
     p_preflight.add_argument("--message", default="")
@@ -494,5 +522,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-#   t i t a n i u m _ v e r i f y  
- 
+# titanium_verify
+

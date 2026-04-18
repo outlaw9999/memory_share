@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import queue
 import sqlite3
 import threading
@@ -409,7 +410,13 @@ class SAMBrain:
         """Attach the global brain for unified queries."""
         self.global_db_path = global_db_path
         with self._get_connection(global_db_path) as gconn:
-            init_db(gconn)
+            try:
+                init_db(gconn)
+            except sqlite3.OperationalError as e:
+                if "readonly database" in str(e):
+                    logger.info(f"Global DB at {global_db_path} is read-only. Skipping initialization.")
+                else:
+                    raise
         from kit.core.memory_router import MemoryRouter
         from kit.core.memory_topology import MemoryTopology
 
@@ -677,8 +684,24 @@ class SAMBrain:
 
         frame_id = StateMutationContract.authorize_mutation(self.active_frame)
         clean_metadata["_kernel_frame"] = frame_id
-        if self.active_frame and hasattr(self.active_frame, "session_id"):
-            clean_metadata["_kernel_session"] = self.active_frame.session_id
+        if self.active_frame:
+            if hasattr(self.active_frame, "session_id"):
+                clean_metadata["_kernel_session"] = self.active_frame.session_id
+            
+            # Flow System v0.1.2: Transaction Isolation
+            if hasattr(self.active_frame, "context") and self.active_frame.context:
+                ctx = self.active_frame.context
+                clean_metadata["_flow_id"] = ctx.flow_id
+                clean_metadata["_step_id"] = ctx.step_id
+                clean_metadata["_transaction_id"] = ctx.transaction_id
+            else:
+                # v1.2.4-LOCK: Propagation via Environment (Subprocess Boundary)
+                flow_id = os.getenv("KIT_FLOW_ID")
+                transaction_id = os.getenv("KIT_TRANSACTION_ID")
+                if flow_id and transaction_id:
+                    clean_metadata["_flow_id"] = flow_id
+                    clean_metadata["_step_id"] = os.getenv("KIT_STEP_ID")
+                    clean_metadata["_transaction_id"] = transaction_id
 
         # 🔥 CHUẨN HÓA TAG TRƯỚC KHI VÀO LÒ LUYỆN (Zero-Trust Boundary)
         normalized_tag = str(tag).strip().lower()

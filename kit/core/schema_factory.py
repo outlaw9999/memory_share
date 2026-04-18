@@ -114,6 +114,54 @@ CREATE TABLE IF NOT EXISTS metrics (
 
 CREATE INDEX IF NOT EXISTS idx_metrics_event ON metrics(event_type);
 CREATE INDEX IF NOT EXISTS idx_metrics_created ON metrics(created_at);
+
+-- --- Flow System v0.1.2 (Titanium Workflow Runtime Kernel) ---
+
+CREATE TABLE IF NOT EXISTS flow_runs (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    version TEXT,
+    state TEXT CHECK(state IN ('planned', 'running', 'committing', 'success', 'failed', 'rolled_back')) DEFAULT 'planned',
+    mode TEXT DEFAULT 'strict',
+    metadata TEXT DEFAULT '{}',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS flow_steps (
+    id TEXT PRIMARY KEY, -- flow_id + step_id
+    flow_id TEXT NOT NULL,
+    step_id TEXT NOT NULL,
+    command TEXT NOT NULL,
+    state TEXT CHECK(state IN ('pending', 'running', 'success', 'failed', 'rolled_back')) DEFAULT 'pending',
+    depends_on TEXT, -- JSON list of step_ids
+    retry_count INTEGER DEFAULT 0,
+    max_retries INTEGER DEFAULT 3,
+    idempotent BOOLEAN DEFAULT 1,
+    frame_id TEXT, -- Link to ExecutionFrame id
+    metadata TEXT DEFAULT '{}',
+    FOREIGN KEY (flow_id) REFERENCES flow_runs(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS flow_transactions (
+    id TEXT PRIMARY KEY, -- transaction_id
+    flow_id TEXT NOT NULL,
+    step_id TEXT NOT NULL,
+    state TEXT CHECK(state IN ('open', 'committed', 'rolled_back', 'failed')) DEFAULT 'open',
+    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    finished_at DATETIME,
+    metadata TEXT DEFAULT '{}',
+    FOREIGN KEY (flow_id) REFERENCES flow_runs(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS flow_checkpoints (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    flow_id TEXT NOT NULL,
+    step_id TEXT NOT NULL,
+    state_snapshot TEXT, -- JSON blob of relevant state
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (flow_id) REFERENCES flow_runs(id) ON DELETE CASCADE
+);
 """
 
 

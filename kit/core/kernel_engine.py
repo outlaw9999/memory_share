@@ -32,7 +32,7 @@ class DeterministicKernel:
     def _get_command_hash(self, cmd: str) -> str:
         return hashlib.sha256(cmd.strip().encode()).hexdigest()
 
-    def run(self) -> bool:
+    def run(self, env: Optional[Dict[str, str]] = None) -> bool:
         """
         Executes the queue. Returns True if all frames succeed, False otherwise.
         Triggers rollback on terminal failure.
@@ -60,7 +60,7 @@ class DeterministicKernel:
             print(f"  [Kernel] Running Frame: {frame.command[:50]}...")
 
             # 3. Execution
-            success = self._execute_frame(frame)
+            success = self._execute_frame(frame, env=env)
 
             if success:
                 ExecutionContract.validate_transition(frame.state, "success")
@@ -86,7 +86,7 @@ class DeterministicKernel:
         
         return True
 
-    def _execute_frame(self, frame: ExecutionFrame) -> bool:
+    def _execute_frame(self, frame: ExecutionFrame, env: Optional[Dict[str, str]] = None) -> bool:
         try:
             # ECL v1: Handle Internal Actions (Python)
             if frame.action:
@@ -105,7 +105,8 @@ class DeterministicKernel:
                 capture_output=True,
                 text=True,
                 encoding='utf-8', 
-                errors='replace'
+                errors='replace',
+                env=env
             )
             frame.stdout = result.stdout
             frame.stderr = result.stderr
