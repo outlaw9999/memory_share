@@ -55,6 +55,7 @@ class UnifiedValidator:
         env["KIT_GLOBAL_HOME"] = str(self.repo_root / ".kit_validation_home")
         env["KIT_BYPASS_RUNTIME_LOCK"] = "1"
         env["PYTHONUTF8"] = "1"
+        env["PYTHONPATH"] = str(self.repo_root)
 
         try:
             result = subprocess.run(
@@ -71,6 +72,20 @@ class UnifiedValidator:
             return False, "", "Command timed out"
         except Exception as e:
             return False, "", str(e)
+
+    def get_pytest_cmd(self) -> str:
+        """Finds a working pytest command."""
+        # Try current interpreter
+        success, _, _ = self.run_command(f"{sys.executable} -m pytest --version")
+        if success:
+            return f"{sys.executable} -m pytest"
+        
+        # Fallback to global pytest
+        success, _, _ = self.run_command("pytest --version")
+        if success:
+            return "pytest"
+            
+        return "pytest"  # Last resort
 
     def validate_component(self, name: str, command: str, cwd: Optional[Path] = None) -> ValidationResult:
         """Validate a single component."""
@@ -120,7 +135,7 @@ class UnifiedValidator:
         cmd = f"python -c \"{'; '.join(cmd_lines)}\"".replace("with tempfile.TemporaryDirectory() as tmp:;", "with tempfile.TemporaryDirectory() as tmp:")
         # Actually, it's easier to just use a single line without 'with' or with a simpler structure
         cmd = (
-            "python -c \""
+            f"{sys.executable} -c \""
             "import sys; from kit.core.kit_cognitive_core import SAMBrain; from pathlib import Path; "
             "import tempfile; tmp = tempfile.mkdtemp(); "
             "b = SAMBrain(Path(tmp)/'test.db'); "
@@ -135,35 +150,35 @@ class UnifiedValidator:
         """Validate core runtime components."""
         return self.validate_component(
             "Runtime Integrity",
-            "python -c \"from kit.api import *; from kit.core.kit_cognitive_core import SAMBrain; print('Runtime OK')\""
+            f"{sys.executable} -c \"from kit.api import *; from kit.core.kit_cognitive_core import SAMBrain; print('Runtime OK')\""
         )
 
     def validate_flow_correctness(self) -> ValidationResult:
         """Validate flow state machine correctness."""
         return self.validate_component(
             "Flow Correctness",
-            "python -m pytest tests/test_flow_v124_core.py -v --tb=short"
+            f"{self.get_pytest_cmd()} tests/test_flow_v124_core.py -v --tb=short"
         )
 
     def validate_resilience(self) -> ValidationResult:
         """Validate system resilience under failure conditions."""
         return self.validate_component(
             "System Resilience",
-            "python -m pytest tests/test_v124_resilience.py -v --tb=short"
+            f"{self.get_pytest_cmd()} tests/test_v124_resilience.py -v --tb=short"
         )
 
     def validate_adaptive_learning(self) -> ValidationResult:
         """Validate adaptive learning and feedback loops."""
         return self.validate_component(
             "Adaptive Learning",
-            "python -m pytest tests/test_evolutionary_loop.py -v --tb=short"
+            f"{self.get_pytest_cmd()} tests/test_evolutionary_loop.py -v --tb=short"
         )
 
     def validate_deterministic_core(self) -> ValidationResult:
         """Validate deterministic behavior."""
         return self.validate_component(
             "Deterministic Core",
-            "python -m pytest tests/test_deterministic.py -v --tb=short"
+            f"{self.get_pytest_cmd()} tests/test_deterministic.py -v --tb=short"
         )
 
     def validate_ci_smoke_test(self) -> ValidationResult:
@@ -171,7 +186,7 @@ class UnifiedValidator:
         # Test minimal example
         example_result = self.validate_component(
             "Minimal Example",
-            "python examples/minimal_example.py"
+            f"{sys.executable} examples/minimal_example.py"
         )
 
         if example_result.status == 'FAIL':
@@ -180,7 +195,7 @@ class UnifiedValidator:
         # Test API imports
         return self.validate_component(
             "API Imports",
-            "python -c \"from kit.api import *; print('API imports successful')\""
+            f"{sys.executable} -c \"from kit.api import *; print('API imports successful')\""
         )
 
     def validate_legacy_compatibility(self) -> ValidationResult:
