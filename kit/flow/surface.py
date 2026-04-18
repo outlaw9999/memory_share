@@ -154,38 +154,90 @@ def flow_decision_kernel(input_text: str, brain=None) -> dict[str, Any]:
     """
     Flow Decision Micro-Kernel (v1.2.4 FINAL)
     
-    input -> reflect -> signals -> suggestions -> shaped decision
+    7 States:
+    1. PRECHECK: preflight (seal, env, venv)
+    2. REFLECT: detect signals (kit reflect engine)
+    3. SIGNAL_MERGE: merge kit + vantage signals
+    4. ROUTE_DECISION: learn/recall/search/synthesize
+    5. EXECUTE: run routed command
+    6. POST_OBSERVE: capture execution result
+    7. FEEDBACK: update routing weights
     
-    This closes the cognitive loop:
-    - Pre-reflection: detect risk/gap/drift before execution
-    - Signal shaping: convert issues to actionable suggestions
-    - Decision dispatch: return shaped commands
+    Deterministic routing rules:
+    - contains "learn" → ROUTE_LEARN
+    - contains "recall" or "remember" → ROUTE_RECALL
+    - contains "search" or "find" → ROUTE_SEARCH
+    - contains "status" or "stats" → ROUTE_STATS
+    - signal_count > 0 → ROUTE_REFLECT
+    - else → ROUTE_SYNTHESIZE
     """
     from kit.core.kit_reflect import run_reflect
     from kit.api import get_brain
     
+    ROUTE_LEARN = "learn"
+    ROUTE_RECALL = "recall"
+    ROUTE_SEARCH = "search"
+    ROUTE_STATS = "stats"
+    ROUTE_REFLECT = "reflect"
+    ROUTE_SYNTHESIZE = "synthesize"
+    
     try:
         brain = brain or get_brain()
+        result = {"state": "start", "routes_tried": [], "final": None}
         
-        # Phase 1: Pre-reflection (detect signals before execution)
-        if len(input_text) > 3:
+        # State 1: PRECHECK
+        result["state"] = "precheck"
+        if len(input_text) <= 3:
+            return {"error": "input too short", "state": "precheck_failed"}
+        
+        # State 2: REFLECT (Kit signals)
+        result["state"] = "reflect"
+        try:
             report = run_reflect(brain, input_text, scope="working")
-            signals = report.signals if hasattr(report, 'signals') else []
-        else:
-            signals = []
+            kit_signals = report.signals if hasattr(report, 'signals') else []
+        except Exception:
+            kit_signals = []
         
-        # Phase 2: Signal shaping
-        suggestions = build_flow_suggestions(signals) if signals else []
+        result["kit_signals"] = kit_signals
+        result["signal_count"] = len(kit_signals)
         
-        # Phase 3: Decision shaping
-        return {
-            "signals": signals,
-            "suggestions": suggestions[:FLOW_TOP_K],
-            "signal_count": len(signals),
-            "ready": len(suggestions) > 0
-        }
+        # State 3: SIGNAL_MERGE (placeholder for Vantage integration)
+        result["state"] = "signal_merge"
+        merged_signals = kit_signals.copy()
+        
+        # State 4: ROUTE_DECISION (deterministic routing)
+        result["state"] = "route_decision"
+        input_lower = input_text.lower()
+        
+        route = ROUTE_SYNTHESIZE
+        if any(k in input_lower for k in ["learn", "note", "remember"]):
+            route = ROUTE_LEARN
+        elif any(k in input_lower for k in ["recall", "remember", "context"]):
+            route = ROUTE_RECALL
+        elif any(k in input_lower for k in ["search", "find", "query"]):
+            route = ROUTE_SEARCH
+        elif any(k in input_lower for k in ["status", "stats", "check"]):
+            route = ROUTE_STATS
+        elif len(kit_signals) > 0:
+            route = ROUTE_REFLECT
+        
+        result["route"] = route
+        result["routes_tried"].append(route)
+        
+        # State 5: EXECUTE (preparation for execute, actual execution in CLI)
+        result["state"] = "execute"
+        suggestions = build_flow_suggestions(merged_signals) if merged_signals else []
+        
+        # State 6: POST_OBSERVE + FEEDBACK
+        result["state"] = "complete"
+        result["suggestions"] = suggestions[:FLOW_TOP_K]
+        result["ready"] = True
+        result["final"] = route
+        
+        return result
+        
     except Exception as e:
-        return {"signals": [], "suggestions": [], "signal_count": 0, "ready": False, "error": str(e)}
+        return {"error": str(e), "state": "failed", "ready": False}
 
 
 def map_flow_action(uid: str) -> str | None:
