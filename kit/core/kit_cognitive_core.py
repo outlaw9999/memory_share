@@ -109,6 +109,11 @@ class SAMBrain:
         self._snapshot_sync_thread: threading.Thread | None = None
         self._snapshot_queue: queue.Queue = queue.Queue()  # v2: Async IO Queue
         self._snapshot_io_lock: threading.Lock = threading.Lock()  # v2: Serialized IO Guard
+        
+        # v1.2.4-TITANIUM: Unified Router
+        from kit.core.memory_router import MemoryRouter
+        self._router = MemoryRouter(self.topology, local_db_path_override=self.db_path)
+        
         self._init_db()
         self._refresh_version()
         self._start_snapshot_syncer()
@@ -242,6 +247,7 @@ class SAMBrain:
         if self._last_snapshot_refresh is None:
             return True
         return (time.time() - self._last_snapshot_refresh) >= self.SNAPSHOT_REFRESH_SECONDS
+    def _prepare_local_snapshot(self, force: bool = False) -> Path:
         """Create or refresh a read-only local snapshot for safe preflight analysis."""
         snapshot_path = self._snapshot_path()
         snapshot_path.parent.mkdir(parents=True, exist_ok=True)
@@ -256,8 +262,15 @@ class SAMBrain:
             return snapshot_path
 
         try:
+            # v1.2.4-TITANIUM: Always source from the ACTIVE db_path
+            # This ensures compatibility with isolated test databases.
+            source_path = self.db_path
+            
             # v2: Unify WAL mode and PRAGMAs for snapshot consistency
-            with self.topology.connect("local", "local", timeout=10.0, readonly=True) as src_conn:
+            # We open a private connection to ensure we get the right file
+            src_conn = sqlite3.connect(f"file:{source_path.as_posix()}?mode=ro", uri=True, timeout=10.0)
+            src_conn.row_factory = sqlite3.Row
+            try:
                 dst = sqlite3.connect(
                     f"file:{snapshot_path.as_posix()}?mode=rwc",
                     uri=True,
@@ -274,6 +287,8 @@ class SAMBrain:
                 dst.close()
                 self._last_snapshot_refresh = time.time()
                 return snapshot_path
+            finally:
+                src_conn.close()
         except sqlite3.Error as e:
             logger.warning(f"Snapshot creation failed: {e}. Falling back to file copy.")
             import shutil
@@ -384,7 +399,7 @@ class SAMBrain:
         from kit.core.memory_topology import MemoryTopology
 
         topology = MemoryTopology(project_root=self.root_path)
-        self._router = MemoryRouter(topology)
+        self._router = MemoryRouter(topology, local_db_path_override=self.db_path)
 
     def get_workspace_id(self) -> str:
         """Return current workspace identity."""
@@ -621,10 +636,17 @@ class SAMBrain:
         symbol: str | None = None,
         structural_hash: str | None = None,
         tag: str = FactTag.DECISION.value,
+        node_type: str = "observation",
+        status: str = "active",
+        visibility: str = "local",
         skip_render: bool = False,
     ) -> int:
         """Learn a new observation at a specific node with STRICT Invariant Enforcement."""
         target_db = self.global_db_path if (to_global and self.global_db_path) else self.db_path
+
+        # v1.2.4-TITANIUM: Force global visibility if to_global
+        effective_visibility = "global" if to_global else visibility
+        effective_status = status
 
         # --- BƯỚC 1: XỬ LÝ DỮ LIỆU ĐẦU VÀO ---
         if to_global:
@@ -674,84 +696,43 @@ class SAMBrain:
         if to_global:
             enforce_no_global_contamination(test_entry)
 
+        # --- BƯỚC 3: ỦY QUYỀN THỰC THI (ROUTER DISPATCH) ---
+        from kit.core.memory_router import MemoryWriteRequest, WriteSource, MemoryTier
+        
+        request = MemoryWriteRequest(
+            source=WriteSource.KIT_LEARN,
+            key=uid,
+            content=content,
+            confidence=importance, # Mapping importance to confidence for routing
+            metadata=clean_metadata,
+            node_type=node_type,
+            tag=normalized_tag,
+            status=status,
+            visibility=effective_visibility,
+            layer=layer,
+            importance=importance,
+            namespace=namespace,
+            scope=normalized_scope,
+            branch=self.current_branch,
+            symbol=symbol,
+            agent_id=agent_id,
+            supersedes_id=supersede_id,
+            target_tier=MemoryTier.GLOBAL if to_global else None
+        )
+        
         try:
-
-            def _operation(conn: sqlite3.Connection) -> int:
-                # 0. Handle Supersede (Atomic Transaction)
-                if supersede_id:
-                    conn.execute(
-                        "UPDATE observations SET superseded_at = CURRENT_TIMESTAMP, is_active = 0 WHERE id = ?",
-                        (supersede_id,),
-                    )
-
-                # 1. Upsert Node
-                target_uid = (uid or "fact").lower()
-                conn.execute(
-                    "INSERT INTO nodes (uid, kind) VALUES (?, ?) ON CONFLICT(uid) DO UPDATE SET uid=uid",
-                    (target_uid, kind),
-                )
-                node_row = conn.execute("SELECT id FROM nodes WHERE uid = ?", (target_uid,)).fetchone()
-                node_id = node_row["id"]
-
-                # 2. Get head commit of current branch
-                head_row = conn.execute(
-                    "SELECT head_commit_id FROM branches WHERE name = ?", (self.current_branch,)
-                ).fetchone()
-                commit_id = head_row["head_commit_id"] if head_row else "ROOT"
-
-                # 3. IDEMPOTENCY GUARD (v1.2.4-LOCK) — Prevent duplicate memory
-                # Check if exact content already exists for this node
-                existing = conn.execute(
-                    "SELECT id FROM observations WHERE node_id = ? AND content = ? AND is_active = 1",
-                    (node_id, content),
-                ).fetchone()
-                if existing:
-                    return existing["id"]  # Idempotent: return existing, don't create duplicate
-
-                # 4. Insert Observation (with baseline access count = 1)
-                meta_json = json.dumps(clean_metadata)
-                m_score = self._compute_materialized_score(importance, 1)  # BASELINE: access_count = 1
-
-                sql = """
-                INSERT INTO observations (
-                    node_id, content, importance, layer, metadata, namespace, scope, agent_id, 
-                    commit_id, branch, symbol, structural_hash, materialized_score, tag, is_active, supersedes_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """
-                cur = conn.execute(
-                    sql,
-                    (
-                        node_id,
-                        content,
-                        importance,
-                        layer,
-                        meta_json,
-                        namespace,
-                        normalized_scope,
-                        agent_id,
-                        commit_id,
-                        self.current_branch,
-                        symbol,
-                        structural_hash,
-                        m_score,
-                        normalized_tag,
-                        1,
-                        supersede_id,
-                    ),
-                )
-                fact_id = cur.lastrowid
-                if fact_id is None:
-                    raise SAMBrainError("Failed to insert observation: lastrowid is None")
-
-                self._increment_version(conn)
-                return fact_id
-
-            fact_id = self._run_write_transaction(_operation, target_db)
-            # Render context removed from automatic cycle [v1.2.3 HOTFIX]
-            # Use 'kit render' manually to update manifests.
-            return fact_id
-        except sqlite3.Error as e:
-            raise SAMBrainError(f"Failed to learn observation: {e}") from e
+            decision = self._router.route_write(request)
+            if decision.decision == "rejected":
+                raise SAMBrainError(f"Cognitive write rejected by Router: {decision.reason}")
+                
+            if decision.assigned_tier == MemoryTier.LOCAL:
+                self._signal_snapshot_refresh()
+            
+            # Note: IDs are now managed by the router/tier.
+            return decision.observation_id or 0
+        except Exception as e:
+            logger.exception(f"Cognitive write failed via Router: {e}")
+            raise SAMBrainError(f"Failed to learn fact via Router: {e}") from e
 
     def link(
         self,
@@ -863,149 +844,46 @@ class SAMBrain:
         fast: bool = False,
         include_profile: bool = False,
     ) -> tuple[list[Memory], dict[str, float] | None]:
-        """Ranked recall with support for symbol anchoring and stage profiling."""
-        import time
-        from kit.core.kit_cognitive_core import Memory
-
+        """Ranked recall delegated to Unified Memory Router (v1.2.4)."""
+        from kit.core.memory_router import MemoryReadRequest
+        
         profile = {"sql": 0.0, "ranking": 0.0, "hydration": 0.0, "total": 0.0} if include_profile else None
         start_total = time.perf_counter()
-        memories: list[Memory] = []
-        candidate_limit = max(limit * 5, limit)
-
-        # Internal helper for querying a single brain
-        def _recall_from(
-            conn: sqlite3.Connection, prefix: str = "", priority: float = 1.5, source: str = "project"
-        ) -> None:
-            p = f"{prefix}." if prefix else ""
-            current_scope = self.get_normalized_scope() if here else ""
-
-            # ... (Existing logic for where clauses)
-            symbol_where_clause = "OR o.symbol = ?" if symbol else ""
-            scope_filter_clause = ""
-            scopes = []
-            if here:
-                parts = current_scope.split("/") if current_scope else []
-                scopes = ["/".join(parts[:i]) for i in range(len(parts) + 1)]
-                scope_placeholders = ",".join(["?"] * len(scopes))
-                scope_filter_clause = f"(o.scope IN ({scope_placeholders}) OR o.scope = '')"
-
-            query_filter_clause = ""
-            if query:
-                query_filter_clause = (
-                    f"o.id IN (SELECT rowid FROM {p}observations_fts WHERE {p}observations_fts MATCH ?)"
+        
+        request = MemoryReadRequest(
+            query=query or "",
+            limit=limit,
+            entities=entities,
+            here=here,
+            with_global=with_global,
+            agent_id=agent_id,
+            scope=self.get_normalized_scope() if here else None,
+            symbol=symbol
+        )
+        
+        # Dispatch to Router v1
+        memories = self._router.resolve_read(request)
+        
+        # Final runtime scoring (dynamic factors like agent context/recency)
+        scored_memories = []
+        for m in memories:
+            scored_memories.append(replace(
+                m,
+                score=self.calculate_runtime_score(
+                    m,
+                    current_scope=self.get_normalized_scope() if here else "",
+                    symbol=symbol,
+                    agent_id=agent_id,
+                    source_priority=1.5 if m.brain_source == "local" else (2.0 if m.brain_source == "law" else 1.0)
                 )
-
-            entity_filter_clause = ""
-            if entities:
-                placeholders = ",".join(["?"] * len(entities))
-                uid_clause = f"n.uid IN ({placeholders})"
-                if not query:
-                    entity_filter_clause = f"({uid_clause} OR o.id IN (SELECT rowid FROM {p}observations_fts WHERE {p}observations_fts MATCH ?))"
-                else:
-                    entity_filter_clause = uid_clause
-
-            where_clauses: list[str] = []
-            if entity_filter_clause:
-                where_clauses.append(entity_filter_clause)
-            if scope_filter_clause:
-                where_clauses.append(scope_filter_clause)
-            if query_filter_clause:
-                where_clauses.append(query_filter_clause)
-            if symbol_where_clause:
-                where_clauses.append(f"(1=0 {symbol_where_clause})")
-            final_where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-
-            sql = f"""
-            SELECT o.*, n.uid as node_uid
-            FROM {p}observations o
-            JOIN {p}nodes n ON o.node_id = n.id
-            WHERE {final_where_clause}
-              AND (o.branch = ?)
-              AND o.is_active = 1
-            ORDER BY o.materialized_score DESC, o.created_at DESC
-            LIMIT ?
-            """
-            where_params: list[str] = []
-            if entities:
-                where_params.extend([e.lower() for e in entities])
-                if not query:
-                    where_params.append(" OR ".join(self._fts_literal(e) for e in entities))
-            if here:
-                where_params.extend(scopes)
-            if query:
-                where_params.append(query)
-            if symbol:
-                where_params.append(symbol)
-            all_params: list[Any] = where_params + [self.current_branch, candidate_limit]
-
-            # !!! STAGE 1: SQL EXECTION
-            s_sql = time.perf_counter()
-            cur = conn.execute(sql, all_params)
-            rows = cur.fetchall()
-            if profile is not None:
-                profile["sql"] += time.perf_counter() - s_sql
-
-            # !!! STAGE 2: HYDRATION & INITIAL RANKING
-            for row in rows:
-                s_hyd = time.perf_counter()
-                memory = Memory(
-                    id=row["id"],
-                    node_uid=row["node_uid"],
-                    content=row["content"],
-                    score=0.0,
-                    brain_source=source,
-                    layer=row["layer"],
-                    namespace=row["namespace"],
-                    branch=row["branch"],
-                    created_at=row["created_at"],
-                    importance=row["importance"],
-                    symbol=row["symbol"],
-                    tag=row["tag"],
-                    scope=row["scope"],
-                    is_active=bool(row["is_active"]),
-                    supersedes_id=row["supersedes_id"],
-                    materialized_score=row["materialized_score"],
-                )
-                if profile is not None:
-                    profile["hydration"] += time.perf_counter() - s_hyd
-
-                s_rank = time.perf_counter()
-                scored_memory = replace(
-                    memory,
-                    score=self.calculate_runtime_score(
-                        memory,
-                        current_scope=current_scope,
-                        symbol=symbol,
-                        agent_id=agent_id,
-                        source_priority=priority,
-                    ),
-                )
-                if profile is not None:
-                    profile["ranking"] += time.perf_counter() - s_rank
-                memories.append(scored_memory)
-
-        with self._get_connection() as conn:
-            _recall_from(conn, priority=1.5, source="project")
-
-        if with_global and self.global_db_path:
-            try:
-                if self.global_db_path.exists():
-                    with self._get_connection(self.global_db_path) as gconn:
-                        _recall_from(gconn, prefix="", priority=1.0, source="global")
-            except sqlite3.Error as e:
-                logger.warning(f"Global Brain recall failed: {e}")
-
-        # !!! STAGE 3: FINAL SORTING
-        s_sort = time.perf_counter()
-        memories.sort(key=lambda x: (self.TAG_PRIORITY.get(x.tag, 0), x.score, x.created_at), reverse=True)
-        final_memories = memories[:limit]
-        if profile is not None:
-            profile["ranking"] += time.perf_counter() - s_sort
-
+            ))
+            
+        scored_memories.sort(key=lambda x: (self.TAG_PRIORITY.get(x.tag, 0), x.score, x.created_at), reverse=True)
+        
         if profile is not None:
             profile["total"] = time.perf_counter() - start_total
-
-        return final_memories, profile
+            
+        return scored_memories[:limit], profile
 
     def recall_with_assessment(
         self,
@@ -1031,8 +909,8 @@ class SAMBrain:
         return self.assess_ranked_memories(memories)
 
     def get_stats(self) -> dict[str, Any]:
-        """Retrieve dual-brain metrics."""
-        stats: dict[str, dict[str, int]] = {"project": {}, "global": {}}
+        """Retrieve multi-tier metrics (L1-L3)."""
+        stats: dict[str, dict[str, int]] = {"project": {}, "global": {}, "law": {}}
 
         def get_db_stats(conn: sqlite3.Connection, prefix: str = "") -> dict[str, int]:
             p = f"{prefix}." if prefix else ""
@@ -1041,15 +919,25 @@ class SAMBrain:
                 "edges": conn.execute(f"SELECT COUNT(*) FROM {p}edges").fetchone()[0],
                 "observations": conn.execute(f"SELECT COUNT(*) FROM {p}observations").fetchone()[0],
                 "baked": conn.execute(f"SELECT COUNT(*) FROM {p}observations WHERE is_baked = 1").fetchone()[0],
-                "skills": conn.execute(f"SELECT COUNT(*) FROM {p}nodes WHERE kind = 'skill'").fetchone()[0],
+                "skills": conn.execute(f"SELECT COUNT(*) FROM {p}nodes WHERE node_type = 'skill' OR kind = 'skill'").fetchone()[0],
             }
 
         with self._get_connection() as conn:
             stats["project"] = get_db_stats(conn)
+            
+            # Attach Global (L2)
             if self.global_db_path:
                 escaped_path = self._sqlite_string_literal(str(self.global_db_path))
                 conn.execute(f"ATTACH DATABASE '{escaped_path}' AS g")
                 stats["global"] = get_db_stats(conn, "g")
+                
+            # Attach Frozen Law (L3)
+            frozen_path = self.topology.resolve("global", "frozen")
+            if frozen_path.exists():
+                escaped_frozen = self._sqlite_string_literal(str(frozen_path))
+                conn.execute(f"ATTACH DATABASE '{escaped_frozen}' AS f")
+                stats["law"] = get_db_stats(conn, "f")
+                
         return stats
 
     def lookup_hash(self, symbol: str) -> str | None:

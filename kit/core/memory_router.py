@@ -45,6 +45,21 @@ class WriteDecision(StrEnum):
     """Outcomes of routing decision."""
     ACCEPTED = "accepted"
     REJECTED = "rejected"
+    CACHED = "cached"
+
+
+@dataclass
+class MemoryReadRequest:
+    """Request to retrieve memory facts."""
+    
+    query: str
+    limit: int = 15
+    entities: list[str] | None = None
+    here: bool = False
+    with_global: bool = True
+    agent_id: str | None = None
+    scope: str | None = None
+    symbol: str | None = None
 
 
 @dataclass
@@ -52,10 +67,22 @@ class MemoryWriteRequest:
     """Request to write/update a memory fact."""
     
     source: WriteSource
-    key: str                           # Memory identifier
-    content: str | dict                # What to store
+    key: str                           # Memory identifier (node uid)
+    content: str | dict                # What to store (observation content)
     confidence: float                  # 0.0 to 1.0
     metadata: dict[str, Any]           # Context (symbol, frequency, etc.)
+    node_type: str = "observation"
+    tag: str = "decision"
+    status: str = "active"
+    visibility: str = "local"
+    layer: str = "episodic"
+    importance: float = 1.0
+    namespace: str = "shared"
+    scope: str = ""
+    branch: str = "main"
+    symbol: str | None = None
+    agent_id: str | None = None
+    supersedes_id: int | None = None
     target_tier: Optional[MemoryTier] = None
     reason: str = ""
 
@@ -70,6 +97,7 @@ class WriteDecisionRecord:
     confidence: float
     reason: str
     timestamp: str
+    observation_id: Optional[int] = None
 
 
 class RouterWriteBuffer:
@@ -137,14 +165,13 @@ class MemoryTierRules:
     def route_to_tier(cls, request: MemoryWriteRequest) -> MemoryTier:
         """Route request to appropriate tier based on confidence."""
         
-        if request.confidence >= cls.THRESHOLD_FROZEN:
+        if request.target_tier == MemoryTier.FROZEN:
             return MemoryTier.FROZEN
-        elif request.confidence >= cls.THRESHOLD_GLOBAL:
+            
+        if request.target_tier == MemoryTier.GLOBAL:
             return MemoryTier.GLOBAL
-        elif request.confidence >= cls.THRESHOLD_LOCAL:
-            return MemoryTier.LOCAL
-        else:
-            return MemoryTier.LOCAL
+            
+        return MemoryTier.LOCAL
 
 
 class MemoryRouter:
@@ -160,6 +187,7 @@ class MemoryRouter:
         self,
         topology: MemoryTopology,
         history_path: Optional[Path] = None,
+        local_db_path_override: Optional[Path] = None,
     ):
         """
         Initialize router with topology context.
@@ -172,7 +200,7 @@ class MemoryRouter:
         self.topology = topology
         
         # Resolve database paths using topology
-        self.local_db_path = topology.resolve("local", "local")
+        self.local_db_path = local_db_path_override or topology.resolve("local", "local")
         self.global_db_path = topology.resolve("global", "global")
         self.frozen_db_path = topology.resolve("global", "frozen")
         
@@ -185,12 +213,166 @@ class MemoryRouter:
         self._decision_log: list[WriteDecisionRecord] = []
         self._write_buffer = RouterWriteBuffer()
 
-        logger.info(f"MemoryRouter initialized with topology authority")
-        logger.info(f"  LOCAL: {self.local_db_path}")
-        logger.info(f"  GLOBAL: {self.global_db_path}")
-        logger.info(f"  FROZEN: {self.frozen_db_path}")
-        logger.info(f"  History: {self.history_path}")
+        logger.info(f"MemoryRouter v1.2.4 (TITANIUM) initialized")
+        logger.info(f"  L1-Local:  {self.local_db_path}")
+        logger.info(f"  L2-Global: {self.global_db_path}")
+        logger.info(f"  L3-Law:    {self.frozen_db_path}")
+        logger.info(f"  L4-Audit:  {self.history_path}")
     
+    def resolve_read(self, request: MemoryReadRequest) -> list[Any]:
+        """
+        Unified Read Dispatcher (v1.2.4).
+        Routes query through Tier Hierarchy with deterministic priority.
+        """
+        from kit.core.kit_cognitive_core import Memory
+        
+        results: list[Memory] = []
+        
+        # 1. Route to L1 (Local)
+        results.extend(self._query_tier(MemoryTier.LOCAL, request))
+        
+        # 2. Route to L2 (Global)
+        if request.with_global:
+            results.extend(self._query_tier(MemoryTier.GLOBAL, request))
+            
+            # 3. Route to L3 (Frozen Law)
+            results.extend(self._query_tier(MemoryTier.FROZEN, request))
+            
+        # 4. Final Aggregation & Ranking (Shadowing Logic)
+        # Unique by UID, keeping the one with higher Tier priority (Local > Law > Global for skills)
+        # Note: Law has high priority in recall, but Local can override.
+        seen_uids = set()
+        final_results = []
+        
+        # Sort results by tier priority and tag priority before deduplication
+        # Priority: Tag (Invariant > Decision) > Tier (Local > Law > Global) > Score
+        tag_priority = {"invariant": 3, "decision": 2, "preference": 1, "note": 0, "friction": 0}
+        priority_map = {"local": 3, "law": 2, "global": 1}
+        
+        results.sort(
+            key=lambda x: (
+                tag_priority.get(x.tag, 0),
+                priority_map.get(x.brain_source, 0),
+                x.materialized_score
+            ), 
+            reverse=True
+        )
+        
+        return results[:request.limit]
+
+    def _query_tier(self, tier: MemoryTier, request: MemoryReadRequest) -> list[Any]:
+        """Execute query against a specific tier using optimal PRAGMAs."""
+        scope = "local" if tier == MemoryTier.LOCAL else "global"
+        db_type = "local" if tier == MemoryTier.LOCAL else ("global" if tier == MemoryTier.GLOBAL else "frozen")
+        
+        path = self.local_db_path if tier == MemoryTier.LOCAL else self.topology.resolve(scope, db_type)
+        if not path.exists():
+            return []
+            
+        # Authority Pattern: Use topology to connect with Read-Only guards
+        try:
+            # v1.2.4: If path is overridden, we still use topology.connect logic but on the specific path
+            if tier == MemoryTier.LOCAL and self.local_db_path != self.topology.resolve("local", "local"):
+                # Fallback connection for isolated paths
+                conn = sqlite3.connect(
+                    f"file:{path.as_posix()}?mode=ro", 
+                    uri=True,
+                    timeout=10.0,
+                    check_same_thread=False,
+                    isolation_level=None
+                )
+                conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA query_only=ON")
+            else:
+                conn = self.topology.connect(scope, db_type, readonly=True)
+                
+            try:
+                # v1.2.4: Deterministic Recall Logic
+                # (This logic is moved from SAMBrain to Router for centralization)
+                return self._execute_recall_on_conn(conn, tier, request)
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.error(f"Read failed on {tier.value}: {e}")
+            return []
+
+    def _execute_recall_on_conn(self, conn: sqlite3.Connection, tier: MemoryTier, request: MemoryReadRequest) -> list[Any]:
+        """Internal low-level query executor (Unified v1.2.4-TITANIUM)."""
+        from kit.core.kit_cognitive_core import Memory
+        
+        current_branch = "main" # TODO: Support branching in Router
+        
+        where_clauses = ["o.is_active = 1", "o.branch = ?"]
+        params = [current_branch]
+        
+        # 1. Scope Filter (Hierarchy)
+        if request.scope:
+            parts = request.scope.split("/") if request.scope else []
+            scopes = ["/".join(parts[:i]) for i in range(len(parts) + 1)]
+            placeholders = ",".join(["?"] * len(scopes))
+            where_clauses.append(f"(o.scope IN ({placeholders}) OR o.scope = '')")
+            params.extend(scopes)
+            
+        # 2. Entity/FTS Filter
+        entity_where = ""
+        if request.entities:
+            placeholders = ",".join(["?"] * len(request.entities))
+            uid_clause = f"n.uid IN ({placeholders})"
+            params.extend([e.lower() for e in request.entities])
+            
+            # Hybrid FTS support (if query is present)
+            if request.query:
+                fts_clause = "o.id IN (SELECT rowid FROM observations_fts WHERE observations_fts MATCH ?)"
+                entity_where = f"({uid_clause} OR {fts_clause})"
+                params.append(request.query)
+            else:
+                entity_where = uid_clause
+                
+        if entity_where:
+            where_clauses.append(entity_where)
+            
+        # 3. Symbol Filter
+        if request.symbol:
+            where_clauses.append("o.symbol = ?")
+            params.append(request.symbol)
+            
+        sql = f"""
+        SELECT o.*, n.uid as node_uid
+        FROM observations o
+        JOIN nodes n ON o.node_id = n.id
+        WHERE {" AND ".join(where_clauses)}
+        ORDER BY o.materialized_score DESC, o.created_at DESC
+        LIMIT ?
+        """
+        params.append(request.limit * 2) # Overfetch for router-level merging
+        
+        cur = conn.execute(sql, params)
+        rows = cur.fetchall()
+        
+        memories = []
+        for row in rows:
+            m = Memory(
+                id=row["id"],
+                node_uid=row["node_uid"],
+                content=row["content"],
+                score=0.0,
+                brain_source="local" if tier == MemoryTier.LOCAL else ("law" if tier == MemoryTier.FROZEN else "global"),
+                layer=row["layer"],
+                namespace=row["namespace"],
+                branch=row["branch"],
+                created_at=row["created_at"],
+                importance=row["importance"],
+                symbol=row["symbol"],
+                tag=row["tag"],
+                scope=row["scope"],
+                is_active=bool(row["is_active"]),
+                supersedes_id=row["supersedes_id"],
+                materialized_score=row["materialized_score"],
+            )
+            memories.append(m)
+            
+        return memories
+
     def route_write(self, request: MemoryWriteRequest) -> WriteDecisionRecord:
         """Main entry point: validate + route memory write."""
         
@@ -213,7 +395,7 @@ class MemoryRouter:
         
         # Step 3: Execute write
         try:
-            self._write_to_tier(assigned_tier, request)
+            obs_id = self._write_to_tier(assigned_tier, request)
             decision = WriteDecisionRecord(
                 request_key=request.key,
                 decision=WriteDecision.ACCEPTED,
@@ -221,6 +403,7 @@ class MemoryRouter:
                 confidence=request.confidence,
                 reason=f"Accepted to {assigned_tier.value}",
                 timestamp=datetime.now(UTC).isoformat(),
+                observation_id=obs_id
             )
         except Exception as e:
             logger.error(f"Write failed for {request.key}: {e}")
@@ -239,41 +422,90 @@ class MemoryRouter:
         return decision
     
     def _write_to_tier(self, tier: MemoryTier, request: MemoryWriteRequest) -> None:
-        """Write memory to the assigned tier's database."""
+        """Write memory to the assigned tier's database with Titanium Schema enforcement."""
         
         # v1.2.4-COLLAPSE-SAFE: Frozen Tier Architecture Invariant
         if tier == MemoryTier.FROZEN:
             logger.error(f"CRITICAL: Attempted write to FROZEN tier: {request.key}")
             raise PermissionError(f"Tier {tier.value} (FROZEN) is read-only by architecture.")
 
-        db_path = self._get_db_path_for_tier(tier)
-
-        # Serialize content if dict
-        content_str = json.dumps(request.content) if isinstance(request.content, dict) else request.content
-
-        # Authority Pattern: Use topology to connect
-        conn = self.topology.connect(
-            scope="local" if tier == MemoryTier.LOCAL else "global",
-            db_type=tier.value
-        )
+        # Authority Connection: Always use topology.connect (enforces WAL/Locking)
+        if tier == MemoryTier.LOCAL and self.local_db_path != self.topology.resolve("local", "local"):
+            # Isolated path connection for tests
+            path = self.local_db_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            conn = sqlite3.connect(
+                f"file:{path.as_posix()}", 
+                uri=True,
+                timeout=10.0,
+                check_same_thread=False,
+                isolation_level=None
+            )
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA journal_mode=WAL")
+        else:
+            conn = self.topology.connect(
+                scope="local" if tier == MemoryTier.LOCAL else "global",
+                db_type="local" if tier == MemoryTier.LOCAL else "global",
+                readonly=False
+            )
         try:
+            # 1. Prepare Node Data
+            node_uid = request.key.lower()
+            content_str = json.dumps(request.content) if isinstance(request.content, dict) else request.content
+            
             conn.execute("BEGIN IMMEDIATE")
+            
+            # 2. Upsert Node
             conn.execute(
-                """
-                INSERT OR REPLACE INTO memory (key, content, confidence, metadata, source, tier, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
+                """INSERT INTO nodes (uid, node_type, status, visibility) 
+                   VALUES (?, ?, ?, ?) 
+                   ON CONFLICT(uid) DO UPDATE SET 
+                     node_type=excluded.node_type,
+                     status=excluded.status,
+                     visibility=excluded.visibility""",
+                (node_uid, request.node_type, request.status, request.visibility),
+            )
+            node_row = conn.execute("SELECT id FROM nodes WHERE uid = ?", (node_uid,)).fetchone()
+            node_id = node_row["id"]
+            
+            # 3. Handle Superseding (Inactivate old memory)
+            if request.supersedes_id:
+                conn.execute(
+                    "UPDATE observations SET is_active = 0, superseded_at = ? WHERE id = ?",
+                    (datetime.now(UTC).isoformat(), request.supersedes_id),
+                )
+
+            # 4. Insert Observation
+            cur = conn.execute(
+                """INSERT INTO observations 
+                   (node_id, content, layer, tag, importance, materialized_score, 
+                    namespace, scope, branch, symbol, metadata, agent_id, supersedes_id, is_active)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    request.key,
+                    node_id,
                     content_str,
-                    request.confidence,
+                    request.layer,
+                    request.tag,
+                    request.importance,
+                    request.importance * 0.47712125471966244, # importance * log10(1 + 2)
+                    request.namespace,
+                    request.scope,
+                    request.branch,
+                    request.symbol,
                     json.dumps(request.metadata),
-                    request.source.value,
-                    tier.value,
-                    datetime.now(UTC).isoformat(),
+                    request.agent_id,
+                    request.supersedes_id,
+                    1 # is_active
                 ),
             )
+            obs_id = cur.lastrowid
+            
+            # 4. Update FTS
+            conn.execute("INSERT INTO observations_fts(rowid, content) VALUES (?, ?)", (obs_id, content_str))
+            
             conn.commit()
+            return obs_id
         except sqlite3.OperationalError as e:
             if "locked" in str(e).lower() or "busy" in str(e).lower():
                 logger.warning(f"DB locked, buffering to memory: {request.key}")
@@ -396,7 +628,8 @@ class MemoryRouterFactory:
     
     @classmethod
     def _initialize_scope(cls, topology: MemoryTopology, scope: str) -> None:
-        """Initialize all databases in a given scope."""
+        """Initialize all databases in a given scope using central schema factory."""
+        from kit.core.schema_factory import init_db, enable_wal
         
         db_types = ["local", "global", "frozen"]
         
@@ -408,12 +641,6 @@ class MemoryRouterFactory:
                 continue
             
             db_path = topology.resolve(scope, db_type)
-            
-            # Skip if not applicable
-            if db_path is None:
-                continue
-            
-            db_path = topology.resolve(scope, db_type)
             if db_path is None:
                 continue
 
@@ -422,9 +649,11 @@ class MemoryRouterFactory:
             conn = topology.connect(scope, db_type, readonly=False)
             try:
                 conn.execute("BEGIN IMMEDIATE")
-                conn.executescript(cls.SCHEMA_SQL)
+                init_db(conn)
+                init_fts(conn)
+                enable_wal(conn)
                 conn.commit()
-                logger.debug(f"Initialized kernel schema for {scope}/{db_type}")
+                logger.debug(f"Initialized standardized schema and FTS for {scope}/{db_type}")
             finally:
                 conn.close()
 

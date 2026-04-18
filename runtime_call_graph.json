@@ -6,8 +6,8 @@
         "db": null,
         "isolated": false,
         "command": "seal",
-        "force_evict": true,
-        "global_seal": false
+        "force_evict": false,
+        "global_seal": true
       }
     }
   ],
@@ -15,17 +15,17 @@
     {
       "node": "api.search",
       "status": "success",
-      "latency_ms": 2.4687000004632864
+      "latency_ms": 7.145499999751337
     },
     {
       "node": "api.recall",
       "status": "success",
-      "latency_ms": 3.230400001484668
+      "latency_ms": 12.569999999868742
     },
     {
       "node": "api.search",
       "status": "success",
-      "latency_ms": 2.2444000005634734
+      "latency_ms": 2.0730000001094595
     }
   ],
   "signals": []

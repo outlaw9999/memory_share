@@ -13,7 +13,10 @@ SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS nodes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     uid TEXT UNIQUE NOT NULL,
-    kind TEXT,
+    kind TEXT, -- Legacy: use node_type
+    node_type TEXT CHECK(node_type IN ('skill', 'law', 'config', 'artifact', 'entity', 'observation')) DEFAULT 'observation',
+    status TEXT CHECK(status IN ('active', 'frozen', 'archived')) DEFAULT 'active',
+    visibility TEXT CHECK(visibility IN ('local', 'global')) DEFAULT 'local',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     metadata TEXT DEFAULT '{}'
 );
@@ -308,6 +311,26 @@ def init_db(conn: sqlite3.Connection):
         conn.execute("UPDATE observations SET is_baked = 1 WHERE is_baked = 0")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_baked ON observations(is_baked)")
         logger.info("Migrated: Added is_baked; backfilled legacy records as baked.")
+    except sqlite3.OperationalError:
+        pass
+
+    # v1.2.4-TITANIUM: Standardized Node Type & Status
+    try:
+        conn.execute("ALTER TABLE nodes ADD COLUMN node_type TEXT DEFAULT 'observation'")
+        conn.execute("ALTER TABLE nodes ADD COLUMN status TEXT DEFAULT 'active'")
+        conn.execute("ALTER TABLE nodes ADD COLUMN visibility TEXT DEFAULT 'local'")
+        
+        # Backfill node_type from legacy kind
+        conn.execute("UPDATE nodes SET node_type = 'skill' WHERE kind = 'skill'")
+        conn.execute("UPDATE nodes SET node_type = 'entity' WHERE kind = 'arch'")
+        
+        logger.info("Migrated: Added node_type, status, and visibility to nodes")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(node_type)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_nodes_status ON nodes(status)")
     except sqlite3.OperationalError:
         pass
 

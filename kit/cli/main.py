@@ -878,12 +878,18 @@ def main() -> None:
             print(f"  Local Brain:  {brain.db_path}")
             if hasattr(brain, 'global_db_path') and brain.global_db_path:
                 print(f"  Global Brain: {brain.global_db_path}")
+            
+            frozen_path = brain.topology.resolve("global", "frozen")
+            if frozen_path.exists():
+                print(f"  Frozen Law:   {frozen_path}")
+                
             if hasattr(brain, 'snapshot_db_path') and brain.snapshot_db_path:
                 print(f"  Snapshot:     {brain.snapshot_db_path}")
             print(f"  Sealed:       {'✅ YES' if is_sealed(root) else '❌ NO'}")
 
-            for scope in ["project", "global"]:
+            for scope in ["project", "global", "law"]:
                 data = stats.get(scope, {})
+                if not data and scope == "law": continue
                 nodes = data.get("nodes", 0)
                 obs = data.get("observations", 0)
                 skills = data.get("skills", 0)
@@ -897,13 +903,16 @@ def main() -> None:
 
             # Calculate bake ratio for the project brain
             p_data = stats.get("project", {})
+            l_data = stats.get("law", {})
             t_obs = p_data.get("observations", 0)
             b_obs = p_data.get("baked", 0)
             ratio = (b_obs / t_obs * 100) if t_obs > 0 else 100.0
 
+            total_skills = p_data.get("skills", 0) + l_data.get("skills", 0)
+
             print(f"\n[Execution Boundary]")
             print(f"  Baked Ratio: {ratio:.1f}% ({b_obs}/{t_obs})")
-            print(f"  Skills (L3): {p_data.get('skills', 0)}")
+            print(f"  Total Skills: {total_skills} (Project: {p_data.get('skills', 0)}, Law: {l_data.get('skills', 0)})")
             print("  Status:      STABLE" if ratio > 90 else "  Status:      STABILIZING")
 
             print(f"\n[Cognitive Tags]")
