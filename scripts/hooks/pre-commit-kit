@@ -1,0 +1,47 @@
+#!/bin/sh
+# Kit + Vantage Pre-Commit Hook (v1.2.4)
+# 
+# This hook runs Vantage memory verification BEFORE commit.
+# If Vantage fails, commit is BLOCKED.
+#
+# Install: Copy this to .git/hooks/pre-commit
+#   cp .git/hooks/pre-commit-kit .git/hooks/pre-commit
+#   chmod +x .git/hooks/pre-commit
+
+echo "🔍 [Kit] Running Vantage verification..."
+
+# Check for Vantage binary in common locations
+# 1. Local root
+# 2. Sibling repo
+# 3. PATH
+VANTAGE_BIN=""
+if [ -f "./kit-vantage.exe" ]; then
+    VANTAGE_BIN="./kit-vantage.exe"
+elif [ -f "../Vantage/kit-vantage.exe" ]; then
+    VANTAGE_BIN="../Vantage/kit-vantage.exe"
+elif [ -f "../Vantage/target/release/vantage.exe" ]; then
+    VANTAGE_BIN="../Vantage/target/release/vantage.exe"
+else
+    VANTAGE_BIN=$(command -v kit-vantage.exe 2>/dev/null || command -v kit-vantage 2>/dev/null)
+fi
+
+if [ -z "$VANTAGE_BIN" ] || [ ! -f "$VANTAGE_BIN" ]; then
+    echo "⚠️  [Kit] Vantage binary not found. Skipping integrity check."
+    exit 0
+fi
+
+# Run Vantage verification
+RESULT=$("$VANTAGE_BIN" verify-memory --json 2>&1)
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "✅ [Kit] Memory integrity verified"
+    exit 0
+else
+    echo "❌ [Kit] Memory integrity FAILED"
+    echo "$RESULT"
+    echo ""
+    echo "🔧 Run `kit doctor` to diagnose"
+    echo "🔧 Run `kit-vantage verify-memory -d` for details"
+    exit 1
+fi

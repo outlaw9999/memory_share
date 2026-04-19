@@ -39,7 +39,7 @@ def truncate_wal(db_path: Path) -> bool:
     import sqlite3
 
     try:
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(db_path.absolute().as_uri(), uri=True)
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         conn.close()
         logger.info(f"WAL truncated for {db_path.name}")

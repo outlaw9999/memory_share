@@ -178,7 +178,7 @@ def recall(
     include_profile: bool = False,
 ) -> list[Any] | tuple[list[Any], dict[str, float] | None]:
     """Ranked recall context awareness with LRU Cache (v1.2.3-STABLE)."""
-    memories, profile = _cached_recall(
+    result = _cached_recall(
         tuple(entities),
         limit,
         at,
@@ -191,8 +191,8 @@ def recall(
         include_profile
     )
     if include_profile:
-        return memories, profile
-    return memories
+        return result  # Already a tuple (memories, profile)
+    return result  # Just the memories list
 
 
 def recall_with_assessment(

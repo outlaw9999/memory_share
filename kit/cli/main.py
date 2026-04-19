@@ -418,6 +418,38 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
         else:
             print_diagnostic("âœ… Workspace hygiene is within stable bounds.")
 
+    # --- Vantage Integration (v1.2.4) ---
+    skip_vantage = getattr(args, "no_vantage", False)
+    if skip_vantage:
+        print_diagnostic("⏭️  Vantage check skipped (--no-vantage)")
+    else:
+        from kit.core.kit_vantage import VANTAGE_BIN
+        import subprocess
+        import json
+
+        print_diagnostic("[VANTAGE INTEGRITY]")
+        if VANTAGE_BIN and VANTAGE_BIN.exists():
+            try:
+                result = subprocess.run(
+                    [str(VANTAGE_BIN), "verify-memory", "--json"],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if result.returncode == 0:
+                    data = json.loads(result.stdout) if result.stdout.strip() else {}
+                    records = data.get("records", 0)
+                    valid = data.get("valid_hashes", 0)
+                    print_diagnostic("✅ Vantage: Memory integrity verified")
+                    print_diagnostic(f"   Records: {records} | Valid: {valid}")
+                else:
+                    print_diagnostic("⚠️  Vantage: Issues detected")
+                    print_diagnostic("   Run `kit-vantage verify-memory -d` for details")
+            except Exception as e:
+                print_diagnostic(f"⚠️  Vantage check failed: {e}")
+        else:
+            print_diagnostic("ℹ️  Vantage: Not installed (Run `cargo install --path .` from kit-vantage to enable)")
+
 @kit_command(
     name="flow", 
     namespace=CommandNamespace.CORE, 
@@ -530,6 +562,7 @@ def main() -> None:
 
     p_doctor = subparsers.add_parser("doctor", help="Repair system issues")
     p_doctor.add_argument("--heal", action="store_true", help="Execute cleanup DAG")
+    p_doctor.add_argument("--no-vantage", action="store_true", help="Skip Vantage integrity check")
 
     args = parser.parse_args()
     

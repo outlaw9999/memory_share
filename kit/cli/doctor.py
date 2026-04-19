@@ -23,6 +23,7 @@ def run_doctor(
     fix_shell: bool = False,
     migrate_memory: bool = False,
     heal: bool = False,
+    skip_vantage: bool = False,
 ) -> None:
     print(f"AI Kernel Health Check (Mode: {mode})", file=sys.stderr)
 
@@ -328,5 +329,37 @@ def run_doctor(
             "\nTIP: No invariants found. Run `kit learn --tag invariant 'Rule'` to secure your architecture.",
             file=sys.stderr,
         )
+
+    # --- Vantage Integration (v1.2.4) ---
+    from kit.core import kit_env
+    from kit.core.kit_vantage import VANTAGE_BIN
+
+    print("\n[VANTAGE INTEGRITY]", file=sys.stderr)
+
+    if skip_vantage:
+        print("  ⏭️  Vantage check skipped (--no-vantage)", file=sys.stderr)
+    elif VANTAGE_BIN and VANTAGE_BIN.exists():
+        try:
+            import subprocess
+            result = subprocess.run(
+                [str(VANTAGE_BIN), "verify-memory", "--json"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode == 0:
+                import json
+                data = json.loads(result.stdout) if result.stdout.strip() else {}
+                records = data.get("records", 0)
+                valid = data.get("valid_hashes", 0)
+                print(f"  ✅ Vantage: Memory integrity verified", file=sys.stderr)
+                print(f"     Records: {records} | Valid: {valid}", file=sys.stderr)
+            else:
+                print(f"  ⚠️  Vantage: Issues detected", file=sys.stderr)
+                print(f"     Run `kit-vantage verify-memory -d` for details", file=sys.stderr)
+        except Exception as e:
+            print(f"  ⚠️  Vantage check failed: {e}", file=sys.stderr)
+    else:
+        print(f"  ℹ️  Vantage: Not installed (Run `RUST_BACKTRACE=1 cargo install --path .` to enable)", file=sys.stderr)
 
     print("\nAll subsystems operational.", file=sys.stderr)

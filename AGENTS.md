@@ -9,7 +9,7 @@ Kit = deterministic workflow runtime for AI agents.
 Always start with:
 
 ```bash
-kit recall project_identity
+kit recall 
 ```
 
 ---
@@ -43,7 +43,7 @@ Use `kit learn --help` for valid tags (authoritative source).
 
 ## Flow Rule
 
-kit flow run <yaml>
+kit flow run `<yaml>`
 
 All side effects must be inside Flow.
 
@@ -53,7 +53,7 @@ All side effects must be inside Flow.
 
 Use Vantage for validation:
 
-kit-vantage verify <file>
+kit-vantage verify `<file>`
 
 ---
 

@@ -90,24 +90,25 @@ def generate_hygiene_report(root_path: Path) -> HygieneReport:
     return report
 
 def perform_hygiene_cleanup(root_path: Path, dry_run: bool = True) -> list[str]:
-    """Executes the cleanup DAG. Returns list of removed files."""
+    """Executes the cleanup DAG (v1.2.4-TITANIUM). Returns list of removed files."""
     report = generate_hygiene_report(root_path)
     removed = []
     
-    # Categories eligible for auto-cleanup
-    to_cleanup = report.categories[FileCategory.TEMP] + report.categories[FileCategory.NOISE]
-    
-    for rel_path in to_cleanup:
-        p = root_path / rel_path
-        if p.exists():
-            if not dry_run:
-                try:
-                    p.unlink()
+    # DAG Order: TEMP -> NOISE
+    # Removing ephemeral execution state before build artifacts
+    for category in [FileCategory.TEMP, FileCategory.NOISE]:
+        for rel_path in report.categories[category]:
+            p = root_path / rel_path
+            if p.exists():
+                if not dry_run:
+                    try:
+                        p.unlink()
+                        removed.append(rel_path)
+                        logger.info(f"Cleanup: Removed {rel_path} ({category})")
+                    except OSError as e:
+                        logger.error(f"Failed to remove {rel_path}: {e}")
+                else:
                     removed.append(rel_path)
-                except OSError as e:
-                    logger.error(f"Failed to remove {rel_path}: {e}")
-            else:
-                removed.append(rel_path)
     
     return removed
 

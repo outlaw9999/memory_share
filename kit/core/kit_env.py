@@ -39,41 +39,83 @@ def is_env_locked() -> bool:
         return False
 
 def get_vantage_bin() -> Path | None:
-    """Discover the Vantage binary with multi-anchor fallback."""
+    """Discover the Vantage binary with multi-anchor fallback (v1.2.4-TITANIUM)."""
+    # 1. Environment Variable Override (Highest Priority)
+    env_home = os.getenv("VANTAGE_HOME")
+    if env_home:
+        base = Path(env_home)
+        for name in ("kit-vantage.exe", "kit-vantage", "vantage.exe", "vantage"):
+            # Check root and target/release
+            paths = [base / name, base / "target" / "release" / name]
+            for p in paths:
+                if p.exists():
+                    return p
+
+    # 2. Local Repo Check (.vantage or kit-vantage in root)
+    cwd = Path.cwd()
+    for name in ("kit-vantage.exe", "kit-vantage"):
+        local_bin = cwd / name
+        if local_bin.exists():
+            return local_bin
+
+    # 3. Virtual Environment Check (.venv/Scripts)
+    # NOTE: This might be the shim. We check if it's the real binary (size > 1MB) 
+    # or if we should keep looking for a "real" one.
     venv = get_venv_path()
     if venv:
-        scripts_dir = venv / "Scripts"
+        scripts_dir = venv / "Scripts" if sys.platform == "win32" else venv / "bin"
         for name in ("kit-vantage.exe", "kit-vantage", "vantage.exe", "vantage"):
             bin_path = scripts_dir / name
             if bin_path.exists():
-                return bin_path
+                # If it's very small, it's likely a shim or script wrapper
+                if bin_path.stat().st_size > 1_000_000:
+                    return bin_path
+                # Keep it as a backup candidate
+                pass
 
-    candidates = [
-        os.getenv("VANTAGE_HOME"),
-        venv,  # Check if .vantage is inside venv
-        Path.cwd() / ".vantage",
-        Path.home() / ".vantage",
-    ]
+    # 4. Sibling Repository Check (ECL v2 Standard)
+    # If we are in e:/DEV/opensource_contrib/memory_share_kit
+    # We check e:/DEV/opensource_contrib/Vantage
+    try:
+        repo_root = None
+        for parent in [cwd] + list(cwd.parents):
+            if (parent / ".git").exists():
+                repo_root = parent
+                break
+        
+        if repo_root:
+            sibling_vantage = repo_root.parent / "Vantage"
+            if sibling_vantage.is_dir():
+                for name in ("kit-vantage.exe", "kit-vantage"):
+                    # Check root and target/release
+                    paths = [
+                        sibling_vantage / name, 
+                        sibling_vantage / "target" / "release" / name,
+                        sibling_vantage / "target" / "release" / "vantage.exe"
+                    ]
+                    for p in paths:
+                        if p.exists():
+                            return p
+    except Exception:
+        pass
 
-    for cand in candidates:
-        if not cand:
-            continue
-        base = Path(cand)
-        for bin_path in (
-            base / "target" / "release" / "vantage.exe",
-            base / "target" / "release" / "vantage",
-            base / "kit-vantage.exe",
-            base / "kit-vantage",
-            base / "vantage.exe",
-            base / "vantage",
-        ):
-            if bin_path.exists():
-                return bin_path
-
+    # 5. System PATH
     for name in ("kit-vantage", "kit-vantage.exe", "vantage", "vantage.exe"):
         resolved = shutil.which(name)
         if resolved:
-            return Path(resolved)
+            res_path = Path(resolved)
+            # Avoid returning the shim if we are already in the venv
+            if venv and scripts_dir in res_path.parents:
+                if res_path.stat().st_size < 100_000: # Likely shim
+                    continue
+            return res_path
+
+    # 6. Final Fallback to Shim in venv
+    if venv:
+        for name in ("kit-vantage.exe", "kit-vantage"):
+            bin_path = scripts_dir / name
+            if bin_path.exists():
+                return bin_path
 
     return None
 

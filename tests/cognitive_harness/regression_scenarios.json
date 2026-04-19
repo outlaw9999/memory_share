@@ -1,0 +1,251 @@
+{
+  "version": "1.2.4",
+  "description": "Flow Regression Scenarios for Cognitive TDD",
+  "scenarios": [
+    {
+      "id": "flow_001_empty_brain_recall",
+      "name": "Empty Brain Recall",
+      "description": "Test recall on empty brain returns empty list",
+      "severity": "critical",
+      "deterministic": true,
+      "steps": [
+        {
+          "id": "g1",
+          "description": "Empty brain",
+          "given": {
+            "brain_state": "empty",
+            "observations": []
+          },
+          "when": {
+            "action": "recall",
+            "signals": ["test:signal"]
+          },
+          "then": {
+            "expected": "empty_result",
+            "count": 0
+          },
+          "tags": ["recall", "empty"]
+        }
+      ],
+      "expected_state": {
+        "observations": 0
+      }
+    },
+    {
+      "id": "flow_002_single_learn",
+      "name": "Single Learn",
+      "description": "Test learn creates observation",
+      "severity": "critical",
+      "deterministic": true,
+      "steps": [
+        {
+          "id": "g1",
+          "description": "Empty brain",
+          "given": {
+            "brain_state": "empty"
+          },
+          "when": {
+            "action": "learn",
+            "uid": "test:fact1",
+            "content": "A test fact",
+            "tag": "decision"
+          },
+          "then": {
+            "expected": "observation_created",
+            "count": 1
+          },
+          "tags": ["learn", "create"]
+        }
+      ],
+      "expected_state": {
+        "observations": 1
+      }
+    },
+    {
+      "id": "flow_003_recall_after_learn",
+      "name": "Recall After Learn",
+      "description": "Test recall returns previously learned fact",
+      "severity": "critical",
+      "deterministic": true,
+      "steps": [
+        {
+          "id": "g1",
+          "description": "Brain with fact",
+          "given": {
+            "observations": [
+              {"uid": "test:fact1", "content": "A test fact"}
+            ]
+          },
+          "when": {
+            "action": "recall",
+            "signals": ["test"]
+          },
+          "then": {
+            "expected": "result_found",
+            "count": 1,
+            "content_contains": "test fact"
+          },
+          "tags": ["recall", "retrieve"]
+        }
+      ],
+      "expected_state": {
+        "observations": 1
+      }
+    },
+    {
+      "id": "flow_004_conflict_resolution",
+      "name": "Conflict Resolution",
+      "description": "Test invariant wins over decision",
+      "severity": "critical",
+      "deterministic": true,
+      "steps": [
+        {
+          "id": "g1",
+          "description": "Conflicting memories",
+          "given": {
+            "observations": [
+              {"uid": "inv:rule", "tag": "invariant", "content": "Rule 1"},
+              {"uid": "dec:override", "tag": "decision", "content": "Override"}
+            ]
+          },
+          "when": {
+            "action": "recall",
+            "signals": ["rule"]
+          },
+          "then": {
+            "expected": "invariant_wins",
+            "winner_tag": "invariant"
+          },
+          "tags": ["conflict", "resolution"]
+        }
+      ],
+      "expected_state": {
+        "observations": 2
+      }
+    },
+    {
+      "id": "flow_005_duplicate_detection",
+      "name": "Duplicate Detection",
+      "description": "Test duplicate UID is rejected",
+      "severity": "critical",
+      "deterministic": true,
+      "steps": [
+        {
+          "id": "g1",
+          "description": "Existing UID",
+          "given": {
+            "observations": [
+              {"uid": "test:duplicate", "content": "First"}
+            ]
+          },
+          "when": {
+            "action": "learn",
+            "uid": "test:duplicate",
+            "content": "Second"
+          },
+          "then": {
+            "expected": "duplicate_rejected",
+            "error": "UNIQUE constraint"
+          },
+          "tags": ["learn", "duplicate"]
+        }
+      ],
+      "expected_state": {
+        "observations": 1
+      }
+    },
+    {
+      "id": "flow_006_learn_with_tag",
+      "name": "Learn With Tag",
+      "description": "Test learn with different tags",
+      "severity": "major",
+      "deterministic": true,
+      "steps": [
+        {
+          "id": "g1",
+          "description": "Empty brain",
+          "given": {
+            "brain_state": "empty"
+          },
+          "when": {
+            "action": "learn",
+            "uid": "test:inv1",
+            "content": "An invariant",
+            "tag": "invariant"
+          },
+          "then": {
+            "expected": "observation_created",
+            "tag": "invariant"
+          },
+          "tags": ["learn", "tag"]
+        }
+      ],
+      "expected_state": {
+        "observations": 1
+      }
+    },
+    {
+      "id": "flow_007_scope_filtering",
+      "name": "Scope Filtering",
+      "description": "Test scope affects recall results",
+      "severity": "major",
+      "deterministic": true,
+      "steps": [
+        {
+          "id": "g1",
+          "description": "Brain with scoped observations",
+          "given": {
+            "observations": [
+              {"uid": "test:local", "scope": "local", "content": "Local only"},
+              {"uid": "test:global", "scope": "global", "content": "Global"}
+            ]
+          },
+          "when": {
+            "action": "recall",
+            "signals": ["test"],
+            "scope": "local"
+          },
+          "then": {
+            "expected": "filtered",
+            "count": 1,
+            "scopes": ["local"]
+          },
+          "tags": ["recall", "scope"]
+        }
+      ],
+      "expected_state": {
+        "observations": 2
+      }
+    },
+    {
+      "id": "flow_008_friction_trigger",
+      "name": "Friction Trigger",
+      "description": "Test friction is triggered on error",
+      "severity": "major",
+      "deterministic": true,
+      "steps": [
+        {
+          "id": "g1",
+          "description": "Empty brain",
+          "given": {
+            "brain_state": "empty"
+          },
+          "when": {
+            "action": "learn",
+            "uid": "test:friction",
+            "content": "Expected friction",
+            "tag": "friction"
+          },
+          "then": {
+            "expected": "friction_tagged",
+            "tag": "friction"
+          },
+          "tags": ["learn", "friction"]
+        }
+      ],
+      "expected_state": {
+        "observations": 1
+      }
+    }
+  ]
+}

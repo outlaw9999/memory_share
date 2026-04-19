@@ -65,6 +65,21 @@ class ReflectReport:
     suggestions: list[str] = field(default_factory=lambda: [])
     resolutions: dict[str, Resolution] = field(default_factory=lambda: {})
 
+    @property
+    def gaps(self) -> list[str]:
+        """TDD Compatibility: Filter signals for GAPs."""
+        return [s.uid.split(":", 1)[1] for s in self.signals if s.uid.startswith("GAP:")]
+
+    @property
+    def drifts(self) -> list[str]:
+        """TDD Compatibility: Filter signals for DRIFTs."""
+        return [s.uid.split(":", 1)[1] for s in self.signals if s.uid.startswith("DRIFT:")]
+
+    @property
+    def violations(self) -> list[str]:
+        """TDD Compatibility: Filter signals for VIOLATIONs."""
+        return [s.uid.split(":", 1)[1] for s in self.signals if s.uid.startswith("VIOLATION:")]
+
 
 # Low-level signal patterns: Focusing on imports and dependencies (Infra-grade)
 IMPORT_PATTERNS = [
@@ -279,7 +294,7 @@ def run_reflect(
     processed_raw = raw_signals[:20]
 
     for signal in processed_raw:
-        memories, _ = brain.recall([signal], limit=10, fast=True)
+        memories = brain.recall([signal], limit=10, fast=True, with_global=True)
 
         # Arbitrate conflicts
         res = resolve_cognitive_conflict(memories, current_scope, signal)
