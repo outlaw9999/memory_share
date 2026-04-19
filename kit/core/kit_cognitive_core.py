@@ -14,6 +14,7 @@ import threading
 import time
 import sys
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -102,6 +103,47 @@ class RankingAssessment:
     status: Literal["EMPTY", "AMBIGUOUS", "WEAK_SIGNAL", "HIGH_CONFIDENCE"]
 
 
+class ConnectionWrapper:
+    """Safely wraps a sqlite3.Connection to track its lifecycle (v1.2.4-TITANIUM)."""
+    def __init__(self, conn: sqlite3.Connection, conn_id: int, brain: SAMBrain):
+        self._conn = conn
+        self._conn_id = conn_id
+        self._brain = brain
+        self._closed = False
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def close(self):
+        if not self._closed:
+            if self._brain and self._brain._active_connections:
+                self._brain._active_connections.pop(self._conn_id, None)
+            
+            # v1.2.4-TITANIUM: Ensure WAL is checkpointed before closure to release handles cleanly
+            try:
+                self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            except Exception:
+                pass
+
+            self._conn.close()
+            self._brain = None # Break circular reference
+            self._closed = True
+
+    @property
+    def row_factory(self):
+        return self._conn.row_factory
+    
+    @row_factory.setter
+    def row_factory(self, value):
+        self._conn.row_factory = value
+
+
 class SAMBrain:
     SQLITE_TIMEOUT_SECONDS: float = 10.0
     SQLITE_MAX_RETRIES: int = 5
@@ -128,15 +170,26 @@ class SAMBrain:
 
         self._last_snapshot_refresh: float | None = None
         self._snapshot_queue: queue.Queue[str | None] = queue.Queue()
-        self._snapshot_io_lock = threading.Lock()
-        self._snapshot_sync_stop_event = threading.Event()
         self._snapshot_sync_thread: threading.Thread | None = None
+        self._snapshot_sync_stop_event = threading.Event()
+        self._snapshot_io_lock = threading.Lock()
+        self._active_connections: dict[int, sqlite3.Connection] = {}
 
-        self._router = MemoryRouter(self.topology, local_db_path_override=self.db_path)
+        self._is_shutting_down = False
+        self._router = MemoryRouter(
+            self.topology, 
+            local_db_path_override=self.db_path,
+            connection_provider=self.get_connection
+        )
 
         self._init_db()
         self._refresh_version()
-        self._start_snapshot_syncer()
+        
+        from kit.core.kit_env import ExecutionMode, get_execution_mode
+        if get_execution_mode() != ExecutionMode.TEST:
+            self._start_snapshot_syncer()
+        else:
+            logger.info("TEST MODE detected: Background snapshot syncer disabled.")
 
     @staticmethod
     def _resolve_root(start_path: Path) -> Path:
@@ -146,26 +199,42 @@ class SAMBrain:
         return start_path
 
     def _init_db(self) -> None:
-        with self._get_connection() as conn:
+        with self.get_connection() as conn:
             init_db(conn)
+            enable_wal(conn)
             conn.commit()
 
-    def _get_connection(self, db_path: Path | None = None) -> sqlite3.Connection:
-        target = db_path or self.db_path
-        if target != self.topology.resolve("local", "local"):
-            mode = "rwc"
-            uri = f"file:{target.as_posix()}?mode={mode}"
-            conn = sqlite3.connect(uri, uri=True, timeout=self.SQLITE_TIMEOUT_SECONDS, check_same_thread=False)
-            conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA synchronous=NORMAL")
-            conn.execute("PRAGMA foreign_keys=ON")
-            return conn
-        return self.topology.connect("local", "local", readonly=False)
+    def _create_connection(self, db_path: Path, readonly: bool = False) -> ConnectionWrapper:
+        """Central authority for opening ANY SQLite connection (v1.2.4-TITANIUM)."""
+        if self._is_shutting_down:
+            raise RuntimeError("Cognitive kernel is shutting down.")
+            
+        # Use topology to ensure consistent PRAGMAs (WAL, timeout, etc.)
+        conn = self.topology.connect_path(db_path, readonly=readonly)
+        
+        # Track connection for deterministic shutdown
+        conn_id = id(conn)
+        wrapper = ConnectionWrapper(conn, conn_id, self)
+        self._active_connections[conn_id] = wrapper
+        return wrapper
 
-    def get_connection(self, db_path: Path | None = None) -> sqlite3.Connection:
-        """Public alias for _get_connection (for backward compatibility)."""
-        return self._get_connection(db_path)
+    @contextmanager
+    def get_connection(self, db_path: Path | None = None, readonly: bool = False):
+        """Unified connection authority with automatic closure (v1.2.4)."""
+        target = db_path or self.db_path
+        conn = self._create_connection(target, readonly=readonly)
+        try:
+            yield conn
+        finally:
+            try:
+                conn.close()
+            except sqlite3.ProgrammingError:
+                pass # Already closed
+
+    def _get_connection(self, db_path: Path | None = None, readonly: bool = False) -> sqlite3.Connection:
+        """Internal tracked connection."""
+        target = db_path or self.db_path
+        return self._create_connection(target, readonly=readonly)
 
     def attach_global(self, global_db_path: Path | None) -> None:
         """Attach global brain for cross-workspace queries (stub for compatibility)."""
@@ -173,7 +242,7 @@ class SAMBrain:
 
     def _refresh_version(self) -> None:
         try:
-            with self._get_connection() as conn:
+            with self.get_connection() as conn:
                 row = conn.execute(
                     "SELECT version FROM branches WHERE name = ?", (self.current_branch,)
                 ).fetchone()
@@ -182,6 +251,9 @@ class SAMBrain:
             self.cognition_version = 0
 
     def _start_snapshot_syncer(self) -> None:
+        import os
+        if os.getenv("KIT_DISABLE_ASYNC_BAKE") == "1":
+            return
         if self._snapshot_sync_thread and self._snapshot_sync_thread.is_alive():
             return
         self._snapshot_sync_stop_event.clear()
@@ -193,17 +265,52 @@ class SAMBrain:
         self._snapshot_sync_thread.start()
 
     def shutdown(self) -> None:
-        if self._snapshot_sync_stop_event:
-            self._snapshot_sync_stop_event.set()
+        """Production-Grade Teardown (v1.2.4-TITANIUM).
+        Guarantees: thread stopped, connections closed, file handles released.
+        """
+        if self._is_shutting_down:
+            return
+        self._is_shutting_down = True
+
+        # 1. Signal background worker to stop
+        try:
+            if hasattr(self, "_snapshot_sync_stop_event"):
+                self._snapshot_sync_stop_event.set()
+                
+            # Put STOP in queue to wake up worker from block
             self._snapshot_queue.put("STOP")
-            if self._snapshot_sync_thread:
-                self._snapshot_sync_thread.join(timeout=2.0)
+        except Exception:
+            pass
+
+        # 2. Join background thread with deterministic verify-loop
+        if self._snapshot_sync_thread and self._snapshot_sync_thread.is_alive():
+            self._snapshot_sync_thread.join(timeout=1.0)
+            if self._snapshot_sync_thread.is_alive():
+                logger.warning("Titanium-Snapshot-Worker did not exit gracefully. Force closing.")
+
+        # 3. Force Close ALL tracked connections (Critical for SQLite release)
+        # We use a list to avoid mutation during iteration
+        active_ids = list(self._active_connections.keys())
+        for conn_id in active_ids:
+            try:
+                conn = self._active_connections.get(conn_id)
+                if conn:
+                    # Invariant: Force WAL checkpoint before closing if possible
+                    try:
+                        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                    except Exception:
+                        pass
+                    conn.close()
+            except Exception as e:
+                logger.debug(f"Error closing tracked connection: {e}")
+        
+        self._active_connections.clear()
 
     def _snapshot_worker_loop(self) -> None:
         while not self._snapshot_sync_stop_event.is_set():
             try:
-                request = self._snapshot_queue.get(block=True, timeout=5.0)
-                if request == "STOP":
+                request = self._snapshot_queue.get(block=True, timeout=1.0)
+                if request == "STOP" or request is None:
                     break
                 while not self._snapshot_queue.empty():
                     try:
@@ -224,23 +331,106 @@ class SAMBrain:
         if not force and self._last_snapshot_refresh is not None:
             if (now - self._last_snapshot_refresh) < self.SNAPSHOT_REFRESH_SECONDS:
                 return
-        with self._get_connection() as conn:
+        with self.get_connection() as conn:
             conn.execute("""
                 UPDATE observations
-                SET materialized_score = importance * ((access_count + 2) / (access_count + 6.0)) *
+                SET materialized_score = importance * 
+                    ((access_count + 2) / (access_count + 6.0)) *
                     CASE layer
                         WHEN 'working'  THEN 3.0
                         WHEN 'episodic' THEN 2.0
                         WHEN 'semantic' THEN 1.5
                         ELSE 1.0
+                    END *
+                    CASE 
+                        WHEN (julianday('now') - julianday(created_at)) < 7  THEN 1.0
+                        WHEN (julianday('now') - julianday(created_at)) < 30 THEN 0.9
+                        WHEN (julianday('now') - julianday(created_at)) < 90 THEN 0.7
+                        ELSE 0.4
                     END
                 WHERE is_active = 1 AND superseded_at IS NULL
             """)
             conn.commit()
+
+            # v1.2.4-TITANIUM: Automatic Snapshot Creation
+            snapshot_path = self.topology.resolve("local", "snapshot")
+            if snapshot_path.exists():
+                try:
+                    snapshot_path.unlink()
+                except FileNotFoundError:
+                    pass
+                except PermissionError as e:
+                    logger.warning(f"Snapshot rotation blocked by OS: {e}")
+                except OSError as e:
+                    logger.debug(f"OS error during snapshot unlink: {e}")
+            
+            try:
+                if sqlite3.sqlite_version_info >= (3, 27, 0):
+                    conn.execute(f"VACUUM INTO '{snapshot_path.as_posix()}'")
+                else:
+                    # Fallback for legacy SQLite versions
+                    import shutil
+                    shutil.copy2(self.db_path, snapshot_path)
+            except sqlite3.OperationalError as e:
+                logger.error(f"Snapshot creation failed: {e}")
+
         self._last_snapshot_refresh = now
 
     def _signal_snapshot_refresh(self) -> None:
         self._snapshot_queue.put("refresh")
+
+    def snapshot(self) -> Path:
+        """Manual trigger for database snapshot (v1.2.4)."""
+        self._refresh_materialized_scores(force=True)
+        return self.topology.resolve("local", "snapshot")
+
+    def restore(self, snapshot_path: Path | None = None) -> bool:
+        """
+        Restore kernel from a physical snapshot.
+        WARNING: This is a destructive operation for the current live state.
+        """
+        target_snapshot = snapshot_path or self.topology.resolve("local", "snapshot")
+        if not target_snapshot.exists():
+            raise FileNotFoundError(f"Snapshot not found: {target_snapshot}")
+
+        # 1. Shutdown background tasks
+        self.shutdown()
+        
+        # Reset state for reuse after restore
+        self._is_shutting_down = False
+        self._active_connections.clear()
+
+        # v1.2.4-TITANIUM: Force GC to release any lingering Python-level handles
+        import gc
+        gc.collect()
+
+        # 2. Replace physical file
+        import shutil
+        try:
+            # v1.2.4-TITANIUM: Clean up WAL/SHM before restore to prevent replay corruption
+            for suffix in ["-wal", "-shm"]:
+                sidecar = self.db_path.with_name(self.db_path.name + suffix)
+                if sidecar.exists():
+                    try:
+                        sidecar.unlink()
+                    except OSError:
+                        # Final safety sleep only if OS is particularly stubborn
+                        time.sleep(0.1)
+                        try:
+                            sidecar.unlink()
+                        except OSError:
+                            pass
+
+            # We use copy2 to preserve metadata
+            shutil.copy2(target_snapshot, self.db_path)
+            # Re-init version
+            self._refresh_version()
+            # Restart syncer
+            self._start_snapshot_syncer()
+            return True
+        except Exception as e:
+            logger.error(f"Restore failed: {e}")
+            return False
 
     @staticmethod
     def _is_retryable_sqlite_error(error: sqlite3.Error) -> bool:
@@ -255,30 +445,28 @@ class SAMBrain:
         from kit.core.kit_lock import is_sealed
 
         if is_sealed(self.root_path) and "pytest" not in sys.modules:
-            raise SAMBrainError("Brain is sealed. Write operations are blocked.")
+            raise SAMBrainError("Memory kernel is sealed. Run 'kit unseal --reason <msg>' to continue learning.")
 
         target_path = db_path or self.db_path
         last_error: Optional[sqlite3.Error] = None
 
         for attempt in range(self.SQLITE_MAX_RETRIES):
-            conn = self._get_connection(target_path)
-            try:
-                conn.execute("BEGIN IMMEDIATE")
-                result = operation(conn)
-                conn.commit()
-                if target_path == self.topology.resolve("local", "local"):
-                    self._signal_snapshot_refresh()
-                return result
-            except sqlite3.OperationalError as exc:
-                conn.rollback()
-                last_error = exc
-                if self._is_retryable_sqlite_error(exc) and attempt < (self.SQLITE_MAX_RETRIES - 1):
-                    delay = self.SQLITE_RETRY_BASE_DELAY_SECONDS * (2 ** attempt)
-                    time.sleep(delay)
-                    continue
-                raise
-            finally:
-                conn.close()
+            with self.get_connection(target_path) as conn:
+                try:
+                    conn.execute("BEGIN IMMEDIATE")
+                    result = operation(conn)
+                    conn.commit()
+                    if target_path == self.topology.resolve("local", "local"):
+                        self._signal_snapshot_refresh()
+                    return result
+                except sqlite3.OperationalError as exc:
+                    conn.rollback()
+                    last_error = exc
+                    if self._is_retryable_sqlite_error(exc) and attempt < (self.SQLITE_MAX_RETRIES - 1):
+                        delay = self.SQLITE_RETRY_BASE_DELAY_SECONDS * (2 ** attempt)
+                        time.sleep(delay)
+                        continue
+                    raise
         if last_error:
             raise last_error
         raise SAMBrainError("Write transaction failed after maximum retries.")
@@ -381,6 +569,10 @@ class SAMBrain:
         except ValueError:
             return ""
 
+    def get_normalized_scope(self, path: Path | str | None = None) -> str:
+        """Public alias for scope normalization (v1.2.4)."""
+        return self._get_normalized_scope(path)
+
     def touch_fact(self, fact_id: int) -> None:
         def _touch(conn: sqlite3.Connection) -> None:
             conn.execute(
@@ -400,6 +592,8 @@ class SAMBrain:
         query: str | None = None,
         with_global: bool = False,
         include_profile: bool = False,
+        since: str | None = None,
+        until: str | None = None,
         **kwargs: Any,
     ) -> Union[list[Memory], tuple[list[Memory], dict[str, float]]]:
         start_total = time.perf_counter() if include_profile else 0.0
@@ -414,6 +608,8 @@ class SAMBrain:
             agent_id=agent_id,
             scope=current_scope,
             symbol=symbol,
+            since=since,
+            until=until
         )
 
         memories = self._router.resolve_read(request)
@@ -492,11 +688,25 @@ class SAMBrain:
         runner = memories[1].score
         return max(0.0, (top - runner) / (abs(top) + 1e-6))
 
-    def search(self, query: str, limit: int = 15, *, agent_id: str | None = None) -> list[Memory]:
+    def search(
+        self,
+        query: str,
+        limit: int = 15,
+        *,
+        agent_id: str | None = None,
+        at_timestamp: str | None = None,
+        fast: bool = False,
+    ) -> list[Memory]:
+        """Hybrid FTS Search with Compatibility Shims (v1.2.4-TITANIUM)."""
+        # RESERVED for future time-travel and index-only search
+        _ = at_timestamp
+        _ = fast
+
+        limit = int(limit)
         pattern = f"%{query}%"
         
         if agent_id:
-            with self._get_connection() as conn:
+            with self.get_connection() as conn:
                 rows = conn.execute("""
                     SELECT o.*, n.uid as node_uid
                     FROM observations o
@@ -510,7 +720,7 @@ class SAMBrain:
                     LIMIT ?
                 """, (pattern, agent_id, agent_id, limit)).fetchall()
         else:
-            with self._get_connection() as conn:
+            with self.get_connection() as conn:
                 rows = conn.execute("""
                     SELECT o.*, n.uid as node_uid
                     FROM observations o
@@ -552,6 +762,17 @@ class SAMBrain:
             return ""
         lines.append("</kit_memory>")
         return "\n".join(lines)
+
+    def get_stats(self) -> dict[str, Any]:
+        """Retrieve kernel statistics (v1.2.4)."""
+        stats = {}
+        with self.get_connection() as conn:
+            stats["nodes"] = conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
+            stats["observations"] = conn.execute("SELECT COUNT(*) FROM observations WHERE is_active = 1").fetchone()[0]
+            stats["edges"] = conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
+            stats["version"] = self.cognition_version
+            stats["db_path"] = str(self.db_path)
+        return stats
 
     def __enter__(self) -> "SAMBrain":
         return self

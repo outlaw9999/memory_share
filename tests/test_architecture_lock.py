@@ -36,14 +36,22 @@ def test_single_connect_authority():
             continue
 
         content = py_file.read_text(encoding="utf-8", errors="ignore")
-        matches = CONNECT_PATTERN.findall(content)
+        
+        # v1.2.4-TITANIUM: Strip comments to prevent false positives in documentation
+        stripped_lines = []
+        for line in content.splitlines():
+            code_part = line.split("#")[0]
+            stripped_lines.append(code_part)
+        stripped_content = "\n".join(stripped_lines)
+        
+        matches = CONNECT_PATTERN.findall(stripped_content)
 
         # Filter out authorized calls to our topology wrapper
         # We allow: topology.connect, self.topology.connect, _topo.connect
         unauthorized = []
         for m in matches:
             if ".connect" in m:
-                if not any(token in m for token in ["topology.connect", "_topo.connect"]):
+                if not any(token in m for token in ["topology.connect", "_topo.connect", "self.topology.connect", ".connect_path"]):
                     unauthorized.append(m)
             else:
                 unauthorized.append(m)

@@ -54,13 +54,15 @@ class MemoryReadRequest:
     """Request to retrieve memory facts."""
     
     query: str
-    limit: int = 15
+    limit: int = 10
     entities: list[str] | None = None
     here: bool = False
     with_global: bool = True
     agent_id: str | None = None
     scope: str | None = None
     symbol: str | None = None
+    since: str | None = None          # ISO format date
+    until: str | None = None          # ISO format date
 
 
 @dataclass
@@ -194,6 +196,7 @@ class MemoryRouter:
         topology: MemoryTopology,
         history_path: Optional[Path] = None,
         local_db_path_override: Optional[Path] = None,
+        connection_provider: Optional[Callable] = None,
     ):
         """
         Initialize router with topology context.
@@ -209,6 +212,7 @@ class MemoryRouter:
         self.local_db_path = local_db_path_override or topology.resolve("local", "local")
         self.global_db_path = topology.resolve("global", "global")
         self.frozen_db_path = topology.resolve("global", "frozen")
+        self._connection_provider = connection_provider
         
         # History tracking
         if history_path is None:
@@ -221,6 +225,17 @@ class MemoryRouter:
         self._write_buffer = RouterWriteBuffer()
 
         logger.info(f"MemoryRouter v1.2.4 (TITANIUM) initialized")
+        
+        # v1.2.4: Dedicated Log Sink
+        try:
+            log_dir = self.history_path.parent / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            fh = logging.FileHandler(log_dir / "router.log", encoding="utf-8")
+            fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+            logger.addHandler(fh)
+        except Exception:
+            pass
+
         logger.info(f"  L1-Local:  {self.local_db_path}")
         logger.info(f"  L2-Global: {self.global_db_path}")
         logger.info(f"  L3-Law:    {self.frozen_db_path}")
@@ -293,29 +308,22 @@ class MemoryRouter:
         if not path.exists():
             return []
             
-        # Authority Pattern: Use topology to connect with Read-Only guards
+        # Authority Pattern: MUST use connection provider (v1.2.4-TITANIUM)
+        if not self._connection_provider:
+            raise RuntimeError("MemoryRouter requires a connection provider (SAMBrain authority).")
+
         try:
-            if tier == MemoryTier.LOCAL and self.local_db_path != self.topology.resolve("local", "local"):
-                # Fallback connection for isolated paths
-                uri = f"file:{path.as_posix()}?mode=ro"
-                conn = sqlite3.connect(
-                    uri, 
-                    uri=True,
-                    timeout=10.0,
-                    check_same_thread=False,
-                    isolation_level=None
-                )
-                conn.row_factory = sqlite3.Row
-                conn.execute("PRAGMA query_only=ON")
+            ctx = self._connection_provider(path, readonly=True)
+            
+            # Connection provider might return a context manager or a raw connection
+            if hasattr(ctx, "__enter__"):
+                with ctx as conn:
+                    return self._execute_recall_on_conn(conn, tier, request)
             else:
-                conn = self.topology.connect(scope, db_type, readonly=True)
-                
-            try:
-                # v1.2.4: Deterministic Recall Logic
-                # (This logic is moved from SAMBrain to Router for centralization)
-                return self._execute_recall_on_conn(conn, tier, request)
-            finally:
-                conn.close()
+                try:
+                    return self._execute_recall_on_conn(ctx, tier, request)
+                finally:
+                    ctx.close()
         except Exception as e:
             logger.error(f"Read failed on {tier.value}: {e}")
             return []
@@ -337,7 +345,15 @@ class MemoryRouter:
             where_clauses.append(f"(o.scope IN ({placeholders}) OR o.scope = '')")
             params.extend(scopes)
             
-        # 2. Entity/FTS Filter (v1.2.4-TITANIUM SSOT)
+        # 2. Temporal Filter (v1.2.4-TITANIUM)
+        if request.since:
+            where_clauses.append("o.created_at >= ?")
+            params.append(request.since)
+        if request.until:
+            where_clauses.append("o.created_at <= ?")
+            params.append(request.until)
+
+        # 3. Entity/FTS Filter (v1.2.4-TITANIUM SSOT)
         entity_where = ""
         if request.entities:
             placeholders = ",".join(["?"] * len(request.entities))
@@ -436,6 +452,8 @@ class MemoryRouter:
                 timestamp=datetime.now(UTC).isoformat(),
                 observation_id=obs_id
             )
+        except PermissionError:
+            raise
         except Exception as e:
             logger.error(f"Write failed for {request.key}: {e}")
             decision = WriteDecisionRecord(
@@ -460,97 +478,97 @@ class MemoryRouter:
             logger.error(f"CRITICAL: Attempted write to FROZEN tier: {request.key}")
             raise PermissionError(f"Tier {tier.value} (FROZEN) is read-only by architecture.")
 
-        # Authority Connection: Always use topology.connect (enforces WAL/Locking)
-        if tier == MemoryTier.LOCAL and self.local_db_path != self.topology.resolve("local", "local"):
-            # Isolated path connection for tests
-            path = self.local_db_path
-            path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # v1.2.4-TITANIUM: Standard Windows URI for Python 3.14
-            uri = f"file:{path.as_posix()}?mode=rwc"
-            conn = sqlite3.connect(
-                uri, 
-                uri=True,
-                timeout=10.0,
-                check_same_thread=False,
-                isolation_level=None
-            )
-            conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA query_only=OFF")
-            conn.execute("PRAGMA journal_mode=WAL")
-        else:
-            conn = self.topology.connect(
-                scope="local" if tier == MemoryTier.LOCAL else "global",
-                db_type="local" if tier == MemoryTier.LOCAL else "global",
-                readonly=False
-            )
-        try:
-            # 1. Prepare Node Data
-            node_uid = request.key.lower()
-            content_str = json.dumps(request.content) if isinstance(request.content, dict) else request.content
-            
-            conn.execute("BEGIN IMMEDIATE")
-            
-            # 2. Upsert Node
-            conn.execute(
-                """INSERT INTO nodes (uid, node_type, status, visibility) 
-                   VALUES (?, ?, ?, ?) 
-                   ON CONFLICT(uid) DO UPDATE SET 
-                     node_type=excluded.node_type,
-                     status=excluded.status,
-                     visibility=excluded.visibility""",
-                (node_uid, request.node_type, request.status, request.visibility),
-            )
-            node_row = conn.execute("SELECT id FROM nodes WHERE uid = ?", (node_uid,)).fetchone()
-            node_id = node_row["id"]
-            
-            # 3. Handle Superseding (Inactivate old memory)
-            if request.supersedes_id:
-                conn.execute(
-                    "UPDATE observations SET is_active = 0, superseded_at = ? WHERE id = ?",
-                    (datetime.now(UTC).isoformat(), request.supersedes_id),
-                )
+        # v1.2.4-TITANIUM: Logical Seal enforcement for L1
+        if tier == MemoryTier.LOCAL:
+            from kit.core.kit_lock import is_sealed
+            if self.topology.project_root and is_sealed(self.topology.project_root):
+                raise PermissionError("Memory kernel is sealed. Run 'kit unseal --reason <msg>' to continue learning.")
 
-            # 4. Insert Observation
-            cur = conn.execute(
-                """INSERT INTO observations 
-                   (node_id, content, layer, tag, importance, materialized_score, 
-                    namespace, scope, branch, symbol, metadata, agent_id, supersedes_id, is_active)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    node_id,
-                    content_str,
-                    request.layer,
-                    request.tag,
-                    request.importance,
-                    request.importance * 0.47712125471966244, # importance * log10(1 + 2)
-                    request.namespace,
-                    request.scope,
-                    request.branch,
-                    request.symbol,
-                    json.dumps(request.metadata),
-                    request.agent_id,
-                    request.supersedes_id,
-                    1 # is_active
-                ),
-            )
-            obs_id = cur.lastrowid
-            
-            # 4. Update FTS
-            conn.execute("INSERT INTO observations_fts(rowid, content) VALUES (?, ?)", (obs_id, content_str))
-            
-            conn.commit()
-            return obs_id
+        # Authority Connection: Always use provider (enforces WAL/Locking)
+        scope = "local" if tier == MemoryTier.LOCAL else "global"
+        db_type = "local" if tier == MemoryTier.LOCAL else "global"
+        
+        path = self.local_db_path if tier == MemoryTier.LOCAL else self.topology.resolve(scope, db_type)
+
+        if not self._connection_provider:
+            raise RuntimeError("MemoryRouter requires a connection provider (SAMBrain authority).")
+
+        try:
+            ctx = self._connection_provider(path, readonly=False)
+
+            if hasattr(ctx, "__enter__"):
+                with ctx as conn:
+                    return self._execute_write_on_conn(conn, request)
+            else:
+                try:
+                    return self._execute_write_on_conn(ctx, request)
+                finally:
+                    ctx.close()
         except sqlite3.OperationalError as e:
             if "locked" in str(e).lower() or "busy" in str(e).lower():
                 logger.warning(f"DB locked, buffering to memory: {request.key}")
                 self._write_buffer.add({"request": request, "tier": tier})
                 return 0 # v1.2.4: Return 0 when buffered
             raise
-        finally:
-            conn.close()
+
+    def _execute_write_on_conn(self, conn: sqlite3.Connection, request: MemoryWriteRequest) -> int:
+        """Internal low-level write executor (Titanium v1.2.4)."""
+        # 1. Prepare Node Data
+        node_uid = request.key.lower()
+        content_str = json.dumps(request.content) if isinstance(request.content, dict) else request.content
         
-        logger.info(f"Memory written: {request.key} → {tier.value} (confidence={request.confidence:.3f})")
+        conn.execute("BEGIN IMMEDIATE")
+        
+        # 2. Upsert Node
+        conn.execute(
+            """INSERT INTO nodes (uid, node_type, status, visibility) 
+               VALUES (?, ?, ?, ?) 
+               ON CONFLICT(uid) DO UPDATE SET 
+                 node_type=excluded.node_type,
+                 status=excluded.status,
+                 visibility=excluded.visibility""",
+            (node_uid, request.node_type, request.status, request.visibility),
+        )
+        node_row = conn.execute("SELECT id FROM nodes WHERE uid = ?", (node_uid,)).fetchone()
+        node_id = node_row["id"]
+        
+        # 3. Handle Superseding (Inactivate old memory)
+        if request.supersedes_id:
+            conn.execute(
+                "UPDATE observations SET is_active = 0, superseded_at = ? WHERE id = ?",
+                (datetime.now(UTC).isoformat(), request.supersedes_id),
+            )
+
+        # 4. Insert Observation
+        cur = conn.execute(
+            """INSERT INTO observations 
+               (node_id, content, layer, tag, importance, materialized_score, 
+                namespace, scope, branch, symbol, metadata, agent_id, supersedes_id, is_active)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                node_id,
+                content_str,
+                request.layer,
+                request.tag,
+                request.importance,
+                request.importance * (2.0 / 6.0), # importance * (access_count+2)/(access_count+6) where access=0
+                request.namespace,
+                request.scope,
+                request.branch,
+                request.symbol,
+                json.dumps(request.metadata),
+                request.agent_id,
+                request.supersedes_id,
+                1 # is_active
+            ),
+        )
+        obs_id = cur.lastrowid
+        
+        # 4. Update FTS
+        conn.execute("INSERT INTO observations_fts(rowid, content) VALUES (?, ?)", (obs_id, content_str))
+        
+        conn.commit()
+        return obs_id
     
     def _get_db_path_for_tier(self, tier: MemoryTier) -> Path:
         """Map tier → database path."""
@@ -565,22 +583,17 @@ class MemoryRouter:
             raise ValueError(f"Unknown tier: {tier}")
     
     def _record_decision(self, decision: WriteDecisionRecord) -> None:
-        """Log routing decision to JSONL file."""
+        """Log decision to memory and persistent history."""
         with self._decision_lock:
             self._decision_log.append(decision)
-        
-        try:
-            with open(self.history_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps({
-                    "key": decision.request_key,
-                    "decision": decision.decision.value,
-                    "tier": decision.assigned_tier.value if decision.assigned_tier else None,
-                    "confidence": decision.confidence,
-                    "reason": decision.reason,
-                    "timestamp": decision.timestamp,
-                }) + "\n")
-        except Exception as e:
-            logger.error(f"Failed to log decision: {e}")
+            try:
+                # v1.2.4: Atomic history write within lock
+                with open(self.history_path, "a", encoding="utf-8") as f:
+                    from dataclasses import asdict
+                    import json
+                    f.write(json.dumps(asdict(decision)) + "\n")
+            except Exception as e:
+                logger.error(f"Failed to write routing history: {e}")
     
     def get_decision_log(self) -> list[WriteDecisionRecord]:
         """Retrieve in-memory decision log."""

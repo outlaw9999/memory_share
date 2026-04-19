@@ -133,6 +133,12 @@ def trigger_async_bake(brain: SAMBrain, timeout: int = 5) -> None:
         finally:
             _BAKE_LOCK.release()
 
+    import os
+    if os.environ.get("KIT_DISABLE_ASYNC_BAKE") == "1":
+        # Synchronous execution for tests/CLI integration
+        run_baking_pass(brain, timeout=timeout)
+        return
+
     thread = threading.Thread(target=_worker, daemon=True)
     thread.start()
 

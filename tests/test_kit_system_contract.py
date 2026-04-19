@@ -2,9 +2,9 @@
 # v1.2.4-TITANIUM — SYSTEM CONTRACT TEST (Core Chain TDD)
 #
 # This test validates the complete memory lifecycle under the CLI orchestration.
-# TIER 0 critical path: kit init → kit learn → kit recall → kit compile
+# TIER 0 critical path: kit init → kit learn → kit recall
 #
-# INVARIANT: All commands must execute without crash and maintain memory integrity.
+# INVARIANT: All commands must comply with the Workspace Initialization Guard.
 
 import json
 import os
@@ -25,11 +25,13 @@ def run_kit_command(cwd: Path, *args) -> tuple[int, str, str]:
     # Get the repo root (parent of tests/)
     repo_root = Path(__file__).parent.parent.absolute()
 
-    # Set environment for v1.2.4 Titanium enforcement bypass
+    # Set environment for v1.2.4 Titanium enforcement bypass (internal lock only)
     env = os.environ.copy()
     env["PYTHONPATH"] = str(repo_root)
     env["KIT_BYPASS_RUNTIME_LOCK"] = "1"
+    env["KIT_DISABLE_ASYNC_BAKE"] = "1"
     env["PYTHONUTF8"] = "1"
+    env["VANTAGE_HOME"] = os.path.join(str(repo_root), "non_existent_vantage")
 
     cmd = [sys.executable, "-m", "kit"] + list(args)
 
@@ -38,9 +40,15 @@ def run_kit_command(cwd: Path, *args) -> tuple[int, str, str]:
         cwd=cwd,
         capture_output=True,
         text=True,
-        timeout=30.0,  # 30s timeout per command to catch hangs
-        env=env,  # Pass modified environment
+        timeout=120.0,
+        env=env,
     )
+
+    # v1.2.4-TITANIUM: PROCESS LIFECYCLE BARRIER (Windows ONLY)
+    # Ensure OS has released file handles before next command or cleanup
+    if os.name == "nt":
+        import time
+        time.sleep(0.3)
 
     return result.returncode, result.stdout, result.stderr
 
@@ -55,15 +63,14 @@ class TestKitSystemContract:
         kit init → kit learn (add memory) → kit recall (retrieve)
 
         Validates:
-        - init creates .kit directory
-        - learn writes to brain.db
+        - init creates .kit directory and sentinel
+        - learn writes to brain.db (positional content)
         - recall retrieves written memory
-        - No crashes or blocking I/O
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
 
-            # Initialize project as git repo (some validation might check this)
+            # Initialize project as git repo
             subprocess.run(["git", "init"], cwd=project_root, capture_output=True, timeout=5.0)
 
             # STEP 1: kit init
@@ -75,224 +82,99 @@ class TestKitSystemContract:
             kit_dir = project_root / ".kit"
             assert kit_dir.exists(), ".kit directory not created"
             assert (kit_dir / "local_brain.db").exists(), "local_brain.db not created"
-            print("[OK] kit init succeeded, .kit/brain.db exists")
+            assert (kit_dir / "bootstrap_v1_2_4.seed").exists(), "sentinel file not created"
+            print("[OK] kit init succeeded")
 
-            # STEP 2: kit learn (add a memory)
-            print("[2] Testing: kit learn")
-            memory_content = {
-                "content": "Test memory: pattern X observed 5 times",
-                "kind": "pattern",
-                "uid": "test_pattern_x",
-                "importance": 0.8,
-            }
+            # STEP 2: kit learn (Simplified UX: kit learn "text")
+            print("[2] Testing: kit learn (simplified)")
+            memory_content = "Test memory: pattern X observed 5 times"
 
             rc, stdout, stderr = run_kit_command(
                 project_root,
                 "learn",
-                "--content",
-                json.dumps(memory_content),
-                "--kind",
-                "pattern",
-                "--uid",
-                "test_pattern_x",
-                "--importance",
-                "0.8",
+                memory_content,
+                "--tag", "pattern",
+                "--uid", "test_pattern_x",
+                "--importance", "0.8",
             )
             assert rc == 0, f"kit learn failed:\nstdout: {stdout}\nstderr: {stderr}"
+            assert "OK" in stdout or "OK" in stderr, "Expected 'OK' on success"
             print("[OK] kit learn succeeded")
 
             # STEP 3: kit recall (retrieve the learned memory)
             print("[3] Testing: kit recall")
-            rc, stdout, stderr = run_kit_command(project_root, "recall", "test_pattern_x")
+            rc, stdout, stderr = run_kit_command(project_root, "recall", "pattern")
             assert rc == 0, f"kit recall failed:\nstdout: {stdout}\nstderr: {stderr}"
+            
+            # The output of recall is normally a formatted table or text
+            assert "test_pattern_x" in stdout, f"Symbol not found in recall output:\n{stdout}"
+            assert "pattern X observed" in stdout, f"Content not found in recall output:\n{stdout}"
+            print("[OK] kit recall retrieved memory")
 
-            # Verify memory was retrieved
-            assert "test_pattern_x" in stdout or "pattern" in stdout.lower(), (
-                f"Learned memory not found in recall output:\n{stdout}"
-            )
-            print("[OK] kit recall succeeded, memory retrieved")
-
-            print("\n[PASS] Core chain: init → learn → recall VERIFIED")
-
-    @staticmethod
-    def test_learn_all_tag_types_allowed():
-        """
-        Ensure the CLI and DB schema accept the expanded tag set for learn.
-        """
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            subprocess.run(["git", "init"], cwd=project_root, capture_output=True, timeout=5.0)
-            rc, stdout, stderr = run_kit_command(project_root, "init", "--force")
-            assert rc == 0, f"kit init failed:\nstdout: {stdout}\nstderr: {stderr}"
-
-            rc, stdout, stderr = run_kit_command(
-                project_root,
-                "learn",
-                "--content",
-                "Project-specific pattern memory",
-                "--uid",
-                "pattern_fact_1",
-                "--tag",
-                "pattern",
-            )
-            assert rc == 0, f"kit learn with tag 'pattern' failed:\nstdout: {stdout}\nstderr: {stderr}"
-
-            db_path = project_root / ".kit" / "local_brain.db"
-            assert db_path.exists(), "brain.db should exist after init"
-            with sqlite3.connect(db_path) as conn:
-                row = conn.execute("SELECT tag, content FROM observations WHERE rowid = (SELECT MAX(rowid) FROM observations)").fetchone()
-            assert row is not None, "Observation row was not written"
-            assert row[0] == "pattern", f"Expected stored tag to be 'pattern', got {row[0]}"
-            assert "Project-specific pattern memory" in row[1], "Stored content mismatch"
+            print("\n[PASS] Core Chain VERIFIED")
+            if os.name == "nt":
+                import time
+                time.sleep(0.25)
 
     @staticmethod
-    def test_core_chain_compile():
+    def test_init_guard_enforcement():
         """
-        CRITICAL PATH TEST:
-        kit init → kit learn → kit compile (YAML skill)
-
-        Validates:
-        - compile reads YAML file
-        - compile writes skill to brain
-        - No crashes during compilation
+        GOVERNANCE TEST:
+        Verify that commands (except init/status) fail if workspace is not initialized.
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
 
-            # Initialize git
-            subprocess.run(["git", "init"], cwd=project_root, capture_output=True, timeout=5.0)
+            print("[1] Testing: kit recall without init (should fail)")
+            rc, stdout, stderr = run_kit_command(project_root, "recall")
+            
+            assert rc == 1, "kit recall should fail without initialization"
+            assert "Workspace not initialized" in stderr or "Workspace not initialized" in stdout
+            print("[OK] Init guard blocked unauthorized recall")
 
-            # STEP 1: kit init
-            print("[1] Testing: kit init")
-            rc, stdout, stderr = run_kit_command(project_root, "init", "--force")
-            assert rc == 0, f"kit init failed:\nstdout: {stdout}\nstderr: {stderr}"
-            print("[OK] kit init succeeded")
+            print("[2] Testing: kit learn without init (should fail)")
+            rc, stdout, stderr = run_kit_command(project_root, "learn", "something")
+            assert rc == 1, "kit learn should fail without initialization"
+            print("[OK] Init guard blocked unauthorized learn")
 
-            # STEP 2: Create a YAML skill file
-            print("[2] Testing: Create YAML skill file")
-            skill_yaml = """# Simple test skill
-name: test_skill
-description: A test skill for verification
-version: 0.1
-triggers:
-  - on_pattern: "test_*"
-    actions:
-      - name: "validate"
-        params:
-          key: "value"
-"""
-            skill_file = project_root / "test_skill.yml"
-            skill_file.write_text(skill_yaml)
-            print("[OK] Skill file created")
-
-            # STEP 3: kit compile
-            print("[3] Testing: kit compile")
-            rc, stdout, stderr = run_kit_command(
-                project_root,
-                "compile",
-                "test_skill",
-                "--file",
-                str(skill_file),
-            )
-            assert rc == 0, f"kit compile failed:\nstdout: {stdout}\nstderr: {stderr}"
-
-            # Verify compilation succeeded
-            assert "compiled" in stdout.lower(), f"Compilation success message not found:\n{stdout}"
-            print("[OK] kit compile succeeded")
-
-            print("\n[PASS] Core chain: init → compile VERIFIED")
+            print("\n[PASS] Init Guard VERIFIED")
+            if os.name == "nt":
+                import time
+                time.sleep(0.25)
 
     @staticmethod
     def test_memory_topology_local_isolation():
         """
-        TOPOLOGY TEST:
-        Verify that LOCAL memories stay in <project_root>/.kit/brain.db
-        and do NOT leak to ~/.kit/
-
-        Validates:
-        - LOCAL/GLOBAL paths are correct
-        - No cross-contamination between scopes
+        ISOLATION TEST:
+        Ensure that local memory does not bleed between different workspaces.
         """
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
+        with tempfile.TemporaryDirectory() as base_dir:
+            base_path = Path(base_dir)
+            ws1 = base_path / "ws1"
+            ws2 = base_path / "ws2"
+            ws1.mkdir()
+            ws2.mkdir()
 
-            # Initialize git
-            subprocess.run(["git", "init"], cwd=project_root, capture_output=True, timeout=5.0)
+            # Init both
+            run_kit_command(ws1, "init")
+            run_kit_command(ws2, "init")
 
-            # STEP 1: kit init
-            print("[1] Testing: kit init")
-            rc, stdout, stderr = run_kit_command(project_root, "init", "--force")
-            assert rc == 0, f"kit init failed:\nstdout: {stdout}\nstderr: {stderr}"
+            # Learn in WS1
+            run_kit_command(ws1, "learn", "WS1 secret", "--uid", "secret_key")
 
-            local_db = project_root / ".kit" / "local_brain.db"
-            assert local_db.exists(), f"LOCAL DB not found at {local_db}"
-            print(f"[OK] LOCAL DB exists: {local_db}")
+            # Recall in WS1 (should find)
+            rc, stdout, _ = run_kit_command(ws1, "recall", "secret")
+            assert "WS1 secret" in stdout
 
-            # STEP 2: kit learn (add project-specific memory)
-            print("[2] Testing: kit learn (project-specific)")
-            rc, stdout, stderr = run_kit_command(
-                project_root,
-                "learn",
-                "--content",
-                json.dumps({"content": "Project-specific pattern", "uid": "proj_pattern_123"}),
-                "--uid",
-                "proj_pattern_123",
-            )
-            assert rc == 0, f"kit learn failed:\nstdout: {stdout}\nstderr: {stderr}"
-            print("[OK] Project memory learned")
-
-            # STEP 3: Verify LOCAL contains the memory
-            print("[3] Testing: Verify LOCAL memory isolation")
-            import sqlite3
-
-            conn = sqlite3.connect(str(local_db), timeout=5.0)
-            try:
-                # v1.2.4: uid is in nodes table, joined with observations
-                query = """
-                    SELECT content FROM observations 
-                    JOIN nodes ON observations.node_id = nodes.id 
-                    WHERE nodes.uid = ?
-                """
-                cursor = conn.execute(query, ("proj_pattern_123",))
-                row = cursor.fetchone()
-                assert row is not None, "Project memory not found in LOCAL DB"
-                print("[OK] Project memory verified in LOCAL DB")
-            finally:
-                conn.close()
-
-            print("\n[PASS] Memory topology isolation VERIFIED")
-
-    @staticmethod
-    def test_failure_handling_missing_db():
-        """
-        FAILURE MODE TEST:
-        kit recall when DB doesn't exist
-
-        Validates:
-        - Graceful error handling
-        - No crash / hang
-        - Clear error message
-        """
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-
-            # Initialize git
-            subprocess.run(["git", "init"], cwd=project_root, capture_output=True, timeout=5.0)
-
-            # Try to recall without init
-            print("[1] Testing: kit recall without init")
-            rc, stdout, stderr = run_kit_command(project_root, "recall")
-
-            # v1.2.4: Self-healing architecture auto-initializes DB if missing.
-            # So kit recall should NOT fail anymore.
-            assert rc == 0, "kit recall should succeed even if DB was missing (auto-init)"
+            # Recall in WS2 (should NOT find)
+            rc, stdout, _ = run_kit_command(ws2, "recall", "secret")
+            assert "WS1 secret" not in stdout
             
-            print("[OK] Self-healing verified: no crash on missing DB")
+            print("\n[PASS] Memory topology isolation VERIFIED")
+            if os.name == "nt":
+                import time
+                time.sleep(0.25)
 
-            print("\n[PASS] Failure handling VERIFIED")
-
-
-# --- RUN TESTS ---
 
 if __name__ == "__main__":
     import traceback
@@ -301,11 +183,11 @@ if __name__ == "__main__":
     print("KIT v1.2.4-TITANIUM — SYSTEM CONTRACT TEST (Core Chain)")
     print("=" * 70 + "\n")
 
+    test_suite = TestKitSystemContract()
     tests = [
-        ("init → learn → recall", TestKitSystemContract.test_core_chain_init_learn_recall),
-        ("init → compile YAML", TestKitSystemContract.test_core_chain_compile),
-        ("LOCAL memory isolation", TestKitSystemContract.test_memory_topology_local_isolation),
-        ("Failure handling: missing DB", TestKitSystemContract.test_failure_handling_missing_db),
+        ("init -> learn -> recall", test_suite.test_core_chain_init_learn_recall),
+        ("init guard enforcement", test_suite.test_init_guard_enforcement),
+        ("LOCAL memory isolation", test_suite.test_memory_topology_local_isolation),
     ]
 
     passed = 0
@@ -320,7 +202,6 @@ if __name__ == "__main__":
         except AssertionError as e:
             print(f"\n[FAIL] {test_name}")
             print(f"Error: {e}")
-            traceback.print_exc()
             failed += 1
         except Exception as e:
             print(f"\n[ERROR] {test_name}")

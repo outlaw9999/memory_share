@@ -299,6 +299,27 @@ class MemoryTopology:
             logger.error(f"Failed to connect to {path}: {e}")
             raise
 
+    def connect_path(self, path: Path, readonly: bool = False, timeout: float = 10.0) -> sqlite3.Connection:
+        """
+        v1.2.4-ARCHITECTURE-LOCK: Authorized method to connect to arbitrary paths.
+        Used by MemoryRouter for isolated test paths.
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+        mode = "ro" if readonly else "rwc"
+        uri = f"file:{path.as_posix()}?mode={mode}"
+        
+        conn = sqlite3.connect(
+            uri,
+            uri=True,
+            timeout=timeout,
+            check_same_thread=False,
+            isolation_level=None
+        )
+        conn.row_factory = sqlite3.Row
+        if not readonly:
+            conn.execute("PRAGMA journal_mode=WAL")
+        return conn
+
 
 class MemoryTopologyFactory:
     """Factory for creating properly-configured MemoryTopology instances."""

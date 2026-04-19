@@ -1,5 +1,5 @@
 # 🛡️ AI Behavioral Integrity Report
-Generated: 2026-04-18 21:42:19
+Generated: 2026-04-19 18:32:12
 
 | Provider | Scenario | Confidence | Score | Traits | Result |
 | :--- | :--- | :--- | :--- | :--- | :--- |

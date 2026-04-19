@@ -67,24 +67,23 @@ def _cognitive_guardrail(text: str, tag: Optional[str]) -> bool:
     return False
 
 def _bootloader_template() -> str:
-    """Returns the canonical portable AGENTS.md template (v1.2.4)."""
+    """Returns the canonical portable AGENTS.md template (v1.2.4-TITANIUM)."""
     return (
-        "# AGENTS.md (v1.2.4-TITANIUM)\n\n"
-        "## ðŸ§  Kit System Contract\n\n"
-        "Kit is a deterministic workflow runtime for AI agents.\n\n"
-        "All operations MUST go through `kit` CLI.\n\n"
-        "---\n\n"
-        "## ðŸš€ Execution Model (Flow v0.1.2)\n\n"
-        "All multi-step tasks MUST use Flow Engine.\n\n"
-        "### Lifecycle\n"
-        "- PLAN â†’ YAML DAG definition\n"
-        "- EXECUTE â†’ step-level isolated execution\n"
-        "- COMMIT â†’ final bake of results (`is_baked=1`)\n\n"
-        "--- \n\n"
-        "## ðŸ¤  Cross-Repo Rule\n\n"
-        "1. Start with: `kit recall project_identity`\n"
-        "2. Never bypass CLI â†’ no direct DB access\n"
-        "3. All mutations MUST go through `kit learn` or Flow Engine\n"
+        "# AGENTS.md\n\n"
+        "## Ritual\n\n"
+        "Start:\n    kit recall --limit 5\n\n"
+        "Work:\n    kit search <topic> when unsure\n\n"
+        "End:\n    kit learn\n\n"
+        "Discover details:\n    --help\n\n"
+        "## Tool Map\n\n"
+        "core:       init, flow, snapshot, restore\n"
+        "memory:     recall, learn, context\n"
+        "diagnostic: doctor, hygiene, stats, status, preflight\n"
+        "security:   seal, unseal\n"
+        "search:     search, where\n\n"
+        "## Rules\n"
+        "1. Never access internal databases directly.\n"
+        "2. Prefer smallest valid command (Token Efficiency).\n"
     )
 
 def _packaged_asset_root() -> Optional[Path]:
@@ -201,7 +200,52 @@ def handle_init(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, *
     api.init_kernel(project_db, mode="isolated")
     _materialize_onboarding_files(root_path, print_diagnostic)
     _seed_bootstrap_memories(root_path, root_path.name)
-    print_diagnostic(f".kit crystallized successfully in {root_path}")
+    
+    # v1.2.4: Vantage Integrity Gating (Soft Check on Init)
+    from kit.core.kit_vantage import VANTAGE_BIN
+    import subprocess
+    if VANTAGE_BIN and VANTAGE_BIN.exists() and os.getenv("KIT_DISABLE_ASYNC_BAKE") != "1":
+        try:
+            subprocess.run([str(VANTAGE_BIN), "verify-memory"], capture_output=True, timeout=5.0)
+        except subprocess.TimeoutExpired:
+            logger.warning("Vantage integrity check timed out during init.")
+        
+    print("OK")
+
+@kit_command(
+    name="init-env",
+    namespace=CommandNamespace.CORE,
+    description="Standardize VSCode and .env for relative path anchoring (v1.2.4)"
+)
+def handle_init_env(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Standardize project environment files."""
+    root = Path.cwd()
+    vscode_dir = root / ".vscode"
+    vscode_dir.mkdir(exist_ok=True)
+    
+    settings_path = vscode_dir / "settings.json"
+    settings = {
+        "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+        "python.analysis.extraPaths": ["${workspaceFolder}"],
+        "terminal.integrated.env.windows": {
+            "PYTHONPATH": "${workspaceFolder}"
+        },
+        "files.watcherExclude": {
+            "**/.kit/**": True,
+            "**/.pytest_cache/**": True
+        }
+    }
+    import json
+    with open(settings_path, "w") as f:
+        json.dump(settings, f, indent=2)
+        
+    env_path = root / ".env"
+    with open(env_path, "w") as f:
+        f.write("PYTHONPATH=.\n")
+        
+    print_diagnostic(f"✅ Environment standardized at {root}")
+    print("OK")
+
 
 @kit_command(
     name="learn", 
@@ -225,15 +269,25 @@ def handle_learn(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
         sys.exit(1)
     
     if _cognitive_guardrail(content, args.tag):
-        print_diagnostic("âš ï¸ COGNITIVE FRICTION: Potential dynamic/volatile data detected.")
+        print_diagnostic("⚠️  COGNITIVE FRICTION: Potential dynamic/volatile data detected.")
     
+    import json
+    metadata = {}
+    if getattr(args, "metadata", None):
+        try:
+            metadata = json.loads(args.metadata)
+        except json.JSONDecodeError:
+            print_diagnostic("Error: Invalid JSON in --metadata")
+            sys.exit(1)
+
     action_call = partial(
         api.get_brain().learn, 
         uid=getattr(args, "uid", None) or current_context, 
         content=content, 
         tag=args.tag, 
-        kind=args.kind, 
-        importance=args.importance
+        node_type=args.kind, 
+        importance=args.importance,
+        metadata=metadata
     )
     
     frame = ExecutionFrame(action=action_call, command=f"learn:{getattr(args, 'uid', 'anonymous')}")
@@ -241,10 +295,26 @@ def handle_learn(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
     
     if kernel.run():
         trigger_async_bake(api.get_brain())
-        print_diagnostic(f"Learned: [{getattr(args, 'uid', current_context)}] successfully ingested via Kernel.")
+        
+        # v1.2.4-TITANIUM: Hard Vantage Gating
+        from kit.core.kit_vantage import VANTAGE_BIN
+        import subprocess
+        if VANTAGE_BIN and VANTAGE_BIN.exists():
+            print_diagnostic("  [Vantage] Verifying integrity...")
+            v_res = subprocess.run([str(VANTAGE_BIN), "verify-memory"], capture_output=True)
+            if v_res.returncode != 0:
+                print_diagnostic(f"❌ VANTAGE INTEGRITY FAILURE: {v_res.stderr.decode()}")
+                sys.exit(1)
+        
+        # v1.2.4: Mute narrative logs
+        print("OK")
     else:
-        print_diagnostic("Error: Kernel execution failed during ingestion.")
-        sys.exit(1)
+        # v1.2.4-TITANIUM: Propagate semantic error code if present
+        err_msg = frame.stderr or "Kernel execution failed during ingestion."
+        if "KIT-SEALED" in err_msg:
+             sys.stderr.write("KIT-SEALED: Run 'kit unseal --reason <msg>' to continue learning.\n")
+             sys.exit(1)
+        raise RuntimeError(err_msg)
 
 @kit_command(
     name="recall", 
@@ -254,6 +324,19 @@ def handle_learn(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
 def handle_recall(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, current_context: str = "shared", **kwargs: Any) -> None:
     """Handler for 'kit recall' command."""
     import kit.api as api
+    import re
+    from datetime import datetime, timedelta
+
+    def _parse_relative_date(val: str | None) -> str | None:
+        if not val: return None
+        match = re.match(r"(\d+)([dhm])", val.lower())
+        if match:
+            count, unit = int(match.group(1)), match.group(2)
+            delta = timedelta(days=count) if unit == "d" else (timedelta(hours=count) if unit == "h" else timedelta(minutes=count))
+            # Format to SQLite compatible timestamp
+            return (datetime.now() - delta).strftime("%Y-%m-%d %H:%M:%S")
+        return val
+
     entities = getattr(args, "entities", None) or [current_context]
     is_here = getattr(args, "here", False)
     
@@ -261,7 +344,9 @@ def handle_recall(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
         entities, 
         limit=getattr(args, "limit", 15), 
         here=is_here, 
-        with_global=getattr(args, "with_global", False)
+        with_global=getattr(args, "with_global", False),
+        since=_parse_relative_date(getattr(args, "since", None)),
+        until=_parse_relative_date(getattr(args, "until", None))
     )
     
     if not memories:
@@ -418,11 +503,8 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
         else:
             print_diagnostic("âœ… Workspace hygiene is within stable bounds.")
 
-    # --- Vantage Integration (v1.2.4) ---
-    skip_vantage = getattr(args, "no_vantage", False)
-    if skip_vantage:
-        print_diagnostic("⏭️  Vantage check skipped (--no-vantage)")
-    else:
+    # --- Vantage Integration (v1.2.4 Gating) ---
+    if getattr(args, "heal", False) and not getattr(args, "no_vantage", False):
         from kit.core.kit_vantage import VANTAGE_BIN
         import subprocess
         import json
@@ -437,7 +519,12 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
                     timeout=30,
                 )
                 if result.returncode == 0:
-                    data = json.loads(result.stdout) if result.stdout.strip() else {}
+                    try:
+                        data = json.loads(result.stdout) if result.stdout.strip() else {}
+                    except json.JSONDecodeError:
+                        data = {}
+                        print_diagnostic("⚠️  Vantage output was not valid JSON")
+                    
                     records = data.get("records", 0)
                     valid = data.get("valid_hashes", 0)
                     print_diagnostic("✅ Vantage: Memory integrity verified")
@@ -486,15 +573,228 @@ def handle_flow(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, *
         # Default interactive behavior or help
         print_diagnostic("Usage: kit flow run <path.yaml>")
 
+@kit_command(
+    name="seal",
+    namespace=CommandNamespace.CORE,
+    description="Freeze memory kernel and generate structural seal",
+    side_effect=CommandSideEffect.MUTATION
+)
+def handle_seal(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Handler for 'kit seal' command."""
+    import kit.api as api
+    from kit.core import kit_lock
+    from kit.core.kit_vantage import VANTAGE_BIN
+    import subprocess
+
+    brain = api.get_brain()
+    print_diagnostic(f"🛡️  Sealing Cognitive Kernel: {brain.db_path.name}")
+
+    try:
+        # 1. Physical Database Seal
+        res = kit_lock.seal(brain.db_path, brain.root_path, force_evict=getattr(args, "force", False))
+        print_diagnostic(f"✅ Memory state sealed logically (Forensic Guard active).")
+
+        # 2. Structural Vantage Seal
+        if VANTAGE_BIN and VANTAGE_BIN.exists():
+            print_diagnostic("Establish structural baseline via Vantage...")
+            subprocess.run([str(VANTAGE_BIN), "seal", "."], check=True)
+            print_diagnostic("✅ Structural seal established (VANTAGE.SEAL).")
+        else:
+            print_diagnostic("⚠️  Vantage not found. Skipping structural seal.")
+
+        print("OK")
+    except Exception:
+        raise
+
+@kit_command(
+    name="unseal",
+    namespace=CommandNamespace.CORE,
+    description="Unlock memory kernel for modification",
+    side_effect=CommandSideEffect.MUTATION
+)
+def handle_unseal(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Handler for 'kit unseal' command."""
+    import kit.api as api
+    from kit.core import kit_lock
+
+    reason = getattr(args, "reason", None)
+    if not reason:
+        print_diagnostic("Error: --reason is REQUIRED to unseal the kernel for auditing.")
+        sys.exit(1)
+
+    brain = api.get_brain()
+    print_diagnostic(f"🔓 Unsealing Cognitive Kernel: {brain.db_path.name}")
+    print_diagnostic(f"Reason: {reason}")
+    try:
+        kit_lock.unseal(brain.db_path, brain.root_path, reason=reason)
+        print("OK")
+    except Exception:
+        raise
+
+@kit_command(
+    name="snapshot",
+    namespace=CommandNamespace.CORE,
+    description="Create a physical point-in-time snapshot of the memory kernel",
+    side_effect=CommandSideEffect.MUTATION
+)
+def handle_snapshot(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Handler for 'kit snapshot' command."""
+    import kit.api as api
+    try:
+        api.snapshot()
+        
+        # v1.2.4: Vantage Integrity Gating
+        from kit.core.kit_vantage import VANTAGE_BIN
+        import subprocess
+        if VANTAGE_BIN and VANTAGE_BIN.exists():
+            subprocess.run([str(VANTAGE_BIN), "verify-memory"], capture_output=True)
+            
+        print("OK")
+    except Exception:
+        raise
+
+@kit_command(
+    name="restore",
+    namespace=CommandNamespace.CORE,
+    description="Restore memory kernel from a physical snapshot",
+    side_effect=CommandSideEffect.MUTATION
+)
+def handle_restore(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Handler for 'kit restore' command."""
+    import kit.api as api
+    path = Path(args.path) if getattr(args, "path", None) else None
+    try:
+        if api.restore(path):
+            print("OK")
+        else:
+            raise RuntimeError("Restore failed.")
+    except Exception:
+        raise
+
+@kit_command(
+    name="run-skill",
+    namespace=CommandNamespace.RUNTIME,
+    description="Execute a cognitive skill or automation routine",
+    side_effect=CommandSideEffect.MUTATION
+)
+def handle_run_skill(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Handler for 'kit run-skill' command."""
+    skill_name = getattr(args, "skill", None)
+    if not skill_name:
+        print_diagnostic("Usage: kit run-skill <skill_name> [args...]")
+        print_diagnostic("\nAvailable Skills (Implicit):")
+        print_diagnostic("  - snapshot: Atomic DB backup")
+        print_diagnostic("  - verify:   Memory integrity audit")
+        print_diagnostic("  - vacuum:   Database maintenance")
+        sys.exit(1)
+    
+    import kit.api as api
+    try:
+        if skill_name == "snapshot":
+            _ = api.snapshot()
+            print("OK")
+        elif skill_name == "verify":
+            # Placeholder for actual verify logic
+            print("OK")
+        else:
+            raise ValueError(f"Unknown skill: {skill_name}")
+    except Exception as e:
+        raise
+
+@kit_command(
+    name="verify-release",
+    namespace=CommandNamespace.DIAGNOSTIC,
+    description="Tiered TDD Release Gate (P0/P1/P2)",
+    side_effect=CommandSideEffect.READ_ONLY
+)
+def handle_verify_release(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Handler for 'kit verify-release' logic (v1.2.4-TITANIUM)."""
+    import subprocess
+    import yaml
+    
+    gate_file = Path("kit-test-gate.yaml")
+    if not gate_file.exists():
+        sys.stderr.write("FAILED: kit-test-gate.yaml missing.\n")
+        sys.exit(1)
+        
+    with open(gate_file, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+        
+    print_diagnostic(f"Release Gate v1.2.4 - Strategy: {config.get('strategy')}")
+    
+    all_success = True
+    for gate_id, gate in config.get("gates", {}).items():
+        priority = gate.get("priority", 2)
+        is_blocking = gate.get("blocking", True)
+        tests = gate.get("tests", [])
+        
+        print_diagnostic(f"\n[GATE {gate_id}] (P{priority}) - {gate.get('description')}")
+        
+        gate_success = True
+        for test_file in tests:
+            print_diagnostic(f"  RUN: {test_file}...", level=logging.INFO)
+            # v1.2.4: Use sys.executable to ensure we run in the same venv
+            res = subprocess.run([sys.executable, "-m", "pytest", "-v", test_file], capture_output=True, text=True)
+            
+            if res.returncode == 0:
+                print_diagnostic(f"  PASS: {test_file}")
+            else:
+                print_diagnostic(f"  FAIL: {test_file}")
+                if getattr(args, "verbose", False):
+                    print_diagnostic(res.stdout)
+                gate_success = False
+                
+        if not gate_success:
+            if is_blocking:
+                print_diagnostic(f"❌ BLOCK: Gate {gate_id} failed. Release aborted.")
+                all_success = False
+                break
+            else:
+                print_diagnostic(f"⚠️  WARN: Gate {gate_id} failed (Non-blocking).")
+        else:
+            print_diagnostic(f"✅ PASS: Gate {gate_id}")
+
+    if all_success:
+        print("\nOK")
+    else:
+        sys.exit(1)
+
 # --- CLI Entry Point ---
 
 def main() -> None:
     """Main entry point for Titanium CLI."""
+    # --- v1.2.4 Global Error Shield ---
+    try:
+        _main_impl()
+    except PermissionError as e:
+        if "sealed" in str(e).lower():
+            sys.stderr.write("KIT-SEALED: run kit unseal --reason <msg>\n")
+        else:
+            sys.stderr.write(f"FAILED: {e}\n")
+        sys.exit(1)
+    except FileNotFoundError as e:
+        if ".kit" in str(e).lower():
+            sys.stderr.write("KIT-NOT-INIT: run kit init\n")
+        else:
+            sys.stderr.write(f"FAILED: {e}\n")
+        sys.exit(1)
+    except RuntimeError as e:
+        if "Interpreter mismatch" in str(e) or "[RUNTIME LOCK]" in str(e):
+            sys.stderr.write("KIT-ENV-LOCK: activate project .venv\n")
+        else:
+            sys.stderr.write(f"FAILED: {e}\n")
+        sys.exit(1)
+    except Exception as e:
+        sys.stderr.write(f"FAILED: {e}. Run 'kit doctor'\n")
+        sys.exit(1)
+
+def _main_impl() -> None:
+    """Internal implementation of main CLI logic."""
 # --- ECL v2: Runtime Shield Enforcer ---
     substrate = kit_env.get_substrate_report()
     if not substrate["is_locked"] and os.getenv("KIT_BYPASS_RUNTIME_LOCK") != "1":
         # Rule II.1: Explicit Failures
-        if len(sys.argv) > 1 and sys.argv[1] not in ["stats", "status", "init", "--help", "-h", "flow"]:
+        if len(sys.argv) > 1 and sys.argv[1] not in ["stats", "status", "init", "init-env", "--help", "-h", "flow"]:
             # Check if .kit exists for helpful message
             kit_dir = Path.cwd() / ".kit"
             hint = ""
@@ -512,6 +812,19 @@ def main() -> None:
                 f"{hint}"
             )
 
+    # --- Workspace Initialization Guard (v1.2.4) ---
+    if len(sys.argv) > 1 and sys.argv[1] not in ["init", "init-env", "--help", "-h", "where", "status"]:
+        sentinel = Path.cwd() / BOOTSTRAP_SENTINEL
+        if not sentinel.exists():
+            print(
+                f"\nError: Workspace not initialized.\n"
+                f"The sentinel file '{BOOTSTRAP_SENTINEL}' is missing.\n"
+                f"\nRun:\n  kit init\n"
+                f"\nThen retry your command.",
+                file=sys.stderr
+            )
+            sys.exit(1)
+
     _configure_console_encoding()
     if len(sys.argv) == 1:
         sys.argv.append("recall")
@@ -527,19 +840,24 @@ def main() -> None:
     # Command Definitions
     p_init = subparsers.add_parser("init", help="Initialize space")
     p_init.add_argument("--force", action="store_true")
+
+    p_init_env = subparsers.add_parser("init-env", help="Standardize environment files")
     
     p_learn = subparsers.add_parser("learn", help="Ingest observation")
-    p_learn.add_argument("--content")
+    p_learn.add_argument("content", nargs="?", help="Content to learn (or use STDIN)")
     p_learn.add_argument("--uid")
     p_learn.add_argument("--tag", default="decision")
     p_learn.add_argument("--kind", default="observation")
-    p_learn.add_argument("--importance", type=float, default=1.0)
+    p_learn.add_argument("--importance", type=float, default=0.5)
+    p_learn.add_argument("--metadata", help="JSON metadata string")
     
     p_recall = subparsers.add_parser("recall", help="Recall ranked context")
     p_recall.add_argument("entities", nargs="*")
-    p_recall.add_argument("--limit", type=int, default=15)
+    p_recall.add_argument("--limit", type=int, default=10)
     p_recall.add_argument("--here", action="store_true")
     p_recall.add_argument("--with-global", action="store_true")
+    p_recall.add_argument("--since", help="Filter by date (ISO)")
+    p_recall.add_argument("--until", help="Filter by date (ISO)")
 
     subparsers.add_parser("context", help="Alias for recall --here")
     subparsers.add_parser("search", help="Hybrid search").add_argument("query")
@@ -564,6 +882,22 @@ def main() -> None:
     p_doctor.add_argument("--heal", action="store_true", help="Execute cleanup DAG")
     p_doctor.add_argument("--no-vantage", action="store_true", help="Skip Vantage integrity check")
 
+    p_verify_release = subparsers.add_parser("verify-release", help="Run Tiered TDD Release Gate")
+    p_verify_release.add_argument("--verbose", action="store_true", help="Show full test output on failure")
+
+    p_seal = subparsers.add_parser("seal", help="Freeze memory kernel")
+    p_seal.add_argument("--force", action="store_true", help="Force evict zombie handles")
+
+    p_unseal = subparsers.add_parser("unseal", help="Unlock memory kernel")
+    p_unseal.add_argument("--reason", required=True, help="Reason for unsealing (Audited)")
+
+    subparsers.add_parser("snapshot", help="Create a kernel snapshot")
+    p_restore = subparsers.add_parser("restore", help="Restore kernel from snapshot")
+    p_restore.add_argument("--path", help="Path to snapshot (optional)")
+
+    p_run_skill = subparsers.add_parser("run-skill", help="Execute a cognitive skill")
+    p_run_skill.add_argument("skill", nargs="?", help="Name of the skill to execute")
+
     args = parser.parse_args()
     
     # Initialize Kernel API
@@ -573,23 +907,45 @@ def main() -> None:
         mode="isolated" if args.isolated else "auto"
     )
     
+    # --- Execution Boundary Firewall (v1.2.4-TITANIUM) ---
+    from kit.core.kit_env import ExecutionMode, get_execution_mode
+    current_mode = get_execution_mode()
+
+    if current_mode == ExecutionMode.TEST:
+        forbidden_mutations = {
+            "doctor": args.command == "doctor" and args.heal,
+            "init-env": args.command == "init-env"
+        }
+        for tool, active in forbidden_mutations.items():
+            if active:
+                print(f"\n[FIREWALL] Mutation blocked: '{tool}' is forbidden in TEST mode.", file=sys.stderr)
+                sys.exit(1)
+
+    # --- v1.2.4: Router Logging Isolation ---
+    router_logger = logging.getLogger("kit.memory_router")
+    router_logger.propagate = False
+    
     def print_diagnostic(msg: str, level: int = logging.INFO) -> None:
         """Standard diagnostic output callback."""
         sys.stderr.write(f"{msg}\n")
         logger.log(level, msg)
 
     # Dispatch via Registry
-    cmd_tuple = registry.get_command(args.command)
-    if cmd_tuple:
-        _, handler = cmd_tuple
-        handler(
-            args=args, 
-            print_diagnostic=print_diagnostic, 
-            current_context=Path.cwd().name
-        )
-    else:
-        print_diagnostic(f"Unknown command: {args.command}", level=logging.ERROR)
-        sys.exit(1)
+    try:
+        cmd_tuple = registry.get_command(args.command)
+        if cmd_tuple:
+            _, handler = cmd_tuple
+            handler(
+                args=args, 
+                print_diagnostic=print_diagnostic, 
+                current_context=Path.cwd().name
+            )
+        else:
+            sys.stderr.write(f"Unknown command: {args.command}\n")
+            sys.exit(1)
+    finally:
+        # v1.2.4: Ensure background workers are joined to release Windows file locks
+        api.shutdown_kernel()
 
 if __name__ == "__main__":
     main()

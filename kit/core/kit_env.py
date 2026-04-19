@@ -2,10 +2,29 @@ import os
 import shutil
 import sys
 import sysconfig
+from enum import StrEnum
 from pathlib import Path
 
 # --- Runtime Shield Invariants (v1.2.4-LOCK) ---
-# This module acts as the Single Source of Truth for the environment.
+
+class ExecutionMode(StrEnum):
+    DEVELOPMENT = "development"
+    TEST = "test"
+    PRODUCTION = "production"
+
+def get_execution_mode() -> ExecutionMode:
+    """Detect the current execution mode (v1.2.4-TITANIUM)."""
+    # 1. Environment variable override
+    mode_env = os.getenv("KIT_RUNTIME_MODE", "").lower()
+    if mode_env in [m.value for m in ExecutionMode]:
+        return ExecutionMode(mode_env)
+    
+    # 2. Pytest detection
+    if "pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST"):
+        return ExecutionMode.TEST
+    
+    # 3. Default to development (or production if packaged)
+    return ExecutionMode.DEVELOPMENT
 
 def get_venv_path() -> Path | None:
     """Detect the project-local virtual environment (Root-only)."""

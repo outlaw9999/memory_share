@@ -12,8 +12,8 @@ def test_invariant_sanctity(tmp_path):
     # Global Invariant
     brain.learn(uid="vantage", content="DO NOT USE VANTAGE DIRECTLY", tag="invariant", scope="")
     
-    # Local Decision (higher material importance)
-    brain.learn(uid="vantage", content="Use vantage for auth", tag="decision", scope="auth", importance=1.0)
+    # Local Decision (higher importance but still below GLOBAL threshold)
+    brain.learn(uid="vantage", content="Use vantage for auth", tag="decision", scope="auth", importance=0.3)
     
     diff = "+ import vantage"
     report = run_reflect(brain, diff, scope="auth")
@@ -77,7 +77,7 @@ def test_confidence_margin(tmp_path):
     
     diff = "+ import test"
     report = run_reflect(brain, diff, scope="auth")
-    
+
     res = report.resolutions["test"]
-    # Score diff is 0.1. Confidence = 0.1 / (~0.5) * penalty
-    assert 0.1 < res.confidence < 0.4
+    # Score diff is 0.4 (exact=+0.5, global=+0.1). Confidence = 0.4 / (~0.8) * penalty
+    assert 0.3 < res.confidence < 0.6

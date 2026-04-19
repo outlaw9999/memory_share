@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import json
 from datetime import datetime
 
-from kit.api import resolve_paths
+from kit.api import resolve_paths, get_brain
 
 
 @dataclass
@@ -50,11 +50,15 @@ class FlowVantageBridge:
 
         self._init_db()
 
+    def _get_conn(self, readonly: bool = False):
+        """Unified connection authority (v1.2.4-TITANIUM)."""
+        return get_brain().get_connection(self.db_path, readonly=readonly)
+
     def _init_db(self):
         """Initialize the learning database."""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-
-        with sqlite3.connect(self.db_path.absolute().as_uri(), uri=True) as conn:
+        
+        with self._get_conn(readonly=False) as conn:
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS flow_decisions (
                     id TEXT PRIMARY KEY,
@@ -92,7 +96,7 @@ class FlowVantageBridge:
 
     def record_decision(self, decision: FlowDecision):
         """Record a flow routing decision."""
-        with sqlite3.connect(self.db_path.absolute().as_uri(), uri=True) as conn:
+        with self._get_conn(readonly=False) as conn:
             conn.execute('''
                 INSERT OR REPLACE INTO flow_decisions
                 (id, signal_id, route_taken, priority, timestamp, outcome, vantage_score)
@@ -109,7 +113,7 @@ class FlowVantageBridge:
 
     def record_vantage_analysis(self, signal: VantageSignal):
         """Record Vantage analysis of a decision."""
-        with sqlite3.connect(self.db_path.absolute().as_uri(), uri=True) as conn:
+        with self._get_conn(readonly=False) as conn:
             conn.execute('''
                 INSERT INTO vantage_signals
                 (id, decision_id, friction_detected, suggestions, confidence_score, learning_weight, timestamp)
@@ -126,7 +130,7 @@ class FlowVantageBridge:
 
     def update_routing_weights(self):
         """Update routing weights based on historical performance and Vantage feedback."""
-        with sqlite3.connect(self.db_path.absolute().as_uri(), uri=True) as conn:
+        with self._get_conn(readonly=False) as conn:
             # Calculate success rates and learning adjustments
             decisions = conn.execute('''
                 SELECT route_taken, outcome, vantage_score
@@ -169,7 +173,7 @@ class FlowVantageBridge:
         """Get the best route considering historical learning."""
         self.update_routing_weights()  # Ensure weights are current
 
-        with sqlite3.connect(self.db_path.absolute().as_uri(), uri=True) as conn:
+        with self._get_conn(readonly=False) as conn:
             weights = {}
             for route in base_routes:
                 row = conn.execute('''
@@ -194,7 +198,7 @@ class FlowVantageBridge:
         """Get insights into the learning progress."""
         self.update_routing_weights()  # Ensure weights are current
 
-        with sqlite3.connect(self.db_path.absolute().as_uri(), uri=True) as conn:
+        with self._get_conn(readonly=False) as conn:
             total_decisions = conn.execute('SELECT COUNT(*) FROM flow_decisions').fetchone()[0]
             total_vantage = conn.execute('SELECT COUNT(*) FROM vantage_signals').fetchone()[0]
 

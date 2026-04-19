@@ -73,6 +73,14 @@ def get_brain() -> SAMBrain:
     return _brain_instance
 
 
+def shutdown_kernel() -> None:
+    """Shutdown the cognitive kernel background tasks."""
+    global _brain_instance
+    if _brain_instance is not None:
+        _brain_instance.shutdown()
+        _brain_instance = None
+
+
 # @epistemic: learn
 @traced("api.learn")
 def learn(
@@ -107,7 +115,7 @@ def learn(
         uid=resolved_uid,
         content=content,
         tag=tag,
-        kind=kind,
+        node_type=kind,
         importance=importance,
         layer=layer,
         namespace=namespace,
@@ -117,8 +125,6 @@ def learn(
         scope=scope,
         metadata=meta,
         symbol=symbol,
-        structural_hash=structural_hash,
-        skip_render=skip_render,
     )
 
 
@@ -149,6 +155,8 @@ def _cached_recall(
     with_global: bool,
     fast: bool,
     include_profile: bool,
+    since: str | None = None,
+    until: str | None = None,
 ) -> tuple[list[Any], dict[str, float] | None]:
     return get_brain().recall(
         list(entities_t),
@@ -161,6 +169,8 @@ def _cached_recall(
         with_global=with_global,
         fast=fast,
         include_profile=include_profile,
+        since=since,
+        until=until
     )
 
 # @epistemic: recall
@@ -176,6 +186,8 @@ def recall(
     with_global: bool = False,
     fast: bool = False,
     include_profile: bool = False,
+    since: str | None = None,
+    until: str | None = None,
 ) -> list[Any] | tuple[list[Any], dict[str, float] | None]:
     """Ranked recall context awareness with LRU Cache (v1.2.3-STABLE)."""
     result = _cached_recall(
@@ -188,7 +200,9 @@ def recall(
         query,
         with_global,
         fast,
-        include_profile
+        include_profile,
+        since,
+        until
     )
     if include_profile:
         return result  # Already a tuple (memories, profile)
@@ -246,6 +260,16 @@ def promote(threshold: int = 5) -> int:
 def stream_events(poll_interval: float = 0.2):
     """Wait and yield semantic memory events."""
     return get_brain().stream_events(poll_interval)
+
+
+def snapshot() -> Path:
+    """Manual trigger for database snapshot (v1.2.4)."""
+    return get_brain().snapshot()
+
+
+def restore(snapshot_path: Path | None = None) -> bool:
+    """Restore kernel from a physical snapshot."""
+    return get_brain().restore(snapshot_path)
 
 
 # @epistemic: preflight_check

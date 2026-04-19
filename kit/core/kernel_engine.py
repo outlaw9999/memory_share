@@ -71,6 +71,11 @@ class DeterministicKernel:
                 ExecutionContract.validate_transition(frame.state, "failed")
                 frame.update_state("failed")
                 
+                if frame.return_code == -2:
+                    # v1.2.4: PermissionError/Sealed is terminal, no retry
+                    print(f"  [Kernel] FATAL: {frame.stderr}")
+                    return False
+                
                 if frame.retry_count < frame.max_retries:
                     frame.retry_count += 1
                     backoff = frame.retry_count * 1 # Simple linear backoff
@@ -117,6 +122,12 @@ class DeterministicKernel:
                 self.brain.active_frame = None
                 
             return result.returncode == 0
+        except PermissionError as e:
+            if self.brain:
+                self.brain.active_frame = None
+            frame.stderr = f"KIT-SEALED: {str(e)}"
+            frame.return_code = -2 # Special code for permission/seal
+            return False
         except Exception as e:
             if self.brain:
                 self.brain.active_frame = None

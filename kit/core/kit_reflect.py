@@ -120,16 +120,20 @@ def extract_signals(diff_text: str) -> list[str]:
 
 def calculate_adaptive_score(m: Memory, current_scope: str) -> float:
     """
-    AMSB v1.1: Calculate pure 'Relevance' score (ignoring tag authority).
-    Relevance = base_materialized_score + scope_bonus
+    AMSB v1.2.4-TITANIUM: Calculate 'Relevance' score with STRICT scope hierarchy.
+    
+    Scope hierarchy (child beats parent):
+    - Exact match: +0.5 (strongest - exact context match)
+    - Memory is parent of current: +0.2 (memory covers current)
+    - Global fallback: +0.1
     """
     brainless_scope = current_scope or ""
     score = m.materialized_score
     if m.scope == brainless_scope:
-        score += 0.2
-    elif brainless_scope and m.scope and brainless_scope.startswith(m.scope):
-        score += 0.15
-    elif m.scope in ["", "global", None]:
+        score += 0.5  # Exact match - strongest boost
+    elif m.scope and brainless_scope and m.scope.startswith(brainless_scope):
+        score += 0.2  # Memory is parent of current scope
+    elif m.scope in ("", "global", None):
         score += 0.1
     return score
 

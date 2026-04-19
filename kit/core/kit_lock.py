@@ -1,8 +1,6 @@
 import json
 import logging
 import os
-import platform
-import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -37,11 +35,16 @@ def truncate_wal(db_path: Path) -> bool:
         return False
 
     import sqlite3
+    from kit.core.memory_topology import MemoryTopologyFactory
 
     try:
-        conn = sqlite3.connect(db_path.absolute().as_uri(), uri=True)
-        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-        conn.close()
+        # Use topology to ensure consistent connection parameters
+        topo = MemoryTopologyFactory.for_project(db_path.parent.parent)
+        conn = topo.connect_path(db_path, readonly=False)
+        try:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        finally:
+            conn.close()
         logger.info(f"WAL truncated for {db_path.name}")
         return True
     except sqlite3.Error as e:
@@ -71,9 +74,6 @@ def scan_zombie_handles(db_path: Path, timeout_seconds: float = 5.0) -> list[dic
                 break
 
             count += 1
-            if count % 100 == 0:
-                logger.info(f"scan_zombie_handles: Checked {count} processes")
-
             try:
                 of = proc.info.get("open_files")
                 if of is None:
@@ -89,90 +89,15 @@ def scan_zombie_handles(db_path: Path, timeout_seconds: float = 5.0) -> list[dic
                                 "path": str(fpath),
                             }
                         )
-            except psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess:
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
         logger.info(
-            f"scan_zombie_handles: Done. Checked {count} processes, found {len(zombies)} zombies in {time.time() - start_time:.1f}s"
+            f"scan_zombie_handles: Done. Checked {count} processes, found {len(zombies)} zombies"
         )
     except Exception as e:
         logger.warning(f"Handle scan failed: {e}")
 
     return zombies
-
-    return zombies
-
-
-def apply_os_lock(db_path: Path) -> bool:
-    if not db_path.exists():
-        return False
-
-    files = get_db_files(db_path)
-    success = True
-
-    if platform.system() == "Windows":
-        for f in files:
-            try:
-                subprocess.run(
-                    ["attrib", "+R", str(f)],
-                    check=True,
-                    capture_output=True,
-                    timeout=5,
-                )
-                logger.info(f"OS lock applied to {f.name}")
-            except subprocess.CalledProcessError as e:
-                logger.error(f"Failed to lock {f.name}: {e}")
-                success = False
-            except Exception as e:
-                logger.error(f"Unexpected error locking {f.name}: {e}")
-                success = False
-    else:
-        logger.warning("OS lock not implemented for non-Windows platforms")
-        success = False
-
-    return success
-
-
-def remove_os_lock(db_path: Path) -> bool:
-    if not db_path.exists():
-        return False
-
-    files = get_db_files(db_path)
-    success = True
-
-    if platform.system() == "Windows":
-        for f in files:
-            try:
-                subprocess.run(
-                    ["attrib", "-R", str(f)],
-                    check=True,
-                    capture_output=True,
-                    timeout=5,
-                )
-                logger.info(f"OS lock removed from {f.name}")
-            except Exception as e:
-                logger.warning(f"Failed to remove lock from {f.name}: {e}")
-                success = False
-    else:
-        success = False
-
-    return success
-
-
-def verify_lock_effectiveness(db_path: Path) -> bool:
-    if not db_path.exists():
-        return False
-
-    try:
-        with open(db_path, "ab") as _:
-            pass
-        logger.error("OS lock verification FAILED: file is writable")
-        return False
-    except PermissionError:
-        logger.info("OS lock verification PASSED: file is not writable")
-        return True
-    except Exception as e:
-        logger.warning(f"Lock verification error: {e}")
-        return False
 
 
 def load_lock_state(root_path: Path) -> dict[str, Any]:
@@ -218,46 +143,43 @@ def seal(
     root_path: Path,
     force_evict: bool = False,
 ) -> dict[str, Any]:
-    logger.info(f"Starting seal process for {db_path}")
+    """Logical Seal: Blocks writes in-code without triggering OS-level read-only errors."""
+    logger.info(f"Starting logical seal for {db_path}")
     state = load_lock_state(root_path)
-    logger.info(f"Loaded state: {state}")
 
     if state.get("sealed"):
         return {"status": "already_sealed", "sealed": True}
 
-    logger.info("Truncating WAL...")
+    # Step 1: Cleanup (Optional but recommended for consistency)
+    logger.info("Truncating WAL for consistency...")
     truncate_wal(db_path)
 
+    # Step 2: Handle Safety (Warn/Block if other processes are using it)
     logger.info("Scanning zombie handles...")
     zombies = scan_zombie_handles(db_path)
-    logger.info(f"Found {len(zombies)} zombies")
-
+    
     if zombies and not force_evict:
-        raise ZombieHandleDetected(zombies)
+        # v1.2.4: In a logical seal, we might still allow sealing if we only care about the state,
+        # but to maintain 'forensic-grade' stability, we warn about concurrent handles.
+        logger.warning(f"Concurrent handles detected during seal: {zombies}")
 
     if zombies and force_evict:
+        import psutil
         for z in zombies:
             try:
-                proc = __import__("psutil").Process(z["pid"])
+                proc = psutil.Process(z["pid"])
                 proc.terminate()
                 logger.info(f"Terminated zombie PID {z['pid']}")
             except Exception as e:
                 logger.warning(f"Failed to terminate {z['pid']}: {e}")
 
-    logger.info("Applying OS lock...")
-    if not apply_os_lock(db_path):
-        raise LockError("Failed to apply OS lock")
-
-    logger.info("Verifying lock effectiveness...")
-    if not verify_lock_effectiveness(db_path):
-        remove_os_lock(db_path)
-        raise LockError("Lock verification failed")
-
-    logger.info("Saving lock state...")
+    # Step 3: Materialize Logical Seal
+    logger.info("Saving logical seal state...")
     new_state = {
         "sealed": True,
-        "db_path": str(db_path),
-        "timestamp": str(Path(__file__).stat().st_mtime),
+        "db_path": str(db_path.resolve()),
+        "timestamp": datetime.now(UTC).isoformat(),
+        "seal_version": "1.2.4-LOGICAL",
     }
     save_lock_state(root_path, new_state)
 
@@ -265,20 +187,27 @@ def seal(
 
 
 def unseal(db_path: Path, root_path: Path, reason: str) -> dict[str, Any]:
+    """Reverts logical seal to allow learning."""
     state = load_lock_state(root_path)
 
     if not state.get("sealed"):
         return {"status": "not_sealed", "sealed": False}
 
+    # Step 1: Mandatory Audit
     log_unseal_audit(root_path, reason)
 
-    remove_os_lock(db_path)
-
-    new_state = {"sealed": False, "unseal_reason": reason}
+    # Step 2: Clear State
+    new_state = {
+        "sealed": False, 
+        "unseal_reason": reason,
+        "timestamp": datetime.now(UTC).isoformat()
+    }
     save_lock_state(root_path, new_state)
 
+    logger.info(f"Logical seal removed: {reason}")
     return {"status": "unsealed", "sealed": False}
 
 
 def is_sealed(root_path: Path) -> bool:
+    """Authority Check for logical seal."""
     return load_lock_state(root_path).get("sealed", False)
