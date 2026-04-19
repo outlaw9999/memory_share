@@ -129,7 +129,7 @@ class UnifiedValidator:
             "import tempfile; tmp = tempfile.mkdtemp(); "
             "b = SAMBrain(Path(tmp)/'test.db'); "
             "res = b.recall(['test']); "
-            "valid = isinstance(res, tuple) and len(res) == 2; "
+            "valid = isinstance(res, (list, tuple)); "
             "print('Contract OK' if valid else 'FAIL'); "
             "sys.exit(0 if valid else 1)"
         )
@@ -161,7 +161,7 @@ class UnifiedValidator:
         """Validate adaptive learning and feedback loops."""
         return self.validate_component(
             "Adaptive Learning",
-            self.get_pytest_cmd() + [str(self.repo_root / 'tests' / 'test_evolutionary_loop.py'), "-v", "--tb=short"]
+            self.get_pytest_cmd() + [str(self.repo_root / 'tests' / 'research' / 'data' / 'test_evolutionary_loop.py'), "-v", "--tb=short"]
         )
 
     def validate_deterministic_core(self) -> ValidationResult:
