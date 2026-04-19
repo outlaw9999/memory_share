@@ -38,7 +38,7 @@ def classify_file(path: Path, root_path: Path) -> FileCategory:
     if "kit" in parts:
         return FileCategory.CODE
 
-    if name in ("AGENTS.md", "implementation_plan.md", "walkthrough.md", "task.md"):
+    if name in ("AGENTS.md", "implementation_plan.md", "walkthrough.md", "task.md", "README.md", "LICENSE", "MIGRATION.md", "pyproject.toml", ".gitignore", "kit-test-gate.yaml"):
         return FileCategory.GOVERNANCE
 
     if name.startswith("debug_") or "tmp" in name.lower() or name.endswith(".log"):
@@ -47,8 +47,11 @@ def classify_file(path: Path, root_path: Path) -> FileCategory:
     if name.endswith((".pyc", ".pyo", ".DS_Store")):
         return FileCategory.NOISE
 
-    if path.suffix in (".py", ".rs", ".js", ".ts", ".go", ".c", ".cpp"):
+    if path.suffix in (".py", ".rs", ".js", ".ts", ".go", ".c", ".cpp", ".ps1"):
         return FileCategory.CODE
+        
+    if path.suffix in (".yaml", ".yml", ".json", ".md"):
+        return FileCategory.ARTIFACT
         
     return FileCategory.UNKNOWN
 
@@ -138,7 +141,13 @@ def handle_hygiene(args, print_diagnostic, **kwargs):
         for sug in report.suggestions:
             print_diagnostic(f"  - {sug}")
 
-    if getattr(args, "verbose", False) and report.categories[FileCategory.TEMP]:
-        print_diagnostic("\nDisposable Artifacts:")
-        for f in report.categories[FileCategory.TEMP]:
-            print_diagnostic(f"  [TEMP] {f}")
+    if getattr(args, "verbose", False):
+        if report.categories[FileCategory.TEMP]:
+            print_diagnostic("\nDisposable Artifacts:")
+            for f in report.categories[FileCategory.TEMP]:
+                print_diagnostic(f"  [TEMP] {f}")
+        
+        if report.categories[FileCategory.UNKNOWN]:
+            print_diagnostic("\nUnclassified Files (Noise):")
+            for f in report.categories[FileCategory.UNKNOWN]:
+                print_diagnostic(f"  [?] {f}")
