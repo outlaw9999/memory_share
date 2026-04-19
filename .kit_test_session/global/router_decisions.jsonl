@@ -1,0 +1,15 @@
+{"request_key": "db_q1", "decision": "accepted", "assigned_tier": "local", "confidence": 0.55, "reason": "Accepted to local", "timestamp": "2026-04-19T14:12:14.900591+00:00", "observation_id": 1}
+{"request_key": "db_q2", "decision": "accepted", "assigned_tier": "local", "confidence": 0.54, "reason": "Accepted to local", "timestamp": "2026-04-19T14:12:14.908617+00:00", "observation_id": 2}
+{"request_key": "db_q3", "decision": "accepted", "assigned_tier": "local", "confidence": 0.55, "reason": "Accepted to local", "timestamp": "2026-04-19T14:12:14.916551+00:00", "observation_id": 3}
+{"request_key": "env", "decision": "accepted", "assigned_tier": "local", "confidence": 0.57, "reason": "Accepted to local", "timestamp": "2026-04-19T14:12:14.980056+00:00", "observation_id": 1}
+{"request_key": "sync", "decision": "accepted", "assigned_tier": "local", "confidence": 0.58, "reason": "Accepted to local", "timestamp": "2026-04-19T14:12:15.097147+00:00", "observation_id": 1}
+{"request_key": "auth", "decision": "accepted", "assigned_tier": "local", "confidence": 0.55, "reason": "Accepted to local", "timestamp": "2026-04-19T14:12:20.208145+00:00", "observation_id": 1}
+{"request_key": "auth", "decision": "accepted", "assigned_tier": "local", "confidence": 0.55, "reason": "Accepted to local", "timestamp": "2026-04-19T14:12:20.215980+00:00", "observation_id": 2}
+{"request_key": "cache", "decision": "accepted", "assigned_tier": "local", "confidence": 0.58, "reason": "Accepted to local", "timestamp": "2026-04-19T14:12:20.271223+00:00", "observation_id": 1}
+{"request_key": "security", "decision": "accepted", "assigned_tier": "local", "confidence": 0.54, "reason": "Accepted to local", "timestamp": "2026-04-19T14:12:20.325248+00:00", "observation_id": 1}
+{"request_key": "security", "decision": "rejected", "assigned_tier": "global", "confidence": 0.6, "reason": "Write failed: no such table: nodes", "timestamp": "2026-04-19T14:12:20.331099+00:00", "observation_id": null}
+{"request_key": "auth_service", "decision": "accepted", "assigned_tier": "local", "confidence": 0.55, "reason": "Accepted to local", "timestamp": "2026-04-19T14:12:20.403717+00:00", "observation_id": 1}
+{"request_key": "db", "decision": "accepted", "assigned_tier": "local", "confidence": 0.54, "reason": "Accepted to local", "timestamp": "2026-04-19T14:12:20.470384+00:00", "observation_id": 1}
+{"request_key": "db", "decision": "rejected", "assigned_tier": "global", "confidence": 0.6, "reason": "Write failed: no such table: nodes", "timestamp": "2026-04-19T14:12:20.472528+00:00", "observation_id": null}
+{"request_key": "auth", "decision": "accepted", "assigned_tier": "local", "confidence": 0.55, "reason": "Accepted to local", "timestamp": "2026-04-19T14:12:20.581187+00:00", "observation_id": 1}
+{"request_key": "auth", "decision": "accepted", "assigned_tier": "local", "confidence": 0.55, "reason": "Accepted to local", "timestamp": "2026-04-19T14:12:20.588180+00:00", "observation_id": 2}

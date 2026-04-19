@@ -6,9 +6,9 @@ build-backend = "hatchling.build"
 name = "memory-share-kit"
 version = "1.2.4"
 description = "Deterministic memory and governance for developers and AI agents."
-readme = "AGENTS.md"
+readme = "README.md"
 requires-python = ">=3.14,<3.15"
-license = {text = "MIT"}
+license = {file = "LICENSE"}
 authors = [
     {name = "Chief Architect", email = "architect@memory-share.kit"}
 ]
@@ -66,6 +66,10 @@ include = [
     "scripts/**/*.py",
     "kit_agent/data/*",
     "AGENTS.md",
+    "README.md",
+    "MIGRATION.md",
+    "LICENSE",
+    "VERSION",
     "bootstrap_agent.yaml"
 ]
 
@@ -135,5 +139,5 @@ executionEnvironments = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-norecursedirs = ["archive_v123", "__pycache__", ".git", "adversarial", "benchmark"]
+norecursedirs = ["archive_v123", "__pycache__", ".git", "adversarial", "benchmark", "research"]
 python_files = ["test_*.py"]

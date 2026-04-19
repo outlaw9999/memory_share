@@ -1,0 +1,34 @@
+version: v1.2.4-TITANIUM
+strategy: "Tiered Release-Gate"
+
+gates:
+  P0_CONTRACT:
+    description: "Must pass to allow commit. CLI, Errors, and Output."
+    priority: 0
+    blocking: true
+    tests:
+      - "tests/test_kit_system_contract.py"
+      - "tests/test_cognitive_kernel.py"
+      - "tests/test_architecture_lock.py"
+      - "tests/test_topology_lock.py"
+
+  P1_FLOW:
+    description: "Must pass for release. Core workflows and recovery."
+    priority: 1
+    blocking: true
+    tests:
+      - "tests/test_recovery.py"
+      - "tests/test_v124_resilience.py"
+      - "tests/test_flow_v124_core.py"
+
+  P2_STRESS:
+    description: "Robustness check. Non-blocking."
+    priority: 2
+    blocking: false
+    tests:
+      - "tests/test_v124_stress.py"
+      - "tests/test_chaos_stress.py"
+
+reporting:
+  stdout: "minimal"
+  fail_on_first_blocking: true

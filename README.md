@@ -1,21 +1,32 @@
-# memory-share-kit (v1.2.3.3.1-ULTRA-GOLD)
+# Memory Share Kit (v1.2.4-TITANIUM)
 
-Deterministic memory and governance for developers and AI agents.
+Deterministic long-term memory runtime for AI Agents and Developers.
 
-## 🚀 AI Integration (MANDATORY)
-This repository is optimized for AI agent collaboration. All operational knowledge is embedded in the `.kit` cognitive memory system.
+## Philosophy
+Kit is not a database; it is a **Cognitive Infrastructure**. It provides a durable, auditable, and ritualized memory kernel for autonomous systems.
 
-**For AI Agents:**
-1. Read [AGENTS.md](AGENTS.md) first.
-2. Run the Startup Sequence: `kit recall ; kit-vantage verify kit/cli/main.py`.
-3. Use `kit --help` for all command syntax.
-
-## 🛠️ Human Quickstart
+## Quick Install
 ```bash
-pip install .
-kit init
-kit recall
+pip install memory-share-kit
 ```
 
-## 🛡️ License
-MIT
+## The Ritual (Essential for Agents)
+1. **START**: `kit recall` (Load context)
+2. **WORK**: `kit search <topic>` (Discover facts)
+3. **END**: `kit learn` (Ingest decisions)
+
+> **Quality Gate**: Before learning, ask: *"Is this worth remembering for 5 years?"* Keep signal density high.
+
+## Safety Invariants
+- **Never** modify `.kit/*.db` files manually.
+- **Always** route operations through the `kit` CLI.
+- **Seal** your workspace for production via `kit seal`.
+
+## Architecture
+- **L1 LOCAL**: Per-project episodic memory.
+- **L2 GLOBAL**: Cross-project semantic knowledge.
+- **L3 LAW**: Immutable system-wide invariants.
+- **L4 TRACE**: Meta-awareness and decision logs.
+
+---
+License: MIT | Core: v1.2.4-TITANIUM
