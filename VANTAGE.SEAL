@@ -1,0 +1,48 @@
+{
+  "map": [
+    {
+      "f": "kit\\api.py",
+      "h": "db063126c0e13298ee3e172e61105c841921ae20b4a91fa045a196bd7f970680",
+      "n": "159e985e3c9c22634c80668d78ad5d315611d2e70cb9d8b6af75e8ebf99fbca3",
+      "s": "init_kernel"
+    },
+    {
+      "f": "kit\\api.py",
+      "h": "4fd79e5e6046c079fc0e58fe622fb0ca9f7bfece80431719c6190223aba8489d",
+      "n": "11d8c9660ada71168e0eebbdac6d25d379c6b5eefdc9868c8d3315b748ca8b73",
+      "s": "def"
+    },
+    {
+      "f": "kit\\api.py",
+      "h": "aa72d40e7478217963cca2e044c949c72009cb95236b88247633fd43c15f5c62",
+      "n": "8302c4ffa0b2fd97a22d7dcddeec4c203baf9907dc19963c8d0a25e60cb17758",
+      "s": "def"
+    },
+    {
+      "f": "kit\\api.py",
+      "h": "c486e8db91bed4636ece6b495354c501d5c7e65e0b5934f659a5e6f4dc532173",
+      "n": "47908b21babfc4c9b7fc65adc99c56c11befdf2d1312ca53cd649a09ea5a8e9b",
+      "s": "def"
+    },
+    {
+      "f": "kit\\api.py",
+      "h": "4957ab4afedef502b703de5427dcf3c748e0e9f3fea0ed12a63ac3afbeb1d2ba",
+      "n": "b19594720aab68801908203e65a62c1c5f2ca46e5d9bf39175f15f1e3893b6bd",
+      "s": "link"
+    },
+    {
+      "f": "kit\\api.py",
+      "h": "ada2d084c676b31464e616a61acae64c42862e608097e39c6d2c1db79a4b2cd1",
+      "n": "afa5c06e09b10d4426330388e73473032da0bf4b14a13113b74d39bf3854b008",
+      "s": "preflight_check"
+    },
+    {
+      "f": "kit\\api.py",
+      "h": "15243fb11156431f6f8be79471cdf50601ed1d5ecd97bbaa0c6cda67813548ac",
+      "n": "40a90e5bede135cf5e642060b73b94c8706a7ff8f4dd41add382b31cc2dd06db",
+      "s": "def"
+    }
+  ],
+  "ts": 1776595472,
+  "v": "1.2.4-ULTRA-LEAN"
+}
