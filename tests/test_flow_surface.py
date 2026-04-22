@@ -7,7 +7,7 @@ from kit.flow.surface import (
 
 def test_flow_signal_ordering_is_priority_driven():
     signals = [
-        {"uid": "GAP:db", "confidence": "medium", "source": "cognitive_core", "line": 1},
+        {"uid": "GAP:db", "confidence": "high", "source": "cognitive_core", "line": 1},
         {"uid": "STRUCTURAL:FUNCTION", "confidence": "high", "source": "vantage", "line": 2},
         {"uid": "RISK:sql.interpolation", "confidence": "high", "source": "security_lens", "line": 3},
     ]

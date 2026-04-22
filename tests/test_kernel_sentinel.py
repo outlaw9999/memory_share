@@ -60,8 +60,8 @@ def test_runtime_venv_lock():
         # Run module as main
         result = subprocess.run(["python", "-m", "kit.cli.main", "compile"], capture_output=True, text=True)
         # If it successfully runs, that means 'python' is the venv python, OR the lock failed.
-        # But if drift happens, it should print [RUNTIME LOCK] and exit 1
+        # But if drift happens, it should print KIT-ENV-LOCK and exit 1
         if result.returncode != 0:
-            assert "[RUNTIME LOCK]" in result.stderr
+            assert "KIT-ENV-LOCK" in result.stderr
     except FileNotFoundError:
         pass # If 'python' doesn't exist, we can't test global python drift

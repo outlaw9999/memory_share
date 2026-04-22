@@ -1,0 +1,19 @@
+{
+  "version": "1.2.4",
+  "kernel": "Deterministic-Arbitration",
+  "capabilities": {
+    "recall": {
+      "help": "Retrieve coherent memory from LOCAL/GLOBAL/FROZEN tiers.",
+      "usage": "kit recall <query>"
+    },
+    "learn": {
+      "help": "Inject a fact or decision into project memory.",
+      "usage": "kit learn --tag <TAG> \"<CONTENT>\""
+    },
+    "init-env": {
+      "help": "Standardize local workspace for Kit cognition.",
+      "usage": "kit init-env"
+    }
+  },
+  "lock_state": "CLOSED"
+}

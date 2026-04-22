@@ -67,39 +67,24 @@ CREATE TABLE IF NOT EXISTS observations (
     scope TEXT NOT NULL DEFAULT '',
     branch TEXT DEFAULT 'main',
     symbol TEXT,
+    symbol_locked INTEGER DEFAULT 0,
+    symbol_confidence REAL DEFAULT 0.0,
+    symbol_source TEXT,
     structural_hash TEXT,
     metadata TEXT DEFAULT '{}',
     commit_id TEXT,
     is_active BOOLEAN DEFAULT 1,
     is_baked BOOLEAN DEFAULT 0,
+    is_canonical INTEGER DEFAULT 0,
+    canonical_id INTEGER,
     supersedes_id INTEGER DEFAULT NULL,
     FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE,
     FOREIGN KEY (commit_id) REFERENCES commits(id),
-    FOREIGN KEY (supersedes_id) REFERENCES observations(id) ON DELETE SET NULL
+    FOREIGN KEY (supersedes_id) REFERENCES observations(id) ON DELETE SET NULL,
+    FOREIGN KEY (canonical_id) REFERENCES observations(id) ON DELETE SET NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_obs_created ON observations(created_at);
 
-CREATE VIRTUAL TABLE IF NOT EXISTS observations_fts USING fts5(
-    content,
-    content='observations',
-    content_rowid='id',
-    tokenize='porter'
-);
-
--- FTS Triggers
-CREATE TRIGGER IF NOT EXISTS observations_ai AFTER INSERT ON observations BEGIN
-    INSERT INTO observations_fts(rowid, content) VALUES (new.id, new.content);
-END;
-
-CREATE TRIGGER IF NOT EXISTS observations_au AFTER UPDATE ON observations BEGIN
-    INSERT INTO observations_fts(observations_fts, rowid, content) VALUES('delete', old.id, old.content);
-    INSERT INTO observations_fts(rowid, content) VALUES (new.id, new.content);
-END;
-
-CREATE TRIGGER IF NOT EXISTS observations_ad AFTER DELETE ON observations BEGIN
-    INSERT INTO observations_fts(observations_fts, rowid, content) VALUES('delete', old.id, old.content);
-END;
 
 CREATE TABLE IF NOT EXISTS metrics (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -179,6 +164,88 @@ WHERE is_active = 1
   AND superseded_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_obs_vantage_read ON observations(is_active, is_baked, superseded_at);
+
+CREATE TABLE IF NOT EXISTS snapshots (
+    id TEXT PRIMARY KEY,
+    parent_id TEXT,
+    parent_hash TEXT,
+    snapshot_hash TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    reason TEXT,
+    path TEXT,
+    metadata TEXT DEFAULT '{}',
+    FOREIGN KEY (parent_id) REFERENCES snapshots(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_snapshots_timestamp ON snapshots(timestamp);
+
+CREATE TABLE IF NOT EXISTS symbol_edges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_symbol TEXT NOT NULL,
+    relation_type TEXT NOT NULL,
+    target_symbol TEXT NOT NULL,
+    confidence REAL DEFAULT 1.0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    metadata TEXT DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_symbol_edges_src ON symbol_edges(source_symbol);
+CREATE INDEX IF NOT EXISTS idx_symbol_edges_target ON symbol_edges(target_symbol);
+
+CREATE TABLE IF NOT EXISTS symbol_ambiguities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    observation_id INTEGER NOT NULL,
+    chosen_symbol TEXT NOT NULL,
+    candidates TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (observation_id) REFERENCES observations(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_symbol_ambiguities_obs ON symbol_ambiguities(observation_id);
+
+-- --- Stage 5.5: Symbol Reconciliation Engine (SRE) ---
+
+CREATE TABLE IF NOT EXISTS symbol_nodes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT UNIQUE NOT NULL,
+    locked INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS symbol_evolution_edges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_symbol_id INTEGER NOT NULL,
+    to_symbol_id INTEGER NOT NULL,
+    relation_type TEXT NOT NULL, -- supersedes, refines, conflicts
+    confidence REAL DEFAULT 1.0,
+    rationale_json TEXT DEFAULT '{}',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (from_symbol_id) REFERENCES symbol_nodes(id) ON DELETE CASCADE,
+    FOREIGN KEY (to_symbol_id) REFERENCES symbol_nodes(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS symbol_drift_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    metrics_json TEXT DEFAULT '{}',
+    final_score REAL DEFAULT 0.0,
+    status TEXT DEFAULT 'STABLE', -- STABLE, OBSOLETE_CANDIDATE, TRANSITION_REQUIRED
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS symbol_reconciliation_proposals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    proposed_symbol TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    rationale TEXT DEFAULT '{}',
+    status TEXT DEFAULT 'pending', -- pending, approved, rejected
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_symbol_drift_symbol ON symbol_drift_events(symbol);
+CREATE INDEX IF NOT EXISTS idx_symbol_nodes_symbol ON symbol_nodes(symbol);
 """
 
 
@@ -251,6 +318,96 @@ def init_db(conn: sqlite3.Connection):
     except sqlite3.OperationalError:
         pass
 
+    # Symbol Governance migration (v1.2.4): Add locked, confidence, source
+    try:
+        conn.execute("ALTER TABLE observations ADD COLUMN symbol_locked INTEGER DEFAULT 0")
+        logger.info("Migrated: Added symbol_locked to observations")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE observations ADD COLUMN symbol_confidence REAL DEFAULT 0.0")
+        logger.info("Migrated: Added symbol_confidence to observations")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE observations ADD COLUMN symbol_source TEXT")
+        logger.info("Migrated: Added symbol_source to observations")
+    except sqlite3.OperationalError:
+        pass
+
+    # v1.2.4-TITANIUM: Canonical Model Support
+    try:
+        conn.execute("ALTER TABLE observations ADD COLUMN is_canonical INTEGER DEFAULT 0")
+        logger.info("Migrated: Added is_canonical to observations")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE observations ADD COLUMN canonical_id INTEGER REFERENCES observations(id)")
+        logger.info("Migrated: Added canonical_id to observations")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE observations ADD COLUMN is_baked BOOLEAN DEFAULT 0")
+        logger.info("Migrated: Added is_baked to observations")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE observations ADD COLUMN supersedes_id INTEGER REFERENCES observations(id)")
+        logger.info("Migrated: Added supersedes_id to observations")
+    except sqlite3.OperationalError:
+        pass
+
+    # v1.2.4-TITANIUM: Re-initialize indices and triggers after columns are guaranteed
+    conn.executescript("""
+        CREATE INDEX IF NOT EXISTS idx_obs_canonical ON observations(canonical_id) WHERE canonical_id IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS idx_obs_is_canonical ON observations(is_canonical) WHERE is_canonical = 1;
+        CREATE INDEX IF NOT EXISTS idx_obs_created ON observations(created_at);
+        CREATE INDEX IF NOT EXISTS idx_obs_is_active ON observations(is_active) WHERE is_active = 1;
+        
+        CREATE VIRTUAL TABLE IF NOT EXISTS observations_fts USING fts5(
+            content,
+            content='observations',
+            content_rowid='id',
+            tokenize='porter'
+        );
+
+        -- FTS Triggers (v1.2.4-TITANIUM: Guaranteed after FTS table creation)
+        CREATE TRIGGER IF NOT EXISTS observations_ai AFTER INSERT ON observations BEGIN
+            INSERT INTO observations_fts(rowid, content) VALUES (new.id, new.content);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS observations_au AFTER UPDATE ON observations BEGIN
+            INSERT INTO observations_fts(observations_fts, rowid, content) VALUES('delete', old.id, old.content);
+            INSERT INTO observations_fts(rowid, content) VALUES (new.id, new.content);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS observations_ad AFTER DELETE ON observations BEGIN
+            INSERT INTO observations_fts(observations_fts, rowid, content) VALUES('delete', old.id, old.content);
+        END;
+    """)
+
+    # Symbol Ambiguities table migration
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS symbol_ambiguities (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                observation_id INTEGER NOT NULL,
+                chosen_symbol TEXT NOT NULL,
+                candidates TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (observation_id) REFERENCES observations(id) ON DELETE CASCADE
+            )
+        """)
+        logger.info("Migrated: Created symbol_ambiguities table")
+    except sqlite3.OperationalError:
+        pass
+
     # Tag migration (v1.2.3): Expand allowed tags to include 'note' and 'legacy'
     try:
         # Check if the constraint is old
@@ -283,13 +440,22 @@ def init_db(conn: sqlite3.Connection):
                     scope TEXT NOT NULL DEFAULT '',
                     branch TEXT DEFAULT 'main',
                     symbol TEXT,
+                    symbol_locked INTEGER DEFAULT 0,
+                    symbol_confidence REAL DEFAULT 0.0,
+                    symbol_source TEXT,
                     structural_hash TEXT,
                     metadata TEXT DEFAULT '{}',
-                    commit_id TEXT, agent_id TEXT, 
+                    commit_id TEXT,
+                    agent_id TEXT, 
                     is_active BOOLEAN DEFAULT 1,
+                    is_baked BOOLEAN DEFAULT 0,
+                    is_canonical INTEGER DEFAULT 0,
+                    canonical_id INTEGER,
                     supersedes_id INTEGER,
                     FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE,
-                    FOREIGN KEY (commit_id) REFERENCES commits(id)
+                    FOREIGN KEY (commit_id) REFERENCES commits(id),
+                    FOREIGN KEY (supersedes_id) REFERENCES observations(id) ON DELETE SET NULL,
+                    FOREIGN KEY (canonical_id) REFERENCES observations(id) ON DELETE SET NULL
                 )
                 """
                 conn.execute(new_table_sql)
@@ -316,11 +482,10 @@ def init_db(conn: sqlite3.Connection):
 
     try:
         conn.execute("ALTER TABLE observations ADD COLUMN materialized_score REAL NOT NULL DEFAULT 1.0")
-        # Backfill scores for existing records
-        conn.execute("""
+        from kit.core.memory_policy import MemoryPolicy
+        conn.execute(f"""
             UPDATE observations
-            SET materialized_score = importance * ((access_count + 1) / (access_count + 5.0)) * 
-            CASE layer WHEN 'working' THEN 3.0 WHEN 'episodic' THEN 2.0 WHEN 'semantic' THEN 1.5 ELSE 1.0 END
+            SET materialized_score = {MemoryPolicy.SQL_RANKING_FORMULA}
         """)
         logger.info("Migrated: Added materialized_score to observations and backfilled values")
     except sqlite3.OperationalError:
@@ -351,6 +516,7 @@ def init_db(conn: sqlite3.Connection):
             "CREATE INDEX IF NOT EXISTS idx_obs_active_score ON observations(is_active, materialized_score DESC)"
         )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_hash ON observations(structural_hash)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_recall_optimized ON observations(is_active, scope, materialized_score DESC)")
 
         # Ensure metrics table exists for existing DBs
         conn.execute("""
@@ -433,16 +599,117 @@ def init_db(conn: sqlite3.Connection):
     except sqlite3.OperationalError:
         pass
 
+    # v1.2.4-STAGE5.3: Canonical Memory Model fields
+    try:
+        conn.execute("ALTER TABLE observations ADD COLUMN is_canonical INTEGER DEFAULT 0")
+        logger.info("Migrated: Added is_canonical to observations")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE observations ADD COLUMN canonical_id INTEGER REFERENCES observations(id) ON DELETE SET NULL")
+        logger.info("Migrated: Added canonical_id to observations")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_canonical ON observations(canonical_id) WHERE canonical_id IS NOT NULL")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_obs_is_canonical ON observations(is_canonical) WHERE is_canonical = 1")
+    except sqlite3.OperationalError:
+        pass
+
+
+    # v1.2.4-STAGE5.5: Symbol Reconciliation Engine (SRE) tables
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS symbol_nodes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol TEXT UNIQUE NOT NULL,
+                locked INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS symbol_evolution_edges (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                from_symbol_id INTEGER NOT NULL,
+                to_symbol_id INTEGER NOT NULL,
+                relation_type TEXT NOT NULL,
+                confidence REAL DEFAULT 1.0,
+                rationale_json TEXT DEFAULT '{}',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (from_symbol_id) REFERENCES symbol_nodes(id) ON DELETE CASCADE,
+                FOREIGN KEY (to_symbol_id) REFERENCES symbol_nodes(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS symbol_drift_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol TEXT NOT NULL,
+                metrics_json TEXT DEFAULT '{}',
+                final_score REAL DEFAULT 0.0,
+                status TEXT DEFAULT 'STABLE',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS symbol_reconciliation_proposals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol TEXT NOT NULL,
+                proposed_symbol TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                rationale TEXT DEFAULT '{}',
+                status TEXT DEFAULT 'pending',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_symbol_drift_symbol ON symbol_drift_events(symbol)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_symbol_nodes_symbol ON symbol_nodes(symbol)")
+        logger.info("Migrated: Created Stage 5.5 SRE tables")
+    except sqlite3.OperationalError as e:
+        logger.warning(f"Migration: Failed to create SRE tables: {e}")
+    # v1.2.4-TITANIUM: Snapshot Integrity Chain
+    try:
+        conn.execute("ALTER TABLE snapshots ADD COLUMN parent_hash TEXT")
+        conn.execute("ALTER TABLE snapshots ADD COLUMN snapshot_hash TEXT")
+        logger.info("Migrated: Added parent_hash and snapshot_hash to snapshots (Integrity Chain)")
+    except sqlite3.OperationalError:
+        pass
+
+    # Backfill symbol_nodes from existing locked symbols
+    try:
+        conn.execute("""
+            INSERT OR IGNORE INTO symbol_nodes (symbol, locked)
+            SELECT DISTINCT symbol, 1 FROM observations WHERE symbol_locked = 1 AND symbol IS NOT NULL
+        """)
+        conn.execute("""
+            INSERT OR IGNORE INTO symbol_nodes (symbol, locked)
+            SELECT DISTINCT symbol, 0 FROM observations WHERE (symbol_locked = 0 OR symbol_locked IS NULL) AND symbol IS NOT NULL
+        """)
+    except sqlite3.OperationalError:
+        pass
+
 
 def enable_wal(conn: sqlite3.Connection):
-    """Activate high-performance mode."""
+    """Activate high-performance mode (v1.2.4-TITANIUM Tuning)."""
+    # 1. Concurrency Mode
     mode_row = conn.execute("PRAGMA journal_mode=WAL").fetchone()
     if mode_row:
-        # fetchone returns a sqlite3.Row if row_factory is set, or tuple
         mode = mode_row[0] if isinstance(mode_row, tuple) else mode_row["journal_mode"]
         if mode.lower() != "wal":
             logger.warning(f"Failed to enable WAL mode. Current mode: {mode}")
 
+    # 2. Performance Pragmas
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("PRAGMA busy_timeout=5000")
+    
+    # 3. Memory & I/O Optimization (TUNE MEMORY)
+    # Use Memory-Mapped I/O for faster reads (up to 256MB)
+    conn.execute("PRAGMA mmap_size=268435456") 
+    # Use RAM for temporary tables/indexes
+    conn.execute("PRAGMA temp_store=MEMORY")
+    # Larger cache (approx 64MB)
+    conn.execute("PRAGMA cache_size=-64000")
+    # Read-uncommitted for maximum throughput where appropriate
+    conn.execute("PRAGMA read_uncommitted=1")

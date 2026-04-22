@@ -15,6 +15,7 @@ import os
 import sqlite3
 from pathlib import Path
 from typing import Optional, Literal
+from urllib.parse import unquote
 
 logger = logging.getLogger("kit.memory_topology")
 
@@ -38,8 +39,8 @@ class MemoryTopology:
     
     @property
     def GLOBAL_KIT_HOME(self) -> Path:
-        """Resolve the system-level shared directory (home) dynamically."""
-        return Path(os.environ.get("KIT_GLOBAL_HOME", Path.home() / ".kit"))
+        """Resolve the system-level shared directory (home) dynamically (Cached)."""
+        return self._global_home
     
     # Database filenames (consistent across all scopes)
     DB_LOCAL = "local_brain.db"
@@ -60,8 +61,11 @@ class MemoryTopology:
         self.project_root = project_root
         self.local_kit_home = (project_root / ".kit") if project_root else None
         
+        # v1.2.4-TITANIUM: Cache home resolution to avoid repeated OS overhead
+        self._global_home = Path(os.environ.get("KIT_GLOBAL_HOME", Path.home() / ".kit"))
+        
         logger.info(f"MemoryTopology initialized")
-        logger.info(f"  GLOBAL: {self.GLOBAL_KIT_HOME}")
+        logger.info(f"  GLOBAL: {self._global_home}")
         if self.local_kit_home:
             logger.info(f"  LOCAL: {self.local_kit_home}")
     
@@ -111,8 +115,8 @@ class MemoryTopology:
         elif db_type == "audit":
             filename = self.DB_ROUTING_AUDIT
         else:
-            # Allow custom filenames
-            filename = db_type
+            # Allow custom filenames (apply canonicalization to fix %5C encoding bugs)
+            filename = unquote(db_type).replace("/", os.sep).replace("\\", os.sep)
         
         path = base_dir / filename
         

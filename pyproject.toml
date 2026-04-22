@@ -61,13 +61,13 @@ typecheck = "pyright"
 packages = ["kit", "kit_agent", "runtime", "scripts"]
 include = [
     "kit/**/*.py",
+    "kit/**/*.json",
     "kit_agent/**/*.py",
     "runtime/**/*.py",
     "scripts/**/*.py",
     "kit_agent/data/*",
     "AGENTS.md",
     "README.md",
-    "MIGRATION.md",
     "LICENSE",
     "VERSION",
     "bootstrap_agent.yaml"
@@ -77,6 +77,7 @@ include = [
 "AGENTS.md" = "share/memory_share_kit/AGENTS.md"
 "scripts/kitf.ps1" = "share/memory_share_kit/scripts/kitf.ps1"
 "bootstrap_agent.yaml" = "share/memory_share_kit/bootstrap_agent.yaml"
+"kit/core/schema_default.json" = "share/memory_share_kit/schema_default.json"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -139,5 +140,5 @@ executionEnvironments = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-norecursedirs = ["archive_v123", "__pycache__", ".git", "adversarial", "benchmark", "research"]
+norecursedirs = ["archive_v123", "__pycache__", ".git", "adversarial", "benchmark", "research", "perf"]
 python_files = ["test_*.py"]

@@ -25,6 +25,10 @@ def resolve_paths(force_local: bool = False, mode: str = "auto") -> tuple[Path, 
     
     if force_local or mode == "isolated":
         root_path = cwd
+        # v1.2.4 Debug
+        if os.getenv("KIT_LOG_LEVEL") == "DEBUG":
+            import logging
+            logging.getLogger("kit.api").debug(f"resolve_paths(force_local=True) -> root_path={root_path} (cwd={cwd})")
     else:
         # Determine repo boundary (.git) as the absolute ceiling
         repo_root = None
@@ -191,7 +195,7 @@ def recall(
 ) -> list[Any] | tuple[list[Any], dict[str, float] | None]:
     """Ranked recall context awareness with LRU Cache (v1.2.3-STABLE)."""
     result = _cached_recall(
-        tuple(entities),
+        tuple(entities) if entities is not None else (),
         limit,
         at,
         agent_id,

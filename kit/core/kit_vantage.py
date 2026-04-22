@@ -105,6 +105,64 @@ def invoke_vantage_on_text(code: str, suffix: str = ".py", timeout: int = 5, str
         return []
 
 
+def invoke_vantage_batch(items: list[dict], timeout: int = 10) -> list[list[Signal]]:
+    """
+    Batch Verification Gate (v1.2.4-TITANIUM).
+    Analyzes multiple code snippets in a single Rust IPC call to eliminate per-call lag.
+    
+    Args:
+        items: List of dicts with {"content": str, "id": any}
+        
+    Returns:
+        List of signal lists, one for each input item.
+    """
+    if not items:
+        return []
+    if not VANTAGE_BIN or not VANTAGE_BIN.exists():
+        return [[] for _ in items]
+
+    # Step 1: Concatenate with clear boundaries to preserve structural context
+    # v1.2.4 Standard: Use 3 newlines + comment block as boundary
+    full_code = ""
+    offsets = []
+    
+    for i, item in enumerate(items):
+        content = item.get("content", "").replace("\r\n", "\n")
+        start_line = full_code.count("\n") + 1
+        full_code += f"\n# --- BATCH_ITEM_{i} ---\n"
+        full_code += content
+        full_code += "\n"
+        end_line = full_code.count("\n")
+        offsets.append({"start": start_line, "end": end_line, "index": i})
+
+    # Step 2: Invoke Vantage once
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as tmp:
+            tmp.write(full_code)
+            tmp_path = Path(tmp.name)
+
+        try:
+            all_signals = invoke_vantage(tmp_path, timeout=timeout)
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+
+        # Step 3: Map signals back to items
+        results = [[] for _ in items]
+        for sig in all_signals:
+            for off in offsets:
+                if off["start"] <= sig.line <= off["end"]:
+                    # Shift line number back to relative
+                    sig.line = sig.line - off["start"] - 1
+                    results[off["index"]].append(sig)
+                    break
+        return results
+
+    except Exception as e:
+        logger.error(f"Batch Vantage Gate failed: {e}")
+        return [[] for _ in items]
+
+
 if __name__ == "__main__":
     # Internal diagnostic mode
     import sys

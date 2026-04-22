@@ -36,10 +36,16 @@ def test_local_global_isolation():
         # Check if repo2 db exists (it should be created on init/connect, but should be empty)
         import sqlite3
         conn = sqlite3.connect(str(local2_db))
-        count = conn.execute("SELECT COUNT(*) FROM memory WHERE key='iso:local:a'").fetchone()[0]
+        # v1.2.4-TITANIUM: Check 'nodes' table for the UID
+        count = conn.execute("SELECT COUNT(*) FROM nodes WHERE uid='iso:local:a'").fetchone()[0]
         conn.close()
         
         assert count == 0, "Isolation failure! Repo 2 local brain contains Repo 1 data."
+        
+        # v1.2.4-TITANIUM: Resource Release
+        r1.close()
+        r2.close()
+        
         print("SUCCESS: Multi-repo isolation verified.")
 
 if __name__ == "__main__":

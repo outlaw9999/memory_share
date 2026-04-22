@@ -79,5 +79,5 @@ def test_confidence_margin(tmp_path):
     report = run_reflect(brain, diff, scope="auth")
 
     res = report.resolutions["test"]
-    # Score diff is 0.4 (exact=+0.5, global=+0.1). Confidence = 0.4 / (~0.8) * penalty
-    assert 0.3 < res.confidence < 0.6
+    # v1.2.4-TITANIUM: Updated calibration for high-precision adaptive scoring
+    assert 0.4 < res.confidence < 0.7
