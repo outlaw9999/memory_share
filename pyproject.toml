@@ -75,7 +75,6 @@ include = [
 
 [tool.hatch.build.targets.wheel.shared-data]
 "AGENTS.md" = "share/memory_share_kit/AGENTS.md"
-"scripts/kitf.ps1" = "share/memory_share_kit/scripts/kitf.ps1"
 "bootstrap_agent.yaml" = "share/memory_share_kit/bootstrap_agent.yaml"
 "kit/core/schema_default.json" = "share/memory_share_kit/schema_default.json"
 
