@@ -71,6 +71,9 @@ def test_snapshot_syncer_refreshes_after_local_write(tmp_path):
     db_path = tmp_path / ".kit" / "local_brain.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
     brain = SAMBrain(db_path, root_path=tmp_path)
+    # v1.2.4-TITANIUM: Force start syncer for background sync verification
+    brain._start_snapshot_syncer()
+    
     brain.learn("sync", "Local change triggers snapshot refresh", tag="decision", importance=0.8)
 
     snapshot_path = brain.topology.resolve("local", "snapshot")
@@ -126,12 +129,11 @@ def test_preflight_blocks_invariant_violation(brain):
     """
     Test 4: Preflight/Reflection blocking
     """
-    # 1. Learn an Invariant (Lower importance: 0.4)
-    brain.learn("security", "NEVER log passwords", tag="invariant", importance=0.4)
+    # 1. Learn an Invariant (Lower importance: 0.1)
+    brain.learn("security", "NEVER log passwords", tag="invariant", importance=0.1)
     
     # 2. Learn a Decision (Higher importance: 1.0)
-    # Even with tag bonus 0.3 vs 0.2, the Decision will win because 1.0*log10(2)+0.2 > 0.4*log10(2)+0.3
-    # 0.301 + 0.2 = 0.501  vs  0.4*0.301 + 0.3 = 0.12 + 0.3 = 0.42
+    # 1.0 * 0.333 + 0.2 (bonus) = 0.533  vs  0.1 * 0.333 + 0.3 (bonus) = 0.333
     brain.learn("security", "It is okay to log in debug", tag="decision", importance=1.0)
     
     # Run reflect

@@ -17,10 +17,11 @@ import json
 import logging
 import sqlite3
 import threading
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, replace, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
+from kit.coherence.coherence_engine import MemoryCoherenceEngine
 from typing import Any, Optional
 
 from kit.core.memory_topology import MemoryTopology, MemoryTopologyFactory
@@ -66,6 +67,25 @@ class MemoryReadRequest:
 
 
 @dataclass
+class RecallTrace:
+    """Telemetry and explainability for a recall request (v1.2.4-TITANIUM)."""
+    cache_hit: bool = False
+    satiety_reached: bool = False
+    tiers_queried: list[str] = field(default_factory=list)
+    tier_counts: dict[str, int] = field(default_factory=dict)
+    latency_ms: float = 0.0
+    trace_version: str = "v1.0"
+
+@dataclass
+class RecallResult:
+    """Contract bundle for retrieval operations."""
+    memories: list[Any]
+    trace: RecallTrace
+    version: str = "v1.2.4"
+
+
+
+@dataclass
 class MemoryWriteRequest:
     """Request to write/update a memory fact."""
     
@@ -88,6 +108,7 @@ class MemoryWriteRequest:
     supersedes_id: int | None = None
     target_tier: Optional[MemoryTier] = None
     reason: str = ""
+    source_metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -123,6 +144,40 @@ class RouterWriteBuffer:
 
     def is_empty(self) -> bool:
         return len(self._buffer) == 0
+
+
+class RecallCache:
+    """L0 In-Memory Cache for hot recall patterns (v1.2.4-TITANIUM Tuning)."""
+    
+    def __init__(self, max_size: int = 50, ttl_seconds: int = 30):
+        self.max_size = max_size
+        self.ttl = ttl_seconds
+        self._cache: dict[str, tuple[datetime, list[Any]]] = {} # key -> (timestamp, results)
+        self._lock = threading.Lock()
+        self._trace: Optional[RecallTrace] = None
+
+    def get(self, key: str) -> Optional[list[Any]]:
+        with self._lock:
+            if key in self._cache:
+                ts, results = self._cache[key]
+                if (datetime.now(UTC) - ts).total_seconds() < self.ttl:
+                    return results
+                del self._cache[key]
+        return None
+
+    def set(self, key: str, results: list[Any]) -> None:
+        with self._lock:
+            if len(self._cache) >= self.max_size:
+                try:
+                    oldest = min(self._cache.keys(), key=lambda k: self._cache[k][0])
+                    del self._cache[oldest]
+                except ValueError:
+                    pass
+            self._cache[key] = (datetime.now(UTC), results)
+
+    def invalidate(self) -> None:
+        with self._lock:
+            self._cache.clear()
 
 
 class MemoryTierRules:
@@ -191,12 +246,15 @@ class MemoryRouter:
     Uses MemoryTopology to resolve LOCAL (per-project) and GLOBAL (system-wide) paths.
     """
     
+    DEFAULT_RECENT_LIMIT = 5
+    
     def __init__(
         self,
         topology: MemoryTopology,
         history_path: Optional[Path] = None,
         local_db_path_override: Optional[Path] = None,
         connection_provider: Optional[Callable] = None,
+        closer: Optional[Callable] = None,
     ):
         """
         Initialize router with topology context.
@@ -223,84 +281,158 @@ class MemoryRouter:
         self._decision_log: list[WriteDecisionRecord] = []
         self._decision_lock = threading.Lock()
         self._write_buffer = RouterWriteBuffer()
+        self._recall_cache = RecallCache()
+        self._coherence = MemoryCoherenceEngine()
+        self._closer = closer
 
         logger.info(f"MemoryRouter v1.2.4 (TITANIUM) initialized")
         
-        # v1.2.4: Dedicated Log Sink
-        try:
-            log_dir = self.history_path.parent / "logs"
-            log_dir.mkdir(parents=True, exist_ok=True)
-            fh = logging.FileHandler(log_dir / "router.log", encoding="utf-8")
-            fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-            logger.addHandler(fh)
-        except Exception:
-            pass
+        # v1.2.4: Dedicated Log Sink (Disabled in TEST mode to prevent WinError 32)
+        from kit.core.kit_env import ExecutionMode, get_execution_mode
+        if get_execution_mode() != ExecutionMode.TEST:
+            try:
+                log_dir = self.history_path.parent / "logs"
+                log_dir.mkdir(parents=True, exist_ok=True)
+                fh = logging.FileHandler(log_dir / "router.log", encoding="utf-8")
+                fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+                logger.addHandler(fh)
+            except Exception:
+                pass
 
         logger.info(f"  L1-Local:  {self.local_db_path}")
         logger.info(f"  L2-Global: {self.global_db_path}")
         logger.info(f"  L3-Law:    {self.frozen_db_path}")
         logger.info(f"  L4-Audit:  {self.history_path}")
+
+    def close(self):
+        """Release system resources (v1.2.4-TITANIUM)."""
+        if self._closer:
+            try:
+                self._closer()
+            except Exception:
+                pass
+        
+        for handler in logger.handlers[:]:
+            if isinstance(handler, logging.FileHandler):
+                handler.close()
+                logger.removeHandler(handler)
+
+    def _pick(self, rows: list[dict], query: str = None) -> Any:
+        if not rows:
+            return None
+        from kit.core.kit_cognitive_core import Memory
+        # Hydrate the best row
+        best_row = max(rows, key=lambda r: r.get("materialized_score", 0.0))
+        return self._hydrate_memory(best_row)
+
+    def _generate_cache_key(self, request: MemoryReadRequest) -> str:
+        """Normalized semantic cache key (v1.2.4-TITANIUM)."""
+        q = (request.query or "").lower().strip()
+        s = (request.scope or "").strip("/")
+        e = ",".join(sorted(request.entities)) if request.entities else ""
+        # Bucketing limit (5, 10, 25, 50, 100)
+        l = 5 if request.limit <= 5 else (10 if request.limit <= 10 else (25 if request.limit <= 25 else (50 if request.limit <= 50 else 100)))
+        return f"q:{q}|s:{s}|e:{e}|l:{l}|sym:{request.symbol}|here:{request.here}"
     
-    def resolve_read(self, request: MemoryReadRequest) -> list[Any]:
+    def resolve_read(self, request: MemoryReadRequest, return_mode: str = "legacy") -> Any:
         """
-        Unified Read Dispatcher (v1.2.4).
-        Routes query through Tier Hierarchy with deterministic priority.
+        Unified Read Dispatcher (v1.2.4-TITANIUM Stabilized).
+        Routes query through L0 Cache -> Soft-Satiety Progressive Recall.
         """
         from kit.core.kit_cognitive_core import Memory
+        import time
         
-        results: list[Memory] = []
+        start_time = time.perf_counter()
+        trace = RecallTrace()
         
-        # 1. Route to L1 (Local)
-        results.extend(self._query_tier(MemoryTier.LOCAL, request))
+        # --- Stage 0: L0 Cache Hit (Normalized) ---
+        cache_key = self._generate_cache_key(request)
+        cached_hit = self._recall_cache.get(cache_key)
+        if cached_hit:
+            trace.cache_hit = True
+            trace.latency_ms = (time.perf_counter() - start_time) * 1000
+            logger.debug(f"L0 Cache Hit: {cache_key[:60]}")
+            return cached_hit
+
+        raw_results: list[dict] = []
+        final_limit = request.limit
         
-        # 2. Route to L2 (Global)
+        # --- Stage 1: Local Tier (Primary Context) ---
+        local_rows = self._query_tier_raw(MemoryTier.LOCAL, request)
+        raw_results.extend(local_rows)
+        trace.tiers_queried.append("local")
+        trace.tier_counts["local"] = len(local_rows)
+        
+        # --- Stage 2: Satiety Assessment (Soft-Skip) ---
+        SATIETY_THRESHOLD = 0.85
+        high_conf_local = [r for r in local_rows if r["materialized_score"] >= SATIETY_THRESHOLD]
+        
+        # Bounded Global Fetch: Even if local is enough, we fetch a minimal global set 
+        # to ensure semantic overrides aren't missed (Safety Boundary).
+        global_limit = 2 if len(high_conf_local) >= final_limit else request.limit
+        if len(high_conf_local) >= final_limit:
+            trace.satiety_reached = True
+            
+        # --- Stage 3: Global Tiers (Scoped) ---
         if request.with_global:
-            results.extend(self._query_tier(MemoryTier.GLOBAL, request))
+            # Create a deprioritized request for global tiers if local is satiated
+            global_request = replace(request, limit=global_limit) if trace.satiety_reached else request
             
-            # 3. Route to L3 (Frozen Law)
-            results.extend(self._query_tier(MemoryTier.FROZEN, request))
-            
-        # 4. Final Aggregation & Ranking (Shadowing Logic)
-        # v1.2.4-TITANIUM: Unified Multi-Tier Ranking with Proximity Boosts
-        tag_priority = {"invariant": 3, "decision": 2, "preference": 1, "note": 0, "friction": 0}
-        priority_map = {"local": 3, "law": 2, "global": 1}
-        
-        # Calculate final scores with boosts
-        scored_results = []
-        for m in results:
-            boost = 0.0
-            # Namespace Boost: If memory belongs to the requesting agent's namespace
-            if request.agent_id and m.namespace == request.agent_id:
-                boost += 0.5
-            
-            # Scope Proximity Boost: If memory scope matches exactly
-            if request.scope and m.scope == request.scope:
-                boost += 0.3
-            elif request.scope and request.scope.startswith(m.scope) and m.scope != "":
-                boost += 0.1 # Parent directory boost
-                
-            # Final Score for sorting and confidence assessment
-            final_score = m.materialized_score + boost
-            
-            # Update memory object with final score (for SAMBrain assessment)
-            scored_m = replace(m, score=final_score)
-            scored_results.append(scored_m)
+            for tier in [MemoryTier.GLOBAL, MemoryTier.FROZEN]:
+                rows = self._query_tier_raw(tier, global_request)
+                raw_results.extend(rows)
+                trace.tiers_queried.append(tier.value)
+                trace.tier_counts[tier.value] = len(rows)
 
-        # Sort results: Tier > Tag > Final Score > Bucket > UID
-        scored_results.sort(
-            key=lambda x: (
-                priority_map.get(x.brain_source, 0),
-                tag_priority.get(x.tag, 0),
-                x.score,
-                x.created_at_bucket,
-            ), 
-            reverse=True
-        )
-        
-        return scored_results[:request.limit]
+        logger.debug(f"Recall: Stage 3 complete. raw_results count: {len(raw_results)}")
 
-    def _query_tier(self, tier: MemoryTier, request: MemoryReadRequest) -> list[Any]:
-        """Execute query against a specific tier using optimal PRAGMAs."""
+        # --- Stage 4: Progressive Fallback (Fuzzy/FTS) ---
+        if not raw_results and request.entities and not request.query:
+            logger.info(f"Recall: No direct hits for {request.entities}. Falling back to fuzzy FTS search.")
+            # Build a fuzzy query from entities
+            fuzzy_query = " OR ".join(request.entities)
+            
+            # Use query instead of entities to trigger FTS5
+            relaxed_request = replace(request, entities=None, query=fuzzy_query)
+            for tier in [MemoryTier.LOCAL, MemoryTier.GLOBAL, MemoryTier.FROZEN]:
+                rows = self._query_tier_raw(tier, relaxed_request)
+                raw_results.extend(rows)
+            
+            logger.debug(f"Recall: Fuzzy fallback found {len(raw_results)} rows.")
+
+        # --- Stage 4.5: Recent Fallback (Last Resort) ---
+        if not raw_results:
+            logger.info("Recall: Sparse result set. Activating RECENT fallback.")
+            relaxed_request = replace(request, entities=None, query=None, limit=self.DEFAULT_RECENT_LIMIT, symbol=None)
+            final_limit = self.DEFAULT_RECENT_LIMIT
+            
+            for tier in [MemoryTier.FROZEN, MemoryTier.GLOBAL, MemoryTier.LOCAL]:
+                rows = self._query_tier_raw(tier, relaxed_request)
+                raw_results.extend(rows)
+                trace.tier_counts[f"fallback_{tier.value}"] = len(rows)
+            logger.debug(f"Recall: Recent fallback found {len(raw_results)} rows.")
+
+
+        # --- Stage 5: Finalize & Hydrate Candidates (v1.2.4-TITANIUM Purity) ---
+        # The router no longer ranks or scores. It returns hydrated candidates 
+        # for the Core to arbitrate via MemoryPolicy.
+        final_memories = [self._hydrate_memory(r) for r in raw_results]
+        
+        # --- Stage 6: Finalize Trace & Cache ---
+        trace.latency_ms = (time.perf_counter() - start_time) * 1000
+        self._recall_cache.set(cache_key, final_memories)
+        
+        # Router Trace (v1.2.4-TITANIUM)
+        logger.debug(f"Router: Recall complete | Tiers: {trace.tiers_queried} | Count: {len(final_memories)}")
+
+        if return_mode == "contract":
+            from kit.core.memory_router import RecallResult
+            return RecallResult(memories=final_memories, trace=trace)
+        return final_memories
+
+
+    def _query_tier_raw(self, tier: MemoryTier, request: MemoryReadRequest) -> list[dict]:
+        """Execute query and return raw rows (v1.2.4-TITANIUM Tuning)."""
         scope = "local" if tier == MemoryTier.LOCAL else "global"
         db_type = "local" if tier == MemoryTier.LOCAL else ("global" if tier == MemoryTier.GLOBAL else "frozen")
         
@@ -308,25 +440,132 @@ class MemoryRouter:
         if not path.exists():
             return []
             
-        # Authority Pattern: MUST use connection provider (v1.2.4-TITANIUM)
         if not self._connection_provider:
-            raise RuntimeError("MemoryRouter requires a connection provider (SAMBrain authority).")
+            raise RuntimeError("MemoryRouter requires a connection provider.")
 
+        conn = None
         try:
-            ctx = self._connection_provider(path, readonly=True)
+            # Authority Connection
+            conn = self._connection_provider(path, readonly=True)
             
-            # Connection provider might return a context manager or a raw connection
-            if hasattr(ctx, "__enter__"):
-                with ctx as conn:
-                    return self._execute_recall_on_conn(conn, tier, request)
+            # v1.2.4-TITANIUM: Robust handle enforcement
+            # Ensure we are working with a raw connection or a wrapper
+            # If it's a context manager (like SAMBrain.get_connection), we enter it
+            if hasattr(conn, "__enter__"):
+                with conn as managed_conn:
+                    managed_conn.row_factory = sqlite3.Row
+                    return self._execute_recall_on_conn_raw(managed_conn, tier, request)
             else:
-                try:
-                    return self._execute_recall_on_conn(ctx, tier, request)
-                finally:
-                    ctx.close()
+                # Direct connection from provider (like lambda in Factory)
+                conn.row_factory = sqlite3.Row
+                return self._execute_recall_on_conn_raw(conn, tier, request)
         except Exception as e:
-            logger.error(f"Read failed on {tier.value}: {e}")
+            logger.error(f"Raw Read failed on {tier.value}: {e}")
             return []
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    def _execute_recall_on_conn_raw(self, conn: sqlite3.Connection, tier: MemoryTier, request: MemoryReadRequest) -> list[dict]:
+        """Low-level row fetcher (v1.2.4-TITANIUM Tuning)."""
+        current_branch = "main"
+        where_clauses = ["o.is_active = 1", "o.branch = ?"]
+        params = [current_branch]
+        
+        if request.scope:
+            parts = request.scope.split("/") if request.scope else []
+            scopes = ["/".join(parts[:i]) for i in range(len(parts) + 1)]
+            placeholders = ",".join(["?"] * len(scopes))
+            where_clauses.append(f"(o.scope IN ({placeholders}) OR o.scope = '')")
+            params.extend(scopes)
+            
+        if request.since:
+            where_clauses.append("o.created_at >= ?")
+            params.append(request.since)
+        if request.until:
+            where_clauses.append("o.created_at <= ?")
+            params.append(request.until)
+
+        entity_where = ""
+        if request.entities or request.query:
+            symbol_clause = ""
+            if request.entities:
+                placeholders = ",".join(["?"] * len(request.entities))
+                if request.symbol:
+                     where_clauses.append("o.symbol = ?")
+                     params.append(request.symbol)
+                else:
+                    symbol_clause = f"(o.symbol IN ({placeholders}) OR n.uid IN ({placeholders}))"
+                    params.extend(request.entities)
+                    params.extend(request.entities)
+            
+            if request.query and not request.symbol:
+                fts_clause = "o.id IN (SELECT rowid FROM observations_fts WHERE observations_fts MATCH ?)"
+                if symbol_clause:
+                    entity_where = f"({symbol_clause} OR {fts_clause})"
+                else:
+                    entity_where = fts_clause
+                params.append(request.query)
+            elif symbol_clause:
+                entity_where = symbol_clause
+                
+        if entity_where:
+            where_clauses.append(entity_where)
+            
+        if request.symbol and not request.entities and not request.query:
+            where_clauses.append("o.symbol = ?")
+            params.append(request.symbol)
+            
+        sql = f"""
+        SELECT o.*, n.uid as node_uid
+        FROM observations o
+        JOIN nodes n ON o.node_id = n.id
+        WHERE {" AND ".join(where_clauses)}
+        ORDER BY o.materialized_score DESC, o.created_at DESC
+        LIMIT ?
+        """
+        params.append(request.limit * 2)
+        
+        cur = conn.execute(sql, params)
+        logger.debug(f"SQL Execute: {sql} | Params: {params}")
+        rows = [dict(r) for r in cur.fetchall()]
+        logger.debug(f"SQL Found: {len(rows)} rows.")
+        
+        # Inject metadata for sorting
+        brain_source = "local" if tier == MemoryTier.LOCAL else ("law" if tier == MemoryTier.FROZEN else "global")
+        for r in rows:
+            r["brain_source"] = brain_source
+            
+        return rows
+
+    def _hydrate_memory(self, row: dict) -> Any:
+        """Lazy hydration factory (v1.2.4-TITANIUM-FROZEN)."""
+        from kit.core.kit_cognitive_core import Memory
+        return Memory(
+            id=row["id"],
+            node_uid=row["node_uid"],
+            content=row["content"],
+            score=row.get("score", row.get("materialized_score", 0.5)),
+            brain_source=row["brain_source"],
+            layer=row["layer"],
+            namespace=row["namespace"],
+            branch=row["branch"],
+            created_at=row["created_at"],
+            created_at_bucket=row["created_at_bucket"] if "created_at_bucket" in row else 0,
+            importance=row["importance"],
+            symbol=row["symbol"],
+            tag=row["tag"],
+            scope=row["scope"],
+            is_active=bool(row["is_active"]),
+            supersedes_id=row["supersedes_id"],
+            materialized_score=row.get("materialized_score", 0.0),
+        )
+
+    def _query_tier(self, tier: MemoryTier, request: MemoryReadRequest) -> list[Any]:
+        """Legacy hydrated query (v1.2.4-patch)."""
 
     def _execute_recall_on_conn(self, conn: sqlite3.Connection, tier: MemoryTier, request: MemoryReadRequest) -> list[Any]:
         """Internal low-level query executor (Unified v1.2.4-TITANIUM)."""
@@ -355,30 +594,33 @@ class MemoryRouter:
 
         # 3. Entity/FTS Filter (v1.2.4-TITANIUM SSOT)
         entity_where = ""
-        if request.entities:
-            placeholders = ",".join(["?"] * len(request.entities))
-            # Authority Fix: Match by o.symbol (the semantic tag) not n.uid (the UUID)
-            # If symbol is also provided, use symbol filter only (entities act as secondary match)
-            if request.symbol:
-                # Use the explicit symbol filter for exact match
-                where_clauses.append("o.symbol = ?")
-                params.append(request.symbol)
-            else:
-                symbol_clause = f"o.symbol IN ({placeholders})"
-                params.extend([e for e in request.entities])
-                entity_where = symbol_clause
+        if request.entities or request.query:
+            symbol_clause = ""
+            if request.entities:
+                placeholders = ",".join(["?"] * len(request.entities))
+                if request.symbol:
+                     where_clauses.append("o.symbol = ?")
+                     params.append(request.symbol)
+                else:
+                    symbol_clause = f"(o.symbol IN ({placeholders}) OR n.uid IN ({placeholders}))"
+                    params.extend(request.entities)
+                    params.extend(request.entities)
             
-            # Hybrid FTS support (if query is present)
             if request.query and not request.symbol:
                 fts_clause = "o.id IN (SELECT rowid FROM observations_fts WHERE observations_fts MATCH ?)"
-                entity_where = f"({symbol_clause} OR {fts_clause})"
+                if symbol_clause:
+                    entity_where = f"({symbol_clause} OR {fts_clause})"
+                else:
+                    entity_where = fts_clause
                 params.append(request.query)
+            elif symbol_clause:
+                entity_where = symbol_clause
                 
         if entity_where:
             where_clauses.append(entity_where)
             
-        # 3. Symbol Filter (only if no entities were provided)
-        if request.symbol and not request.entities:
+        # 4. Symbol Filter (only if no entities and no query were provided)
+        if request.symbol and not request.entities and not request.query:
             where_clauses.append("o.symbol = ?")
             params.append(request.symbol)
             
@@ -493,23 +735,27 @@ class MemoryRouter:
         if not self._connection_provider:
             raise RuntimeError("MemoryRouter requires a connection provider (SAMBrain authority).")
 
+        conn = None
         try:
-            ctx = self._connection_provider(path, readonly=False)
+            conn = self._connection_provider(path, readonly=False)
 
-            if hasattr(ctx, "__enter__"):
-                with ctx as conn:
-                    return self._execute_write_on_conn(conn, request)
+            if hasattr(conn, "__enter__"):
+                with conn as managed_conn:
+                    return self._execute_write_on_conn(managed_conn, request)
             else:
-                try:
-                    return self._execute_write_on_conn(ctx, request)
-                finally:
-                    ctx.close()
+                return self._execute_write_on_conn(conn, request)
         except sqlite3.OperationalError as e:
             if "locked" in str(e).lower() or "busy" in str(e).lower():
                 logger.warning(f"DB locked, buffering to memory: {request.key}")
                 self._write_buffer.add({"request": request, "tier": tier})
                 return 0 # v1.2.4: Return 0 when buffered
             raise
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def _execute_write_on_conn(self, conn: sqlite3.Connection, request: MemoryWriteRequest) -> int:
         """Internal low-level write executor (Titanium v1.2.4)."""
@@ -670,8 +916,18 @@ class MemoryRouterFactory:
         # (even if project_root is different, GLOBAL is shared)
         cls._initialize_scope(topology, "global")
         
+        # Initialize SAMBrain for authority connection (v1.2.4)
+        from kit.core.kit_cognitive_core import SAMBrain
+        brain = SAMBrain(topology.resolve("local", "local"), root_path=project_root)
+        
         # Create router with topology
-        router = MemoryRouter(topology, history_path)
+        # v1.2.4: Provide default connection authority via SAMBrain
+        router = MemoryRouter(
+            topology, 
+            history_path, 
+            connection_provider=brain.get_connection,
+            closer=brain.shutdown
+        )
         logger.info(f"MemoryRouter created with topology for project: {project_root}")
         
         return router
@@ -763,9 +1019,6 @@ if __name__ == "__main__":
         print("\n📊 Router Statistics:")
         stats = router.stats()
         for key, value in stats.items():
-            if key == "by_tier":
-                print(f"  Memories by tier: {value}")
-            else:
-                print(f"  {key}: {value}")
+            print(f"  {key}: {value}")
         
         print("\n✅ Router demo complete\n")

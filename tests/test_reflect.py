@@ -1,3 +1,4 @@
+import os
 import time
 
 import pytest
@@ -25,6 +26,7 @@ def test_extract_signals():
 
 
 def test_reflect_gap(tmp_path):
+    os.environ["KIT_GLOBAL_HOME"] = str(tmp_path / "global")
     db_path = tmp_path / "test_reflect.db"
     brain = SAMBrain(db_path)
     
@@ -66,6 +68,7 @@ def test_reflect_violation(tmp_path):
 
 
 def test_reflect_performance(tmp_path):
+    os.environ["KIT_GLOBAL_HOME"] = str(tmp_path / "global")
     db_path = tmp_path / "test_reflect.db"
     brain = SAMBrain(db_path)
     

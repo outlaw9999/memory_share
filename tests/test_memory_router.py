@@ -108,6 +108,10 @@ def test_accept_valid_memory():
         
         assert decision.decision == WriteDecision.ACCEPTED
         assert decision.assigned_tier == MemoryTier.GLOBAL
+        
+        # v1.2.4: Release handles
+        router.close()
+        
         print("✓ Accept valid memory (0.75 confidence)")
 
 
@@ -128,6 +132,10 @@ def test_reject_low_confidence():
         decision = router.route_write(req)
         
         assert decision.decision == WriteDecision.REJECTED
+        
+        # v1.2.4: Release handles
+        router.close()
+        
         print("✓ Reject low confidence (0.15)")
 
 
@@ -163,6 +171,10 @@ def test_statistics():
         assert stats["total_requests"] == 2
         assert stats["accepted"] == 1
         assert stats["rejected"] == 1
+        
+        # v1.2.4: Release handles
+        router.close()
+        
         print("✓ Statistics: 2 requests, 1 accepted, 1 rejected")
 
 
@@ -185,6 +197,9 @@ def test_deterministic_routing():
             )
             decision = router.route_write(req)
             assert decision.assigned_tier == MemoryTier.GLOBAL
+        
+        # v1.2.4: Release handles
+        router.close()
         
         print("✓ INVARIANT: Deterministic routing (0.72 → GLOBAL always)")
 

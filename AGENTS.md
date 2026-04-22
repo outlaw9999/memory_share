@@ -1,23 +1,21 @@
-# AGENTS.md (v1.2.4 EXECUTION KERNEL)
+# AGENTS.md (v1.2.4 EXECUTION CONTRACT)
 
 ## ⚖️ FLOW
-recall → plan → execute → learn
+recall → tool → execute → learn
 
 ## 🚫 RULES
-- ALWAYS use kit/vantage first
-- NO manual debugging if tool exists
-- NO pytest for primary validation
-- Kernel behavior = Source of Truth
-- Tests = Verification only
+- NEVER guess parameters or API signatures.
+- ALWAYS prefer --json over --help for machine parsing.
+- AGENTS.md = routing only, NOT truth source.
+- Truth = `.kit/kit_schema.json` OR `kit introspect --json`.
 
-## 🛠️ TOOLS
-recall/search → context
-doctor → system state
-vantage → truth oracle
-learn → persist decision
+## 🎯 ROUTING
+- **Unknown schema/params** → `kit introspect --json`
+- **Post-Arbitration Gate** → `kit-vantage verify --batch (MANDATORY)`
+- **Startup / New Task** → `kit recall --limit 10`
+- **Logic Conflict** → `kit-vantage verify-memory`
+- **System State / Friction** → `kit doctor`
+- **Persistence** → `kit learn --tag decision`
 
-## 🆘 FAILURE ESCALATION
-tool fails → doctor → vantage deep → only then reasoning
-
-## 🏁 CONSTRAINT
-zero-narrative mode
+## 🆘 ESCALATION
+Fail → `kit-vantage verify` → `kit doctor` → `kit recall project_identity` → Retry

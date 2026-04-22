@@ -62,6 +62,18 @@ class CommandRegistry:
             tree[ns.value] = self.list_commands(ns)
         return tree
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Export the entire registry as a machine-readable dictionary (v1.2.4)."""
+        import dataclasses
+        return {
+            "version": "v1.2.4",
+            "commands": {
+                name: dataclasses.asdict(contract) 
+                for name, (contract, _) in self._commands.items()
+            }
+        }
+
+
 # --- Global Registry Instance ---
 registry = CommandRegistry.get_instance()
 

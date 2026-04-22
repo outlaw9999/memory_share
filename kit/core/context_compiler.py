@@ -29,14 +29,14 @@ def compile_execution_context(brain) -> dict[str, Any]:
     limit_invariants = 10
     limit_decisions = 10
 
+    from kit.core.memory_policy import MemoryPolicy
+    
     # 1. Query invariants safely and deterministically
     with brain.get_connection() as conn:
         invariants = []
         sql_inv = f"""
-            SELECT n.uid, o.id, o.importance, o.created_at, o.content 
-            FROM observations o
-            JOIN nodes n ON o.node_id = n.id
-            WHERE o.tag = 'invariant' AND o.is_active = 1
+            {MemoryPolicy.SQL_RECALL_BASE}
+            AND o.tag = 'invariant'
             ORDER BY o.importance DESC, o.created_at ASC, n.uid ASC, o.id ASC
             LIMIT {limit_invariants}
         """
@@ -52,10 +52,8 @@ def compile_execution_context(brain) -> dict[str, Any]:
         # 2. Query decisions
         decisions = []
         sql_dec = f"""
-            SELECT n.uid, o.id, o.importance, o.created_at, o.content 
-            FROM observations o
-            JOIN nodes n ON o.node_id = n.id
-            WHERE o.tag = 'decision' AND o.is_active = 1
+            {MemoryPolicy.SQL_RECALL_BASE}
+            AND o.tag = 'decision'
             ORDER BY o.importance DESC, o.created_at ASC, n.uid ASC, o.id ASC
             LIMIT {limit_decisions}
         """

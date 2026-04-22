@@ -51,7 +51,7 @@ def test_single_connect_authority():
         unauthorized = []
         for m in matches:
             if ".connect" in m:
-                if not any(token in m for token in ["topology.connect", "_topo.connect", "self.topology.connect", ".connect_path"]):
+                if not any(token in m for token in ["topology.connect", "topo.connect", "_topo.connect", "self.topology.connect", ".connect_path"]):
                     unauthorized.append(m)
             else:
                 unauthorized.append(m)

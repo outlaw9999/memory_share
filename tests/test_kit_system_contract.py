@@ -32,6 +32,9 @@ def run_kit_command(cwd: Path, *args) -> tuple[int, str, str]:
     env["KIT_DISABLE_ASYNC_BAKE"] = "1"
     env["PYTHONUTF8"] = "1"
     env["VANTAGE_HOME"] = os.path.join(str(repo_root), "non_existent_vantage")
+    # v1.2.4-ISOLATION: Use the temp directory as HOME to isolate global_brain.db
+    env["USERPROFILE"] = str(cwd.parent) # For Windows
+    env["HOME"] = str(cwd.parent) # For Unix-like
 
     cmd = [sys.executable, "-m", "kit"] + list(args)
 
@@ -104,6 +107,9 @@ class TestKitSystemContract:
             # STEP 3: kit recall (retrieve the learned memory)
             print("[3] Testing: kit recall")
             rc, stdout, stderr = run_kit_command(project_root, "recall", "pattern")
+            if rc != 0 or "test_pattern_x" not in stdout:
+                print(f"DEBUG RECALL STDOUT: {stdout}")
+                print(f"DEBUG RECALL STDERR: {stderr}")
             assert rc == 0, f"kit recall failed:\nstdout: {stdout}\nstderr: {stderr}"
             
             # The output of recall is normally a formatted table or text
@@ -156,14 +162,25 @@ class TestKitSystemContract:
             ws2.mkdir()
 
             # Init both
-            run_kit_command(ws1, "init")
-            run_kit_command(ws2, "init")
+            rc1, out1, err1 = run_kit_command(ws1, "init")
+            run_kit_command(ws1, "doctor") # Force schema repair
+            print(f"DEBUG: ws1 init out: {out1}\nerr: {err1}")
+            rc2, out2, err2 = run_kit_command(ws2, "init")
+            run_kit_command(ws2, "doctor") # Force schema repair
+            print(f"DEBUG: ws2 init out: {out2}\nerr: {err2}")
+            
+            print(f"DEBUG: ws1 content: {list(ws1.glob('**/*'))}")
+            sentinel = ws1 / ".kit" / "bootstrap_v1_2_4.seed"
+            print(f"DEBUG: ws1 sentinel exists: {sentinel.exists()} at {sentinel}")
 
             # Learn in WS1
             run_kit_command(ws1, "learn", "WS1 secret", "--uid", "secret_key")
 
             # Recall in WS1 (should find)
-            rc, stdout, _ = run_kit_command(ws1, "recall", "secret")
+            rc, stdout, stderr = run_kit_command(ws1, "recall", "secret")
+            if "WS1 secret" not in stdout:
+                print(f"DEBUG ISOLATION WS1 STDOUT: {stdout}")
+                print(f"DEBUG ISOLATION WS1 STDERR: {stderr}")
             assert "WS1 secret" in stdout
 
             # Recall in WS2 (should NOT find)
