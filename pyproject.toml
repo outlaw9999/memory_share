@@ -40,8 +40,8 @@ dev = [
 
 [project.scripts]
 kit = "kit.cli.main:main"
+kit-agent = "kit.cli.main:main"
 kit-vantage = "scripts.vantage_shim:main"
-kit-ingest = "scripts.governance_ingest:ingest_governance"
 
 [tool.hatch.envs.default]
 python = "3.14.4"
