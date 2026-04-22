@@ -140,5 +140,5 @@ executionEnvironments = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-norecursedirs = ["archive_v123", "__pycache__", ".git", "adversarial", "benchmark", "research"]
+norecursedirs = ["archive_v123", "__pycache__", ".git", "adversarial", "benchmark", "research", "perf"]
 python_files = ["test_*.py"]
