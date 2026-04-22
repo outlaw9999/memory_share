@@ -430,8 +430,8 @@ def init_db(conn: sqlite3.Connection):
                 conn.execute("PRAGMA foreign_keys=OFF")
 
                 # 1. Create new table with updated schema (using temporary name)
-                # We need to extract the CREATE TABLE statement for observations from SCHEMA_SQL but with a new name
-                # Actually, simpler to just run the create statement directly
+                # Ensure no ghost table exists from failed previous migrations
+                conn.execute("DROP TABLE IF EXISTS observations_new")
                 new_table_sql = """
                 CREATE TABLE observations_new (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
