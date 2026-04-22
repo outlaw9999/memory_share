@@ -205,7 +205,9 @@ def _seed_bootstrap_memories(root_path: Path, project_name: str) -> bool:
     api.learn(uid="project_identity", content=f"Project '{project_name}' initialized and integrated into .kit cognitive system ({CLI_VERSION}).", tag="decision", skip_render=True)
     
     for uid, content in BOOTSTRAP_FACTS:
-        api.learn(uid=project_name, content=content, tag="decision", namespace="bootstrap", skip_render=True)
+        # v1.2.4-TITANIUM: Ensure each bootstrap fact has a unique UID and version provenance
+        bootstrap_meta = {"version": "1.2.4-TITANIUM", "source": "bootstrap"}
+        api.learn(uid=uid, content=content, tag="decision", namespace="bootstrap", metadata=bootstrap_meta, skip_render=True)
     
     return True
 
@@ -251,7 +253,7 @@ def handle_init_env(args: argparse.Namespace, print_diagnostic: DiagnosticPrinte
     
     settings_path = vscode_dir / "settings.json"
     settings = {
-        "python.defaultInterpreterPath": ".venv/Scripts/python.exe",
+        "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
         "python.terminal.useEnvFile": True,
         "python.analysis.extraPaths": ["${workspaceFolder}"],
         "terminal.integrated.env.windows": {
@@ -1253,7 +1255,10 @@ def _main_impl() -> None:
     p_hygiene.add_argument("--verbose", action="store_true")
 
     p_doctor = subparsers.add_parser("doctor", help="Repair system issues")
-    p_doctor.add_argument("--heal", action="store_true", help="Execute cleanup DAG")
+    p_doctor.add_argument("--mode", choices=["safe", "aggressive"], default="safe", help="Pruning mode")
+    p_doctor.add_argument("--heal", action="store_true", help="Execute cleanup DAG and integrity repair")
+    p_doctor.add_argument("--migrate-memory", action="store_true", help="Migrate legacy v1.2.3 memory paths to v1.2.4")
+    p_doctor.add_argument("--fix-shell", action="store_true", help="Fix PowerShell/IDE environment drift")
     p_doctor.add_argument("--json", action="store_true", help="Output health report in JSON")
     p_doctor.add_argument("--no-vantage", action="store_true", help="Skip Vantage integrity check")
 

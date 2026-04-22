@@ -562,6 +562,7 @@ class MemoryRouter:
             is_active=bool(row["is_active"]),
             supersedes_id=row["supersedes_id"],
             materialized_score=row.get("materialized_score", 0.0),
+            metadata=json.loads(row["metadata"] or "{}") if isinstance(row.get("metadata"), str) else (row.get("metadata") or {})
         )
 
     def _query_tier(self, tier: MemoryTier, request: MemoryReadRequest) -> list[Any]:
@@ -657,6 +658,7 @@ class MemoryRouter:
                 is_active=bool(row["is_active"]),
                 supersedes_id=row["supersedes_id"],
                 materialized_score=row["materialized_score"],
+                metadata=json.loads(row["metadata"] or "{}") if isinstance(row.get("metadata"), str) else (row.get("metadata") or {})
             )
             memories.append(m)
             

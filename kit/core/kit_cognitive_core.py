@@ -15,7 +15,7 @@ import time
 import sys
 import uuid
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -102,6 +102,7 @@ class Memory:
     materialized_score: float = 0.0
     created_at_bucket: int = 0
     structural_hash: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
     _runtime_hash: int | None = None
 
     def __post_init__(self) -> None:
@@ -193,7 +194,13 @@ class SAMBrain:
     ) -> None:
         self.db_path = db_path.resolve()
         self.root_path = root_path or self._resolve_root(self.db_path.parent)
-        self.topology = topology or MemoryTopologyFactory.for_project(self.root_path)
+        
+        if self.root_path:
+            self.topology = topology or MemoryTopologyFactory.for_project(self.root_path)
+        else:
+            # v1.2.4-TITANIUM: Fallback to global-only topology if no project root found
+            self.topology = topology or MemoryTopologyFactory.global_only()
+            logger.warning("No project root found. Running in GLOBAL-ONLY mode.")
         self.global_db_path: Path | None = None
         self.current_branch: str = "main"
         self.cognition_version: int = 0
@@ -232,10 +239,22 @@ class SAMBrain:
             logger.info("TEST MODE detected: Background threads disabled.")
 
     @staticmethod
-    def _resolve_root(start_path: Path) -> Path:
+    def _resolve_root(start_path: Path) -> Path | None:
+        """Find the project root (boundary) by looking for .git or pyproject.toml."""
         for parent in [start_path] + list(start_path.parents):
             if (parent / ".git").exists() or (parent / "pyproject.toml").exists():
                 return parent
+            
+            # v1.2.4-TITANIUM: Safety Barrier - Do NOT search above user home or IDE internal dirs
+            if parent.resolve() == Path.home().resolve() or parent.name == ".gemini":
+                break
+        
+        # v1.2.4-TITANIUM: If we are exactly at HOME and no boundary was found, 
+        # we return None to prevent local_brain.db from appearing in ~/.kit/
+        if start_path.resolve() == Path.home().resolve():
+            return None
+                
+        # Fallback for non-git projects (e.g. temporary test directories)
         return start_path
 
     def _init_db(self) -> None:
@@ -1094,7 +1113,8 @@ class SAMBrain:
             supersedes_id=row["supersedes_id"],
             materialized_score=row["materialized_score"],
             created_at_bucket=row["created_at_bucket"],
-            structural_hash=row["structural_hash"]
+            structural_hash=row["structural_hash"],
+            metadata=json.loads(row["metadata"] or "{}")
         ) for row in rows]
 
     def export_for_prompt(self, entities: list[str], limit: int = 3, budget: int = 200) -> str:

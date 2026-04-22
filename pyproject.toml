@@ -40,7 +40,6 @@ dev = [
 
 [project.scripts]
 kit = "kit.cli.main:main"
-kit-agent = "kit_agent.cli.main:main"
 kit-vantage = "scripts.vantage_shim:main"
 kit-ingest = "scripts.governance_ingest:ingest_governance"
 
@@ -58,14 +57,13 @@ lint = "ruff check ."
 typecheck = "pyright"
 
 [tool.hatch.build.targets.wheel]
-packages = ["kit", "kit_agent", "runtime", "scripts"]
+packages = ["kit", "scripts"]
 include = [
     "kit/**/*.py",
     "kit/**/*.json",
-    "kit_agent/**/*.py",
-    "runtime/**/*.py",
+    "kit/**/*.lock",
     "scripts/**/*.py",
-    "kit_agent/data/*",
+    "scripts/hooks/*",
     "AGENTS.md",
     "README.md",
     "LICENSE",
@@ -81,8 +79,6 @@ include = [
 [tool.hatch.build.targets.sdist]
 include = [
     "kit/",
-    "kit_agent/",
-    "runtime/",
     "scripts/",
     "AGENTS.md",
     "pyproject.toml"
@@ -113,7 +109,7 @@ exclude = [
 
 [tool.coverage.run]
 branch = true
-source = ["kit", "runtime"]
+source = ["kit"]
 omit = ["*/tests/*", "*/archive/*"]
 
 [tool.coverage.report]
@@ -126,13 +122,12 @@ exclude_lines = [
 ]
 
 [tool.pyright]
-include = ["kit", "runtime", "examples", "plugins"]
+include = ["kit", "examples", "plugins"]
 exclude = ["archive", "**/__pycache__"]
-strict = ["kit", "runtime"]
+strict = ["kit"]
 pythonVersion = "3.14"
 executionEnvironments = [
-  { root = "kit", pythonVersion = "3.14" },
-  { root = "runtime", pythonVersion = "3.14" }
+  { root = "kit", pythonVersion = "3.14" }
 ]
 # IDE Performance: Hint for async diagnostics
 # debounce = 500
