@@ -176,6 +176,14 @@ def _materialize_onboarding_files(root_path: Path, print_diagnostic: DiagnosticP
     onboarding_files = ["scripts/kitf.ps1", "bootstrap_agent.yaml"]
     for rel_path in onboarding_files:
         _copy_if_missing(asset_root, rel_path, kit_dir if "scripts" in rel_path else root_path)
+        
+    # v1.2.4: Schema Loader external-first fallback
+    kit_schema = kit_dir / "kit_schema.json"
+    if not kit_schema.exists():
+        fallback_schema = Path(__file__).resolve().parent.parent / "core" / "schema_default.json"
+        if fallback_schema.exists():
+            import shutil
+            shutil.copyfile(fallback_schema, kit_schema)
 
 def _seed_bootstrap_memories(root_path: Path, project_name: str) -> bool:
     """Seeds deterministic starter pack memories (Rule III.2)."""
