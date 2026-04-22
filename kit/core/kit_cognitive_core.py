@@ -702,6 +702,7 @@ class SAMBrain:
         scope: str | None = None,
         agent_id: str | None = None,
         symbol: str | None = None,
+        structural_hash: str | None = None,
         tag: str = FactTag.DECISION.value,
         node_type: str = "observation",
         status: str = "active",
@@ -783,6 +784,7 @@ class SAMBrain:
             scope=normalized_scope,
             branch=self.current_branch,
             symbol=effective_symbol,
+            structural_hash=structural_hash,
             agent_id=agent_id,
             supersedes_id=supersede_id,
             target_tier=MemoryTier.GLOBAL if to_global else None,
@@ -1210,14 +1212,12 @@ class SAMBrain:
                     is_valid = False
                     break
             
-            # v1.2.4 Law: Vantage tags the metadata but DOES NOT touch the score.
-            # This preserves 'Single Scoring Authority' (MemoryPolicy).
-            m.metadata["vantage_verified"] = is_valid
+            # v1.2.4 Law: Vantage DOES NOT touch the score or metadata.
+            # It only validates structural correctness.
             if not is_valid:
-                m.metadata["drift_detected"] = True
-                # In strict mode, we could filter out invalid memories here, 
-                # but v1.2.4 prefers 'degraded transparency'.
-                m.tag = "friction" # Mark as a candidate for reflection/repair
+                logger.error(f"INTEGRITY FAILURE: Symbol '{m.symbol}' failed structural gate.")
+                # v1.2.4-TITANIUM: We log the failure but DO NOT mutate the frozen DTO.
+                # The user/IDE should rely on the logs or an explicit repair command.
 
         return memories
 

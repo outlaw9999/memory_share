@@ -88,7 +88,7 @@ def invoke_vantage_on_text(code: str, suffix: str = ".py", timeout: int = 5, str
         # Normalize line endings to LF before sending to Vantage to ensure consistent hashing
         normalized_code = code.replace("\r\n", "\n")
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False, encoding="utf-8") as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=suffix, prefix="kit_v_", delete=False, encoding="utf-8") as tmp:
             tmp.write(normalized_code)
             tmp_name = tmp.name
 
@@ -137,7 +137,7 @@ def invoke_vantage_batch(items: list[dict], timeout: int = 10) -> list[list[Sign
 
     # Step 2: Invoke Vantage once
     try:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", prefix="kit_v_batch_", delete=False, encoding="utf-8") as tmp:
             tmp.write(full_code)
             tmp_path = Path(tmp.name)
 

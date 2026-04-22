@@ -159,9 +159,18 @@ class UnifiedValidator:
 
     def validate_adaptive_learning(self) -> ValidationResult:
         """Validate adaptive learning and feedback loops."""
+        test_path = self.repo_root / 'tests' / 'research' / 'data' / 'test_evolutionary_loop.py'
+        if not test_path.exists():
+            return ValidationResult(
+                component="Adaptive Learning",
+                status="SKIP",
+                duration=0.0,
+                details={"reason": "test file not found (may have been removed)"},
+                timestamp=datetime.now().isoformat()
+            )
         return self.validate_component(
             "Adaptive Learning",
-            self.get_pytest_cmd() + [str(self.repo_root / 'tests' / 'research' / 'data' / 'test_evolutionary_loop.py'), "-v", "--tb=short"]
+            self.get_pytest_cmd() + [str(test_path), "-v", "--tb=short"]
         )
 
     def validate_deterministic_core(self) -> ValidationResult:

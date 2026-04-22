@@ -101,6 +101,12 @@ class MemoryTopology:
         else:  # GLOBAL
             base_dir = self.GLOBAL_KIT_HOME
         
+        if scope == MemoryScope.GLOBAL and db_type in ["local", "snapshot"]:
+            raise ValueError(
+                f"Security Boundary Violation: Cannot resolve {db_type} in GLOBAL scope. "
+                "Local memories must stay in LOCAL scope."
+            )
+
         # Map db_type to filename
         if db_type == "local":
             filename = self.DB_LOCAL
@@ -341,7 +347,12 @@ class MemoryTopologyFactory:
         checks = topology.verify_scope_isolation()
         for check_name, result in checks.items():
             if not result:
-                logger.warning(f"Scope isolation check '{check_name}' failed")
+                msg = f"TOPOLOGY FATAL: Scope isolation check '{check_name}' failed."
+                logger.error(msg)
+                raise RuntimeError(
+                    f"{msg} Local kit home ({topology.local_kit_home}) "
+                    f"collides with Global kit home ({topology.GLOBAL_KIT_HOME})."
+                )
         
         return topology
     

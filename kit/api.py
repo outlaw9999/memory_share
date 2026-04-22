@@ -114,7 +114,7 @@ def learn(
         meta.update(metadata)
 
     resolved_uid = uid if uid else str(uuid.uuid4())
-
+    
     return brain.learn(
         uid=resolved_uid,
         content=content,

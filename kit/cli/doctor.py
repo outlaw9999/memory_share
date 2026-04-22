@@ -165,7 +165,7 @@ def run_doctor(
                 print(f"  ✖ Local migration failed: {e}")
 
         # Global Migration
-        global_kit_dir = topo.resolve("global", "local").parent
+        global_kit_dir = topo.GLOBAL_KIT_HOME
         legacy_global = global_kit_dir / "global.db"
         new_global = topo.resolve("global", "global")
 

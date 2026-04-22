@@ -10,6 +10,17 @@ def quote_identifier(identifier: str) -> str:
 
 
 SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS kernel_metadata (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Initialize Kernel Identity (v1.2.4-TITANIUM-SEALED)
+INSERT OR IGNORE INTO kernel_metadata (key, value) VALUES ('version', '1.2.4-sealed');
+INSERT OR IGNORE INTO kernel_metadata (key, value) VALUES ('integrity_policy', 'strict');
+INSERT OR IGNORE INTO kernel_metadata (key, value) VALUES ('write_authority', 'MemoryRouter');
+
 CREATE TABLE IF NOT EXISTS nodes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     uid TEXT UNIQUE NOT NULL,
@@ -71,6 +82,7 @@ CREATE TABLE IF NOT EXISTS observations (
     symbol_confidence REAL DEFAULT 0.0,
     symbol_source TEXT,
     structural_hash TEXT,
+    agent_id TEXT,
     metadata TEXT DEFAULT '{}',
     commit_id TEXT,
     is_active BOOLEAN DEFAULT 1,
@@ -251,6 +263,9 @@ CREATE INDEX IF NOT EXISTS idx_symbol_nodes_symbol ON symbol_nodes(symbol);
 
 def init_db(conn: sqlite3.Connection):
     """Bootstrap or migrate the database schema."""
+    # v1.2.5: Enforce concurrency-safe defaults at the source
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
     conn.executescript(SCHEMA_SQL)
 
     # Migration: Ensure superseded_at exists in observations (Chronos Patch)
@@ -263,12 +278,6 @@ def init_db(conn: sqlite3.Connection):
     try:
         conn.execute("ALTER TABLE observations ADD COLUMN namespace TEXT DEFAULT 'shared'")
         logger.info("Migrated: Added namespace to observations")
-    except sqlite3.OperationalError:
-        pass
-
-    try:
-        conn.execute("ALTER TABLE observations ADD COLUMN agent_id TEXT")
-        logger.info("Migrated: Added agent_id to observations")
     except sqlite3.OperationalError:
         pass
 

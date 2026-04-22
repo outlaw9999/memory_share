@@ -1,0 +1,24 @@
+﻿{
+  "nodes": 11,
+  "observations": 8,
+  "edges": 0,
+  "version": 0,
+  "db_path": "E:\\DEV\\opensource_contrib\\memory_share_kit\\.kit\\local_brain.db",
+  "gqi": {
+    "total": 8,
+    "entropy_score": 0.0,
+    "quality_score": 0.81,
+    "symbol_debt_ratio": 0.0,
+    "symbol_health": 0.0,
+    "duplicate_ratio": 0.0,
+    "orphan_ratio": 0.0,
+    "recall_hit_rate": 100.0,
+    "avg_recall_latency_ms": 148.95,
+    "canonical_count": 0,
+    "merged_count": 0
+  },
+  "namespaces": {
+    "bootstrap": 7,
+    "shared": 1
+  }
+}

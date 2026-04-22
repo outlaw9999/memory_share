@@ -104,6 +104,7 @@ class MemoryWriteRequest:
     scope: str = ""
     branch: str = "main"
     symbol: str | None = None
+    structural_hash: str | None = None
     agent_id: str | None = None
     supersedes_id: int | None = None
     target_tier: Optional[MemoryTier] = None
@@ -270,7 +271,19 @@ class MemoryRouter:
         self.local_db_path = local_db_path_override or topology.resolve("local", "local")
         self.global_db_path = topology.resolve("global", "global")
         self.frozen_db_path = topology.resolve("global", "frozen")
-        self._connection_provider = connection_provider
+        
+        # v1.2.5: Identity-based lifecycle management
+        if connection_provider:
+            self._connection_provider = connection_provider
+            self._owns_connection = False
+        else:
+            # Default provider: Router owns these connections
+            def default_provider(path, readonly=False):
+                conn = sqlite3.connect(path)
+                conn.row_factory = sqlite3.Row
+                return conn
+            self._connection_provider = default_provider
+            self._owns_connection = True
         
         # History tracking
         if history_path is None:
@@ -284,6 +297,7 @@ class MemoryRouter:
         self._recall_cache = RecallCache()
         self._coherence = MemoryCoherenceEngine()
         self._closer = closer
+        self._owns_connection = False # v1.2.5: Track ownership for lifecycle safety
 
         logger.info(f"MemoryRouter v1.2.4 (TITANIUM) initialized")
         
@@ -750,10 +764,11 @@ class MemoryRouter:
             if "locked" in str(e).lower() or "busy" in str(e).lower():
                 logger.warning(f"DB locked, buffering to memory: {request.key}")
                 self._write_buffer.add({"request": request, "tier": tier})
-                return 0 # v1.2.4: Return 0 when buffered
+                return 0
             raise
         finally:
-            if conn:
+            # v1.2.5: Only close if the router owns the connection lifecycle
+            if conn and self._owns_connection:
                 try:
                     conn.close()
                 except Exception:
@@ -791,19 +806,20 @@ class MemoryRouter:
         cur = conn.execute(
             """INSERT INTO observations 
                (node_id, content, layer, tag, importance, materialized_score, 
-                namespace, scope, branch, symbol, metadata, agent_id, supersedes_id, is_active)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                namespace, scope, branch, symbol, structural_hash, metadata, agent_id, supersedes_id, is_active)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 node_id,
                 content_str,
                 request.layer,
                 request.tag,
                 request.importance,
-                request.importance * (2.0 / 6.0), # importance * (access_count+2)/(access_count+6) where access=0
+                request.importance * (2.0 / 6.0),
                 request.namespace,
                 request.scope,
                 request.branch,
                 request.symbol,
+                request.structural_hash,
                 json.dumps(request.metadata),
                 request.agent_id,
                 request.supersedes_id,

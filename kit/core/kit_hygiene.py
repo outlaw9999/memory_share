@@ -60,7 +60,7 @@ def generate_hygiene_report(root_path: Path) -> HygieneReport:
     report = HygieneReport()
     
     # Simple recursive scan excluding typical ignores
-    ignore_dirs = {".git", ".venv", "node_modules", "__pycache__"}
+    ignore_dirs = {".git", ".venv", "node_modules", "__pycache__", ".gemini"}
     
     for p in root_path.rglob("*"):
         if p.is_dir():
@@ -90,6 +90,20 @@ def generate_hygiene_report(root_path: Path) -> HygieneReport:
     if len(report.categories[FileCategory.TEMP]) > 5:
         report.suggestions.append("Excessive temp/debug files detected. Archive required.")
 
+    # v1.2.4-TITANIUM: Check for Scope Bleed (Stray local brains in global home)
+    from kit.core.memory_topology import MemoryTopology
+    global_kit = MemoryTopology().GLOBAL_KIT_HOME
+    stray_local = global_kit / "local_brain.db"
+    if stray_local.exists():
+        report.suggestions.append(f"SCOPE BLEED DETECTED: Stray local brain at {stray_local}. Run 'kit doctor --heal' to merge and purge.")
+
+    # v1.2.4-TITANIUM: System Temp Pressure
+    import tempfile
+    temp_dir = Path(tempfile.gettempdir())
+    kit_temp_count = len(list(temp_dir.glob("kit_*")))
+    if kit_temp_count > 3:
+        report.suggestions.append(f"System temp pressure high ({kit_temp_count} files). Run 'kit doctor --heal' to enforce 3-file limit.")
+
     return report
 
 def perform_hygiene_cleanup(root_path: Path, dry_run: bool = True) -> list[str]:
@@ -113,6 +127,42 @@ def perform_hygiene_cleanup(root_path: Path, dry_run: bool = True) -> list[str]:
                 else:
                     removed.append(rel_path)
     
+    
+    # 3. System Temp Hygiene (v1.2.4-TITANIUM Restriction: Max 3 files)
+    removed_temp = perform_system_temp_cleanup(dry_run=dry_run)
+    removed.extend(removed_temp)
+    
+    return removed
+
+def perform_system_temp_cleanup(dry_run: bool = True) -> list[str]:
+    """
+    Scans the system temp directory for Kit-prefixed artifacts.
+    Enforces a strict limit of 3 files (FIFO).
+    """
+    import tempfile
+    temp_dir = Path(tempfile.gettempdir())
+    # Find files starting with kit_
+    kit_files = sorted(
+        list(temp_dir.glob("kit_*")),
+        key=lambda p: p.stat().st_mtime
+    )
+    
+    removed = []
+    # If we have more than 3, remove the oldest ones until we have only 2 left (to be safe)
+    # Actually user said "không được quá 3", so 3 is the limit.
+    if len(kit_files) > 3:
+        to_delete = kit_files[:-3] # Keep the 3 newest
+        for p in to_delete:
+            if not dry_run:
+                try:
+                    p.unlink()
+                    removed.append(f"TEMP:{p.name}")
+                    logger.info(f"System Temp Cleanup: Removed {p.name}")
+                except OSError as e:
+                    logger.error(f"Failed to remove system temp {p.name}: {e}")
+            else:
+                removed.append(f"TEMP:{p.name}")
+                
     return removed
 
 @kit_command(

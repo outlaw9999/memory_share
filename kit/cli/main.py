@@ -227,7 +227,12 @@ def handle_init(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, *
     _, project_db, root_path = resolve_paths(force_local=True)
     api.init_kernel(project_db, mode="isolated")
     _materialize_onboarding_files(root_path, print_diagnostic)
+    from kit.core.kit_sealing import seal_kernel
+    seal_kernel(project_db)
+    
     _seed_bootstrap_memories(root_path, root_path.name)
+    print_diagnostic(f"[OK] Workspace initialized and sealed (v1.2.4-sealed).")
+    print("OK")
     
     # v1.2.4: Vantage Integrity Gating (Soft Check on Init)
     from kit.core.kit_vantage import VANTAGE_BIN
@@ -614,6 +619,7 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
     import kit.api as api
     import json as json_lib
     root_path = Path.cwd()
+    brain = api.get_brain()
     
     report_data = {
         "version": CLI_VERSION,
@@ -658,6 +664,7 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
             print_diagnostic("  [HEALED] Repairing symbol debt...")
         repaired_symbols = repair_symbol_debt(api.get_brain())
 
+
         if not getattr(args, "json", False):
             print_diagnostic(f"Healing complete. {len(removed)} artifacts purged. {obs_removed} unbaked observations cleaned. {tx_removed} failed transactions archived. {repaired_symbols} symbols repaired.")
     else:
@@ -674,8 +681,26 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
                 print_diagnostic("[OK] Workspace hygiene is within stable bounds.")
 
     # --- System Startup Check (v1.2.4 Production Hardening) ---
+    from kit.core.kit_sealing import verify_kernel_seal, seal_kernel
+    db_path = brain.db_path
+    seal_info = verify_kernel_seal(db_path)
+    if seal_info["status"] == "sealed":
+        report_data["kernel_seal"] = f"v{seal_info['version']} (Strict)"
+    else:
+        report_data["kernel_seal"] = f"unsealed ({seal_info.get('reason', 'Missing')})"
+        if getattr(args, "fix", False):
+            seal_kernel(db_path)
+            report_data["kernel_seal"] = f"v1.2.4-sealed (Restored)"
+
     if not getattr(args, "json", False):
+        from kit.core.kit_env import ExecutionMode, get_execution_mode
         print_diagnostic("\n[SYSTEM HEALTH]")
+        print_diagnostic(f"  Runtime Mode: {get_execution_mode().value}")
+        print_diagnostic(f"  SQLite:       {report_data['sqlite']}")
+        print_diagnostic(f"  WAL Mode:     {report_data['wal']}")
+        print_diagnostic(f"  Router:       {report_data['router']}")
+        print_diagnostic(f"  Kernel Seal:  {report_data['kernel_seal']}")
+        print_diagnostic(f"  Global DB:    {report_data['global_db']}")
     try:
         from kit.core.kit_env import get_substrate_report
         substrate = get_substrate_report()
