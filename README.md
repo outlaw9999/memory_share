@@ -1,32 +1,120 @@
-# Memory Share Kit (v1.2.4-TITANIUM)
+# 📦 memory-share-kit
 
-Deterministic long-term memory runtime for AI Agents and Developers.
+> A lightweight cognitive runtime CLI for persistent memory + tool-driven reasoning.
 
-## Philosophy
-Kit is not a database; it is a **Cognitive Infrastructure**. It provides a durable, auditable, and ritualized memory kernel for autonomous systems.
+---
 
-## Quick Install
+## ⚡ Install
+
 ```bash
 pip install memory-share-kit
 ```
 
-## The Ritual (Essential for Agents)
-1. **START**: `kit recall` (Load context)
-2. **WORK**: `kit search <topic>` (Discover facts)
-3. **END**: `kit learn` (Ingest decisions)
+---
 
-> **Quality Gate**: Before learning, ask: *"Is this worth remembering for 5 years?"* Keep signal density high.
+## 🚀 Quick Start
 
-## Safety Invariants
-- **Never** modify `.kit/*.db` files manually.
-- **Always** route operations through the `kit` CLI.
-- **Seal** your workspace for production via `kit seal`.
+```bash
+kit init
+```
 
-## Architecture
-- **L1 LOCAL**: Per-project episodic memory.
-- **L2 GLOBAL**: Cross-project semantic knowledge.
-- **L3 LAW**: Immutable system-wide invariants.
-- **L4 TRACE**: Meta-awareness and decision logs.
+Creates local brain storage:
+
+```text
+.kit/
+  local_brain.db
+  config.json
+```
 
 ---
-License: MIT | Core: v1.2.4-TITANIUM
+
+## 🧠 Ask the system
+
+```bash
+kit-agent ask "What is your memory structure?"
+```
+
+---
+
+## 🧾 Store memory
+
+```bash
+kit learn --tag decision "Use WAL mode for deterministic writes"
+```
+
+Tags:
+
+* invariant
+* decision
+* friction
+* preference
+* note
+* legacy
+* skill
+* pattern
+* hypothesis
+
+---
+
+## 🔍 Recall
+
+```bash
+kit recall
+```
+
+or
+
+```bash
+kit search "router failure"
+```
+
+---
+
+## 🧪 Debug (dev only)
+
+```bash
+kit doctor
+```
+
+---
+
+## 🛡 Verify integrity
+
+```bash
+kit-vantage verify-memory
+```
+
+---
+
+## 🧠 Core Principle
+
+* Runtime is truth
+* CLI is interface
+* Memory is persistent
+* Verification is external (Vantage)
+
+---
+
+## ⚙️ Philosophy (1 line)
+
+> No repo knowledge required. Only runtime matters.
+
+---
+
+## 🧩 Commands summary
+
+```text
+kit init
+kit-agent ask
+kit recall
+kit search
+kit learn
+kit doctor
+kit-vantage verify-memory
+```
+
+---
+
+## 📌 Version
+
+v1.2.4-sealed
