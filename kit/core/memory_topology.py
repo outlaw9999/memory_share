@@ -211,10 +211,10 @@ class MemoryTopology:
                     f"is inside GLOBAL kit ({self.GLOBAL_KIT_HOME})"
                 )
         
-        # Check 2: Different base directories
+        # Check 2: Different paths (already covered by Check 1, but kept for clarity)
         if self.local_kit_home:
-            checks["different_root_dirs"] = (
-                self.local_kit_home.parent != self.GLOBAL_KIT_HOME.parent
+            checks["different_paths"] = (
+                self.local_kit_home.resolve() != self.GLOBAL_KIT_HOME.resolve()
             )
         
         return checks

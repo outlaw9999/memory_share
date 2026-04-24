@@ -10,7 +10,7 @@ gates:
       - "tests/test_kit_system_contract.py"
       - "tests/test_cognitive_kernel.py"
       - "tests/test_architecture_lock.py"
-      - "tests/test_topology_lock.py"
+      - "tests/test_memory_isolation.py"
 
   P1_FLOW:
     description: "Must pass for release. Core workflows and recovery."
@@ -22,10 +22,11 @@ gates:
       - "tests/test_flow_v124_core.py"
 
   P2_STRESS:
-    description: "Robustness check. Non-blocking."
+    description: "Production Stress (Stability Soak)"
     priority: 2
     blocking: false
     tests:
+      - "tests/soak_test_v124.py"
       - "tests/test_v124_stress.py"
       - "tests/test_chaos_stress.py"
 

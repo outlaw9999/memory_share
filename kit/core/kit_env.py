@@ -33,7 +33,7 @@ def get_venv_path() -> Path | None:
     # Find Repo Boundary (.git)
     root = None
     for parent in [cwd] + list(cwd.parents):
-        if (parent / ".git").exists():
+        if (parent / ".git").exists() or (parent / ".kit-root").exists():
             root = parent
             break
             

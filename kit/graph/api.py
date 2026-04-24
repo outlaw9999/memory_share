@@ -10,6 +10,8 @@ from typing import Dict, List, Tuple, Optional
 from enum import Enum
 
 from kit.graph.query import get_blast_radius, TraversalDirection
+from kit.core.memory_topology import MemoryTopology
+
 
 logger = logging.getLogger("kit.graph.api")
 
@@ -190,7 +192,9 @@ class GraphQueryAPI:
 
 def quick_blast(db_path: str, symbol: str, max_depth: int = 5) -> List[Dict]:
     """Quick blast query from db path."""
-    conn = sqlite3.connect(db_path)
+    from pathlib import Path
+    topo = MemoryTopology()
+    conn = topo.connect_path(Path(db_path), readonly=True)
     api = GraphQueryAPI(conn)
     results = api.blast(symbol, max_depth=max_depth)
     conn.close()
@@ -199,7 +203,9 @@ def quick_blast(db_path: str, symbol: str, max_depth: int = 5) -> List[Dict]:
 
 def quick_impact(db_path: str, symbol: str) -> Dict:
     """Quick impact query from db path."""
-    conn = sqlite3.connect(db_path)
+    from pathlib import Path
+    topo = MemoryTopology()
+    conn = topo.connect_path(Path(db_path), readonly=True)
     api = GraphQueryAPI(conn)
     results = api.impact(symbol)
     conn.close()

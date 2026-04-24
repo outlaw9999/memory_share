@@ -111,20 +111,19 @@ class Materializer:
         return total
 
     def _batch_insert(self, edges: List[dict]) -> int:
-        """Batch insert edges with deduplication."""
-        valid_types = ('IMPORTS', 'INHERITS', 'CALLS')
+        """Batch insert edges with deduplication (v1.2.4)."""
         batch = []
 
         for edge in edges:
+            # v1.2.4 maps 'source' -> 'source_symbol', 'target' -> 'target_symbol'
             if not all(k in edge for k in ('source', 'target', 'edge_type')):
-                continue
-            if edge['edge_type'] not in valid_types:
                 continue
 
             batch.append((
                 edge['source'],
                 edge['target'],
                 edge['edge_type'],
+                edge.get('language'),
                 float(edge.get('confidence', 1.0)),
                 edge.get('source_file'),
                 edge.get('line')
@@ -135,8 +134,8 @@ class Materializer:
 
         self.conn.executemany("""
             INSERT OR IGNORE INTO structure_edges
-            (source_symbol, target_symbol, edge_type, confidence, source_file, line)
-            VALUES (?, ?, ?, ?, ?, ?)
+            (source_symbol, target_symbol, edge_type, language, confidence, source_file, line)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """, batch)
 
         return len(batch)

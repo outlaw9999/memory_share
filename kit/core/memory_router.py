@@ -279,9 +279,7 @@ class MemoryRouter:
         else:
             # Default provider: Router owns these connections
             def default_provider(path, readonly=False):
-                conn = sqlite3.connect(path)
-                conn.row_factory = sqlite3.Row
-                return conn
+                return self.topology.connect_path(path, readonly=readonly)
             self._connection_provider = default_provider
             self._owns_connection = True
         
@@ -678,6 +676,66 @@ class MemoryRouter:
             
         return memories
 
+    def route_graph_edge(
+        self,
+        source: str,
+        target: str,
+        relation: str,
+        language: str = "python",
+        confidence: float = 1.0,
+        file_path: Optional[str] = None,
+        line: Optional[int] = None
+    ) -> bool:
+        """
+        [GWF] Graph Write Firewall - Enforces structural truth invariants (v1.2.4-FINAL).
+        """
+        # 1. Enforcement Gate
+        is_valid, reason = self.validate_graph_edge(source, target, relation)
+        if not is_valid:
+            logger.warning(f"[GWF REJECT] Edge {source} -> {target}: {reason}")
+            return False
+
+        # 2. Tier Resolution (Graph edges stay in LOCAL for project-specific structure)
+        path = self.local_db_path
+        
+        # 3. Mutation
+        try:
+            # v1.2.4-TITANIUM: Check for Seal before writing to LOCAL
+            from kit.core.kit_lock import is_sealed
+            if self.topology.project_root and is_sealed(self.topology.project_root):
+                logger.error("[GWF BLOCK] Attempted graph mutation on SEALED kernel.")
+                return False
+
+            with self._connection_provider(path, readonly=False) as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO structure_edges 
+                    (source_symbol, target_symbol, edge_type, language, confidence, source_file, line)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (source, target, relation, language, confidence, file_path, line))
+                conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"[GWF FAIL] Edge ingestion failed: {e}")
+            return False
+
+    def validate_graph_edge(self, source: str, target: str, relation: str) -> tuple[bool, str]:
+        """
+        Validates structural truth against v1.2.4 invariants.
+        """
+        # Rule 1: Ghost Prevention Protocol
+        if source.startswith("Symbol_") or target.startswith("Symbol_"):
+            return False, "Ghost symbol detected (Anonymized NodeId)"
+
+        # Rule 2: Minimal Identity Check
+        if not source or not target:
+            return False, "Incomplete edge identity (Missing source/target)"
+            
+        # Rule 3: FQN format sanity (basic)
+        if "." not in source and len(source) < 3 and source.isnumeric():
+             return False, "Suspiciously short numeric symbol (Possible internal NodeId)"
+
+        return True, "OK"
+
     def route_write(self, request: MemoryWriteRequest) -> WriteDecisionRecord:
         """Main entry point: validate + route memory write."""
         
@@ -972,9 +1030,13 @@ class MemoryRouterFactory:
             # v1.2.4: Always use RW for initialization
             conn = topology.connect(scope, db_type, readonly=False)
             try:
-                conn.execute("BEGIN IMMEDIATE")
+                # v1.2.4: PRAGMAs and Schema Init must be outside explicit transaction
                 init_db(conn)
                 enable_wal(conn)
+                
+                # Perform any additional initialization that requires a transaction
+                conn.execute("BEGIN IMMEDIATE")
+                # ... existing logic if any ...
                 conn.commit()
                 logger.debug(f"Initialized standardized schema and FTS for {scope}/{db_type}")
             finally:

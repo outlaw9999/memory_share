@@ -24,7 +24,9 @@ def verify_kernel_seal(db_path: Path) -> Dict[str, str]:
         return {"status": "missing", "reason": f"Database not found at {db_path}"}
 
     try:
-        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        from kit.core.memory_topology import MemoryTopology
+        topo = MemoryTopology()
+        conn = topo.connect_path(db_path, readonly=True)
         conn.row_factory = sqlite3.Row
         
         # 1. Check version
@@ -61,7 +63,10 @@ def seal_kernel(db_path: Path):
     Hard-seal the kernel by injecting the v1.2.4 constitution.
     """
     logger.info(f"Sealing kernel at {db_path} (SPEC {SEALED_VERSION})...")
-    conn = sqlite3.connect(db_path)
+    
+    from kit.core.memory_topology import MemoryTopology
+    topo = MemoryTopology()
+    conn = topo.connect_path(db_path)
     try:
         # Ensure schema is up to date (v1.2.4-TITANIUM)
         from kit.core.schema_factory import init_db

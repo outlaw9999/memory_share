@@ -7,7 +7,8 @@ STRUCTURE_EDGES_SCHEMA = """
 CREATE TABLE IF NOT EXISTS structure_edges (
     source_symbol TEXT NOT NULL,
     target_symbol TEXT NOT NULL,
-    edge_type TEXT NOT NULL CHECK(edge_type IN ('IMPORTS', 'INHERITS', 'CALLS')),
+    edge_type TEXT NOT NULL,
+    language TEXT,
     confidence REAL DEFAULT 1.0,
     source_file TEXT,
     line INTEGER,

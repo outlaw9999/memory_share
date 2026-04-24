@@ -1,0 +1,352 @@
+{"type": "edge", "source": "Symbol_60", "target": "Symbol_334", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_290", "target": "Symbol_191", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_22", "target": "Symbol_359", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_223", "target": "Symbol_307", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_384", "target": "Symbol_977", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_100", "target": "Symbol_7", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_236", "target": "Symbol_527", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_463", "path": "src/module_10.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_173", "target": "Symbol_885", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_565", "target": "Symbol_834", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_270", "path": "src/module_6.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_203", "target": "Symbol_247", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_950", "target": "Symbol_65", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_950", "target": "Symbol_40", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_584", "target": "Symbol_561", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_611", "target": "Symbol_514", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_608", "target": "Symbol_56", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_887", "target": "Symbol_633", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_161", "target": "Symbol_402", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_550", "target": "Symbol_963", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_510", "target": "Symbol_241", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_716", "target": "Symbol_769", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_796", "target": "Symbol_852", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_346", "target": "Symbol_541", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_982", "target": "Symbol_684", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_336", "target": "Symbol_812", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_806", "target": "Symbol_824", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_423", "target": "Symbol_988", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_944", "target": "Symbol_372", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_746", "path": "src/module_7.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_75", "target": "Symbol_470", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_205", "target": "Symbol_792", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_642", "target": "Symbol_145", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_449", "target": "Symbol_273", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_890", "path": "src/module_1.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_975", "target": "Symbol_251", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_427", "path": "src/module_7.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_771", "path": "src/module_7.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_516", "target": "Symbol_187", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_434", "path": "src/module_5.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_778", "target": "Symbol_941", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_536", "path": "src/module_9.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_403", "target": "Symbol_388", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_583", "target": "Symbol_28", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_998", "target": "Symbol_67", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_299", "path": "src/module_1.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_511", "target": "Symbol_83", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_494", "target": "Symbol_210", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_102", "target": "Symbol_987", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_230", "path": "src/module_9.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_494", "target": "Symbol_71", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_584", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_277", "target": "Symbol_602", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_713", "target": "Symbol_960", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_108", "path": "src/module_10.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_385", "target": "Symbol_314", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_755", "target": "Symbol_516", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_471", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_214", "target": "Symbol_170", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_593", "target": "Symbol_2", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_857", "target": "Symbol_357", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_446", "target": "Symbol_271", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_159", "path": "src/module_6.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_210", "path": "src/module_4.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_789", "target": "Symbol_227", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_210", "path": "src/module_4.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_670", "target": "Symbol_612", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_177", "target": "Symbol_164", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_42", "path": "src/module_10.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_353", "target": "Symbol_885", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_586", "target": "Symbol_505", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_499", "path": "src/module_8.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_761", "target": "Symbol_242", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_891", "target": "Symbol_315", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_697", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_542", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_91", "path": "src/module_9.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_377", "path": "src/module_8.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_979", "target": "Symbol_690", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_108", "target": "Symbol_896", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_260", "target": "Symbol_533", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_212", "path": "src/module_6.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_793", "target": "Symbol_283", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_616", "target": "Symbol_919", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_41", "target": "Symbol_592", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_666", "target": "Symbol_293", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_160", "target": "Symbol_524", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_133", "target": "Symbol_692", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_978", "target": "Symbol_118", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_924", "path": "src/module_7.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_689", "path": "src/module_1.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_119", "target": "Symbol_633", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_358", "target": "Symbol_433", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_474", "path": "src/module_2.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_971", "path": "src/module_5.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_319", "target": "Symbol_619", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_460", "target": "Symbol_423", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_964", "path": "src/module_1.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_804", "target": "Symbol_952", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_647", "target": "Symbol_495", "relation": "INHERITS", "v": "1.2.4"}
+{"invalid": json... corrupted
+{"type": "edge", "source": "Symbol_445", "target": "Symbol_246", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_720", "target": "Symbol_395", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_694", "path": "src/module_9.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_796", "target": "Symbol_468", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_721", "target": "Symbol_143", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_292", "target": "Symbol_807", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_131", "target": "Symbol_306", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_224", "path": "src/module_7.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_512", "target": "Symbol_587", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_842", "target": "Symbol_632", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_232", "target": "Symbol_700", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_252", "target": "Symbol_270", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_15", "path": "src/module_9.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_123", "path": "src/module_5.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_406", "target": "Symbol_818", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_172", "target": "Symbol_660", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_10", "target": "Symbol_97", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_382", "target": "Symbol_959", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_415", "target": "Symbol_192", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_263", "path": "src/module_7.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_896", "target": "Symbol_25", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_119", "path": "src/module_6.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_881", "target": "Symbol_486", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_423", "target": "Symbol_436", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_529", "target": "Symbol_65", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_922", "target": "Symbol_58", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_597", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_835", "target": "Symbol_760", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_658", "path": "src/module_8.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_954", "target": "Symbol_942", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_639", "target": "Symbol_947", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_375", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_232", "target": "Symbol_352", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_973", "path": "src/module_5.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_140", "path": "src/module_8.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_977", "path": "src/module_9.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_60", "target": "Symbol_913", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_853", "target": "Symbol_965", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_548", "target": "Symbol_204", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_744", "path": "src/module_7.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_320", "target": "Symbol_923", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_344", "path": "src/module_2.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_451", "path": "src/module_9.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_661", "path": "src/module_7.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_253", "target": "Symbol_330", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_240", "target": "Symbol_785", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_956", "target": "Symbol_402", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_973", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_781", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_112", "path": "src/module_10.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_461", "path": "src/module_5.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_829", "target": "Symbol_780", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_343", "target": "Symbol_382", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_751", "path": "src/module_10.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_159", "target": "Symbol_965", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_816", "target": "Symbol_792", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_627", "path": "src/module_2.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_491", "target": "Symbol_453", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_267", "target": "Symbol_704", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_334", "target": "Symbol_810", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_398", "path": "src/module_10.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_478", "path": "src/module_8.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_813", "target": "Symbol_454", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_286", "path": "src/module_1.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_996", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_856", "path": "src/module_2.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_518", "target": "Symbol_903", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_138", "target": "Symbol_194", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_667", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_432", "target": "Symbol_181", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_778", "target": "Symbol_125", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_202", "path": "src/module_8.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_933", "target": "Symbol_904", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_834", "target": "Symbol_540", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_284", "path": "src/module_8.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_856", "target": "Symbol_787", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_18", "path": "src/module_4.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_303", "target": "Symbol_533", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_30", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_353", "target": "Symbol_866", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_535", "target": "Symbol_992", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_575", "target": "Symbol_363", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_704", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_658", "target": "Symbol_859", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_102", "path": "src/module_2.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_348", "target": "Symbol_395", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_247", "path": "src/module_2.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_548", "path": "src/module_4.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_442", "target": "Symbol_251", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_195", "target": "Symbol_717", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_898", "target": "Symbol_664", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_636", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_850", "target": "Symbol_856", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_426", "target": "Symbol_265", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_946", "target": "Symbol_951", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_510", "target": "Symbol_582", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_516", "target": "Symbol_736", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_333", "target": "Symbol_631", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_85", "target": "Symbol_548", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_275", "target": "Symbol_47", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_609", "path": "src/module_10.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_212", "target": "Symbol_576", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_455", "target": "Symbol_135", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_929", "path": "src/module_6.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_264", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_531", "target": "Symbol_486", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_550", "target": "Symbol_626", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_270", "target": "Symbol_792", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_288", "target": "Symbol_579", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_437", "target": "Symbol_182", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_31", "path": "src/module_6.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_201", "target": "Symbol_676", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_422", "target": "Symbol_779", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_416", "path": "src/module_1.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_441", "path": "src/module_5.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_299", "path": "src/module_5.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_985", "target": "Symbol_504", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_447", "path": "src/module_2.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_489", "target": "Symbol_49", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_873", "target": "Symbol_17", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_920", "target": "Symbol_234", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_757", "target": "Symbol_389", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_840", "target": "Symbol_791", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_318", "target": "Symbol_403", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_256", "target": "Symbol_747", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_49", "path": "src/module_10.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_43", "target": "Symbol_529", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_459", "target": "Symbol_925", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_773", "target": "Symbol_623", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_780", "target": "Symbol_960", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_921", "target": "Symbol_650", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_718", "path": "src/module_7.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_883", "path": "src/module_8.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_559", "target": "Symbol_963", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_237", "target": "Symbol_385", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_766", "path": "src/module_7.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_32", "path": "src/module_8.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_15", "target": "Symbol_100", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_670", "target": "Symbol_11", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_59", "target": "Symbol_825", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_779", "target": "Symbol_899", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_641", "path": "src/module_1.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_58", "target": "Symbol_64", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_277", "target": "Symbol_992", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_618", "target": "Symbol_192", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_895", "target": "Symbol_191", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_21", "path": "src/module_5.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_732", "path": "src/module_9.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_562", "target": "Symbol_96", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_65", "target": "Symbol_890", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_982", "target": "Symbol_819", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_316", "target": "Symbol_569", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_174", "path": "src/module_2.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_343", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_364", "path": "src/module_5.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_688", "target": "Symbol_855", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_417", "target": "Symbol_664", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_451", "target": "Symbol_359", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_872", "target": "Symbol_907", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_70", "target": "Symbol_865", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_665", "target": "Symbol_45", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_875", "target": "Symbol_805", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_539", "path": "src/module_9.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_732", "target": "Symbol_47", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_527", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_229", "target": "Symbol_658", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_967", "path": "src/module_4.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_372", "target": "Symbol_328", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_945", "target": "Symbol_696", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_518", "path": "src/module_2.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_698", "target": "Symbol_949", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_488", "target": "Symbol_336", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_802", "target": "Symbol_510", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_246", "path": "src/module_4.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_845", "path": "src/module_1.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_969", "path": "src/module_10.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_779", "path": "src/module_10.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_766", "path": "src/module_6.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_968", "path": "src/module_5.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_635", "path": "src/module_2.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_480", "target": "Symbol_631", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_155", "path": "src/module_2.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_232", "target": "Symbol_667", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_54", "path": "src/module_6.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_708", "target": "Symbol_829", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_990", "target": "Symbol_357", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_73", "path": "src/module_4.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_646", "target": "Symbol_930", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_383", "target": "Symbol_982", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_9", "target": "Symbol_118", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_477", "target": "Symbol_646", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_68", "target": "Symbol_431", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_445", "path": "src/module_4.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_15", "target": "Symbol_884", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_482", "target": "Symbol_432", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_881", "path": "src/module_8.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_167", "path": "src/module_9.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_332", "target": "Symbol_61", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_407", "path": "src/module_10.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_849", "target": "Symbol_866", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_311", "target": "Symbol_381", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_812", "target": "Symbol_499", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_115", "target": "Symbol_415", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_309", "target": "Symbol_419", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_453", "target": "Symbol_391", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_186", "path": "src/module_6.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_400", "target": "Symbol_422", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_888", "target": "Symbol_606", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_318", "target": "Symbol_959", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_181", "target": "Symbol_867", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_930", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_138", "target": "Symbol_112", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_982", "path": "src/module_10.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_809", "target": "Symbol_692", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_349", "path": "src/module_8.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_677", "target": "Symbol_787", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_385", "target": "Symbol_43", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_124", "target": "Symbol_327", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_866", "path": "src/module_4.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_224", "target": "Symbol_72", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_648", "target": "Symbol_565", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_931", "target": "Symbol_238", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_973", "path": "src/module_2.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_889", "target": "Symbol_84", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_379", "target": "Symbol_775", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_163", "target": "Symbol_131", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "function", "id": "Func_603", "path": "src/module_10.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_863", "target": "Symbol_810", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_584", "target": "Symbol_104", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_832", "target": "Symbol_688", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_508", "target": "Symbol_386", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_904", "target": "Symbol_268", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_856", "target": "Symbol_106", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_153", "target": "Symbol_515", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_868", "path": "src/module_3.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_934", "target": "Symbol_929", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_402", "target": "Symbol_386", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_610", "target": "Symbol_770", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_979", "path": "src/module_2.py", "v": "1.2.4"}
+{"type": "function", "id": "Func_968", "path": "src/module_8.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_197", "target": "Symbol_559", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_951", "target": "Symbol_560", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "function", "id": "Func_776", "path": "src/module_6.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_646", "target": "Symbol_794", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_41", "target": "Symbol_845", "relation": "CALLS", "v": "1.2.4"}
+{"type": "function", "id": "Func_22", "path": "src/module_7.py", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_445", "target": "Symbol_783", "relation": "IMPORTS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_214", "target": "Symbol_627", "relation": "CALLS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_829", "target": "Symbol_904", "relation": "INHERITS", "v": "1.2.4"}
+{"type": "edge", "source": "Symbol_777", "target": "Symbol_959", "relation": "IMPORTS", "v": "1.2.4"}
+{"invalid": json... corrupted

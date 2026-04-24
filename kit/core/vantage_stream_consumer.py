@@ -42,10 +42,21 @@ class VantageStreamConsumer:
                         continue
                     try:
                         event = json.loads(line)
+                        
+                        # --- [CONTRACT GUARD] Version Validation ---
+                        # Standard v1.2.4 stream events should include a version field 'v'
+                        if "v" in event and event["v"] != "1.2.4":
+                            logger.warning(f"Consumer: Version mismatch in stream event. Expected 1.2.4, got {event['v']}")
+                            if os.getenv("KIT_STRICT_CONTRACT") == "1":
+                                continue
+                        
                         events.append(event)
                         count += 1
                     except json.JSONDecodeError as e:
-                        logger.warning(f"Consumer: Skipping invalid JSON line: {e}")
+                        # --- [HARDENING] Corruption Resilience ---
+                        logger.error(f"Consumer: CRITICAL - Corrupted JSONL line detected. Skipping. Error: {e}")
+                        # Move to next line automatically by loop
+                        continue
                 
                 if events:
                     self._ingest_events(events)
@@ -66,38 +77,56 @@ class VantageStreamConsumer:
             time.sleep(interval)
 
     def _ingest_events(self, events: List[Dict]):
-        """Normalize and push events into the Kit Ingestion Buffer."""
-        # This will be integrated with kit_ingestion_buffer.py in the next step
-        # For now, we simulate the 'assimilation' process
-        for event in events:
-            # Vantage Event Schema (v1.2.4 Standard):
-            # { "type": "function", "id": "uuid", "norm_hash": "...", "path": "..." }
-            
-            event_type = event.get("type", "unknown")
-            symbol = event.get("id")  # In Vantage v1.2.4, 'id' is the symbol
-            path = event.get("path")
-            structural_hash = event.get("norm_hash")
-            
-            # Assimilation logic:
-            # We don't 'learn' it like a human fact, we 'assimilate' it as a structural truth.
-            logger.debug(f"Consumer: Assimilating {event_type} at {path} (hash: {structural_hash})")
-            
-            # Integration with Brain.assimilate() (to be implemented in kit_cognitive_core.py)
-            try:
-                if hasattr(self.brain, "assimilate"):
-                    self.brain.assimilate(
-                        content=f"Structural Signal: {event_type} detected in {path}",
-                        symbol=symbol,
-                        metadata={
-                            "source": "vantage",
-                            "vantage_type": event_type,
-                            "path": path,
-                            "structural_hash": structural_hash
-                        },
-                        structural_hash=structural_hash
-                    )
-            except Exception as e:
-                logger.error(f"Consumer: Assimilation failed for {symbol}: {e}")
+        """Normalize and push events into the Kit Canonical Layer."""
+        
+        # v1.2.4-TITANIUM: Use authoritative connection via brain
+        with self.brain.get_connection() as conn:
+            for event in events:
+                event_type = event.get("type", "unknown")
+                
+                # --- [BRIDGE LAYER] Hard Structural Edges ---
+                if event_type == "edge":
+                    try:
+                        conn.execute("""
+                            INSERT OR REPLACE INTO structure_edges 
+                            (source_symbol, target_symbol, edge_type, language, confidence, source_file, line)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            event.get("source"),
+                            event.get("target"),
+                            event.get("relation"),
+                            event.get("language"),
+                            event.get("confidence", 1.0),
+                            event.get("file"),
+                            event.get("line")
+                        ))
+                        logger.debug(f"Consumer: Ingested edge {event.get('source')} -> {event.get('target')}")
+                    except Exception as e:
+                        logger.error(f"Consumer: Edge ingestion failed: {e}")
+                    continue
+
+                # --- [COGNITIVE LAYER] Semantic Assimilation ---
+                symbol = event.get("id") or event.get("symbol")
+                path = event.get("path") or event.get("file")
+                structural_hash = event.get("norm_hash")
+                
+                logger.debug(f"Consumer: Assimilating {event_type} at {path} (hash: {structural_hash})")
+                
+                try:
+                    if hasattr(self.brain, "assimilate"):
+                        self.brain.assimilate(
+                            content=f"Structural Signal: {event_type} detected in {path}",
+                            symbol=symbol,
+                            metadata={
+                                "source": "vantage",
+                                "vantage_type": event_type,
+                                "path": path,
+                                "structural_hash": structural_hash
+                            },
+                            structural_hash=structural_hash
+                        )
+                except Exception as e:
+                    logger.error(f"Consumer: Assimilation failed for {symbol}: {e}")
 
 class VantageEventMock:
     """Helper to simulate Vantage outstream activity for testing."""
