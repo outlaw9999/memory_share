@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "memory-share-kit"
-version = "1.2.4"
+version = "1.2.4.post1"
 description = "Deterministic memory and governance for developers and AI agents."
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
@@ -65,11 +65,15 @@ include = [
     "scripts/**/*.py",
     "scripts/hooks/*",
     "AGENTS.md",
+    "GEMINI.md",
     "README.md",
     "LICENSE",
     "VERSION",
     "bootstrap_agent.yaml"
 ]
+
+[tool.setuptools.package-data]
+kit = ["kit-test-gate.yaml"]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "AGENTS.md" = "share/memory_share_kit/AGENTS.md"

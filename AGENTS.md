@@ -1,22 +1,27 @@
 # AGENTS.md (v1.2.4 CONTRACT)
 
-## CORE PRINCIPLE
-Code is source of truth. CLI output and code behavior override docs.
+## ⚖️ FLOW
+recall → tool → execute → learn
 
-## POLICY BOUNDARY
-- AGENTS.md is policy-only.
-- Execution routing belongs to code, not markdown.
-- Direct execution must not depend on this file at runtime.
+## 🎯 ROUTING
+- unknown schema -> kit introspect --json
+- startup        -> kit recall --limit 10
+- friction       -> kit doctor
+- conflict       -> kit-vantage verify-memory
+- persist        -> kit learn --tag decision
 
-## SAFETY INVARIANTS
-- Verify before learn when structural or memory integrity is in doubt.
-- Use Vantage as the structural sensor for snapshot and verification flows.
-- Keep behavior definitions out of docs; keep docs at the constraint level.
+## 🧠 MEMORY GATE
+ALL memory access MUST go through:
+- kit recall          -- read context
+- kit search          -- locate symbol/topic
+- kit introspect --json -- inspect schema
 
-## FORBIDDEN
-- re-interpreting command routing from docs
-- duplicating execution behavior in policy files
-- using AGENTS.md as direct-mode execution logic
-- rewrite-all
-- skip verify
-- raw fs edits
+## 🚫 HARD RULES
+- no direct DB access
+- no raw SQL
+- no filesystem inference
+- no bypass MemoryRouter
+- no ad-hoc scripts to inspect memory
+
+## 🆘 ESCALATION
+fail -> kit-vantage verify -> kit doctor -> retry

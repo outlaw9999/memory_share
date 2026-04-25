@@ -6,7 +6,7 @@ from typing import Dict, Optional
 logger = logging.getLogger("kit.sealing")
 
 # v1.2.4-TITANIUM: Canonical Kernel Constitution
-SEALED_VERSION = "1.2.4-sealed"
+SEALED_VERSION = "1.2.4-final"
 REQUIRED_POLICIES = {
     "integrity_policy": "strict",
     "write_authority": "MemoryRouter"

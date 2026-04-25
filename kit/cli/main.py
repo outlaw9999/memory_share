@@ -51,7 +51,7 @@ class DiagnosticPrinter(Protocol):
 
 # --- CLI Constants ---
 BOOTSTRAP_SENTINEL: Final[str] = ".kit/bootstrap_v1_2_4.seed"
-CLI_VERSION: Final[str] = "v1.2.4-TITANIUM"
+CLI_VERSION: Final[str] = "v1.2.4.post1-TITANIUM"
 BOOTSTRAP_FACTS: Final[list[tuple[str, str]]] = [
     ("kit_startup", "kit startup begins with kit recall project_identity"),
     ("kit_rituals", "Daily: recall & verify. Weekly: hygiene & doctor. Monthly: seal."),
@@ -95,30 +95,29 @@ def _cognitive_guardrail(text: str, tag: Optional[str]) -> bool:
 def _bootloader_template() -> str:
     """Returns the canonical portable AGENTS.md template (v1.2.4-TITANIUM)."""
     return (
-        "# AGENTS.md (v1.2.4 CONTRACT)\n\n"
-        "## \u2696\ufe0f FLOW\n"
-        "recall \u2192 tool \u2192 execute \u2192 learn\n\n"
-        "## \U0001f3af ROUTING\n"
-        "- unknown schema -> kit introspect --json\n"
-        "- startup        -> kit recall --limit 10\n"
-        "- friction       -> kit doctor\n"
-        "- conflict       -> kit-vantage verify-memory\n"
-        "- persist        -> kit learn --tag decision\n\n"
-        "## \U0001f9e0 MEMORY GATE\n"
-        "ALL memory access MUST go through:\n"
-        "- kit recall          -- read context\n"
-        "- kit search          -- locate symbol/topic\n"
-        "- kit introspect --json -- inspect schema\n\n"
-        "## \U0001f6ab HARD RULES\n"
-        "- no direct DB access\n"
-        "- no raw SQL\n"
-        "- no filesystem inference\n"
-        "- no bypass MemoryRouter\n"
-        "- no ad-hoc scripts to inspect memory\n\n"
-        "## \U0001f198 ESCALATION\n"
-        "fail -> kit-vantage verify -> kit doctor -> retry\n"
+        "# AGENTS.md (v1.2.4)\n\n"
+        "FLOW:\n"
+        "recall \u2192 tool \u2192 act \u2192 learn\n\n"
+        "ROUTING:\n"
+        "- unknown -> kit introspect --json\n"
+        "- startup  -> kit recall --limit 10\n"
+        "- friction -> kit doctor\n"
+        "- conflict -> kit-vantage verify-memory\n"
+        "- persist  -> kit learn --tag decision\n\n"
+        "MEMORY:\n"
+        "use only:\n"
+        "- kit recall\n"
+        "- kit search\n"
+        "- kit introspect --json\n\n"
+        "FORBIDDEN:\n"
+        "- no DB\n"
+        "- no SQL\n"
+        "- no fs inference\n"
+        "- no router bypass\n"
+        "- no ad-hoc memory scripts\n\n"
+        "ESCALATE:\n"
+        "fail \u2192 verify \u2192 doctor \u2192 retry\n"
     )
-
 
 def _packaged_asset_root() -> Optional[Path]:
     """Resolves the root path for packaged assets using Pathlib exclusively."""
@@ -243,12 +242,21 @@ def handle_init(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, *
     
     _, project_db, root_path = resolve_paths(force_local=True)
     api.init_kernel(project_db, mode="isolated")
+    
+    # v1.2.4-FINAL: Initialize graph schema (structure_edges + call_resolutions)
+    from kit.graph.schema import init_graph_db
+    from kit.core.memory_topology import MemoryTopology
+    topology = MemoryTopology(project_root=root_path)
+    conn = topology.connect("local", "local")
+    init_graph_db(conn)
+    conn.close()
+    
     _materialize_onboarding_files(root_path, print_diagnostic)
     from kit.core.kit_sealing import seal_kernel
     seal_kernel(project_db)
     
     _seed_bootstrap_memories(root_path, root_path.name)
-    print_diagnostic(f"[OK] Workspace initialized and sealed (v1.2.4-sealed).")
+    print_diagnostic(f"[OK] Workspace initialized and sealed (v1.2.4-final).")
     print("OK")
     
     # v1.2.4: Vantage Integrity Gating (Soft Check on Init)
@@ -356,16 +364,6 @@ def handle_learn(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
     
     if kernel.run():
         trigger_async_bake(api.get_brain())
-        
-        # v1.2.4-TITANIUM: Hard Vantage Gating (Disabled for Frozen Vantage Mode)
-        # from kit.core.kit_vantage import VANTAGE_BIN
-        # import subprocess
-        # if VANTAGE_BIN and VANTAGE_BIN.exists():
-        #     print_diagnostic("  [Vantage] Verifying integrity...")
-        #     v_res = subprocess.run([str(VANTAGE_BIN), "verify-memory"], capture_output=True)
-        #     if v_res.returncode != 0:
-        #         print_diagnostic(f"[FAIL] VANTAGE INTEGRITY FAILURE: {v_res.stderr.decode()}")
-        #         sys.exit(1)
         
         # v1.2.4: Mute narrative logs
         print("OK")
@@ -860,7 +858,7 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
         if report.noise_score > 0.1:
             if not getattr(args, "json", False):
                 print_diagnostic(f"[WARN] High noise score detected ({report.noise_score:.2f}).")
-                print_diagnostic("   Run 'kit doctor --heal' to purge disposable artifacts.")
+                print_diagnostic("   Run 'kit doctor --heal' to purge noise.")
         else:
             if not getattr(args, "json", False):
                 print_diagnostic("[OK] Workspace hygiene is within stable bounds.")
@@ -875,7 +873,7 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
         report_data["kernel_seal"] = f"unsealed ({seal_info.get('reason', 'Missing')})"
         if getattr(args, "fix", False):
             seal_kernel(db_path)
-            report_data["kernel_seal"] = f"v1.2.4-sealed (Restored)"
+            report_data["kernel_seal"] = f"v1.2.4-final (Restored)"
 
     if not getattr(args, "json", False):
         from kit.core.kit_env import ExecutionMode, get_execution_mode
@@ -1024,7 +1022,6 @@ def handle_seal(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, *
     from kit.core import kit_lock
     from kit.core.kit_vantage import VANTAGE_BIN
     import subprocess
-
     brain = api.get_brain()
     from kit.core.release_guard import ReleaseGuard
     ReleaseGuard.enforce_p0(brain)
@@ -1460,7 +1457,7 @@ def handle_verify_release(args: argparse.Namespace, print_diagnostic: Diagnostic
             print_diagnostic(f"[OK] PASS: Gate {gate_id}")
 
     if all_success:
-        print("\nOK")
+        print("\nSUCCESS")
     else:
         sys.exit(1)
 
@@ -1821,4 +1818,3 @@ def _main_impl() -> None:
 if __name__ == "__main__":
     main()
 # titanium_verify
-

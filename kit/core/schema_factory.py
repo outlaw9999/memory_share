@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS kernel_metadata (
 );
 
 -- Initialize Kernel Identity (v1.2.4-RC1-HARDENED)
-INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('version', '1.2.4-rc1');
+INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('version', '1.2.4-final');
 INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('kit_schema_version', '1.2.4-final');
 INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('vantage_contract_version', '1.2.4-rust');
 INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('integrity_policy', 'strict');

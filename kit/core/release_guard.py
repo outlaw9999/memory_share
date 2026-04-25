@@ -15,7 +15,7 @@ class ReleaseGuard:
     """Authority for enforcing v1.2.4-RC1 release invariants."""
     
     EXPECTED_PINS = {
-        "version": "1.2.4-rc1",
+        "version": "1.2.4-final",
         "kit_schema_version": "1.2.4-final",
         "vantage_contract_version": "1.2.4-rust"
     }
