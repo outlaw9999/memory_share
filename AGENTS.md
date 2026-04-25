@@ -1,23 +1,26 @@
-# AGENTS.md 
+# AGENTS.md
 
-## 🎯 MEMORY GATE (Layer 1)
+## 🎯 MEMORY GATE
 
 - Search/Recall/Introspect → Kit API only.
-- No direct DB/Filesystem access.
-- Routing: unknown schema → introspect | friction → kit doctor.
+- No direct DB/FS access. No ad-hoc SQL/scripts.
 
-## 🚫 HARD RULES
+## 🧩 COMMAND ROUTER (CR-C1)
 
-- No direct filesystem reads outside Kit API.
-- No raw SQL/DB bypass.
-- No ad-hoc memory inspection scripts.
+- unknown schema  → `kit introspect --json`
+- build check     → `kit build`
+- unit tests      → `kit test`
+- env/health fix  → `kit doctor`
+- migration       → `kit doctor --migrate-memory`
+- integrity scan  → `kit verify`
+- release gate    → `kit verify-release`
 
-## 🆘 ESCALATION
+## ⚡ FAST PATH (Dev Only)
+- build → `task build` (or `python -m py_compile kit/**/*.py`)
+- test  → `task test`  (or `pytest -q tests/`)
 
-fail → kit-vantage verify → kit doctor → retry
+## 🛡️ RULES & ESCALATION
 
-## 🛡️ SELF-CORRECTION
-
-- Before risky mutation: kit doctor.
-- Workspace: Use ${workspaceFolder} relative paths.
-- Isolation: Use .env KIT_PROJECT_ID.
+- Use `${workspaceFolder}` relative paths.
+- Before mutation: `kit doctor`.
+- On failure: `kit verify` → `kit doctor` → retry.

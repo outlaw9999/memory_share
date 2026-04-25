@@ -49,6 +49,24 @@ class SkillRegistry:
             for name in cls._skills
         ]
 
+    @classmethod
+    def discover_all(cls):
+        """
+        Scan and auto-register all skills in the kit.skills package.
+        Prevents 'Orphaned Capability' problems.
+        """
+        import importlib
+        import pkgutil
+        import kit.skills as skills_pkg
+        
+        logger.info("Initializing Auto-Skill Discovery...")
+        for loader, module_name, is_pkg in pkgutil.walk_packages(skills_pkg.__path__, skills_pkg.__name__ + "."):
+            try:
+                # Import the module; decorators (@register_skill) will handle registration
+                importlib.import_module(module_name)
+            except Exception as e:
+                logger.warning(f"Failed to auto-discover skill module {module_name}: {e}")
+
 
 def register_skill(skill_cls: type[BaseSkill]):
     """Decorator for easy registration."""

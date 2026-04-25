@@ -145,6 +145,7 @@ def run_doctor(
     # --- Environment Audit ---
     if migrate_memory:
         print("\n[MEMORY MIGRATION]", file=sys.stderr)
+        from kit.skills.migrate_brain import migrate_and_merge
         from kit.core.memory_topology import MemoryTopologyFactory
         
         topo = brain.topology
@@ -154,15 +155,29 @@ def run_doctor(
         legacy_local = root / ".kit" / "brain.db"
         new_local = topo.resolve("local", "local")
         
-        if legacy_local.exists() and not new_local.exists():
-            print(f"  - Migrating: {legacy_local.name} -> {new_local.name}")
-            try:
-                # We rename the main file. 
-                # SQLite will handle WAL/SHM if the connection is closed.
-                legacy_local.rename(new_local)
-                print(f"  ✔ Local memory migrated.")
-            except Exception as e:
-                print(f"  ✖ Local migration failed: {e}")
+        if legacy_local.exists():
+            if not new_local.exists():
+                print(f"  - Migrating: {legacy_local.name} -> {new_local.name}")
+                try:
+                    legacy_local.rename(new_local)
+                    print(f"  ✔ Local memory migrated.")
+                except Exception as e:
+                    print(f"  ✖ Local migration failed: {e}")
+            else:
+                # Merge needed
+                print(f"  - Merging: {legacy_local.name} into {new_local.name}")
+                try:
+                    temp_merged = new_local.with_suffix(".merged.db")
+                    migrate_and_merge(str(legacy_local), str(new_local), str(temp_merged))
+                    
+                    if temp_merged.exists():
+                        backup = new_local.with_suffix(".premerge.bak")
+                        new_local.rename(backup)
+                        temp_merged.rename(new_local)
+                        legacy_local.rename(legacy_local.with_suffix(".migrated.bak"))
+                        print(f"  ✔ Local memory merged and schema aligned.")
+                except Exception as e:
+                    print(f"  ✖ Merge failed: {e}")
 
         # Global Migration
         global_kit_dir = topo.GLOBAL_KIT_HOME

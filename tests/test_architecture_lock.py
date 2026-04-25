@@ -18,6 +18,7 @@ def test_single_connect_authority():
         "kit_lock.py",  # Uses connect for WAL checkpoint (administrative)
         "kit_cognitive_core.py",  # Uses connect for read-only URI mode when sealed
         "kit_sealing.py",  # Administrative kernel verification
+        "migrate_brain.py", # Administrative migration utility (v1.2.4)
     }
 
     # Match ANY connect(...) pattern (v1.2.4-STABILIZE-HARD)
