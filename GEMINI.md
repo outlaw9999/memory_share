@@ -1,19 +1,19 @@
-# GEMINI.md (v1.2.4 TRIGGERS)
+# GEMINI.md 
 
-BEFORE EDIT:
-kit recall "<intent>"
+## 🔄 LIFECYCLE
 
-IF unknown schema:
-kit introspect --json
+startup (self_heal) → validate → execute → verify → recover
 
-IF multi-file OR core-symbol:
-kit graph "<path>"
+## ⚡ IDE HOOK LAYER
 
-VERIFY:
-pytest OR py_compile
+- ON_STARTUP        → python scripts/self_heal.py
+- BEFORE_EDIT       → kit recall "`<intent>`"
+- ON_UNKNOWN_SCHEMA → kit introspect --json
+- ON_CORE_SYMBOL    → kit graph "`<path>`"
+- ON_FAIL           → kit doctor
 
-DONE:
-kit-vantage verify-memory
+## ✅ VERIFICATION
 
-FAIL:
-kit doctor
+- syntax: py_compile
+- logic: pytest
+- memory: kit-vantage verify-memory

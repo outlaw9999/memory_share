@@ -1,27 +1,23 @@
-# AGENTS.md (v1.2.4 CONTRACT)
+# AGENTS.md 
 
-## ⚖️ FLOW
-recall → tool → execute → learn
+## 🎯 MEMORY GATE (Layer 1)
 
-## 🎯 ROUTING
-- unknown schema -> kit introspect --json
-- startup        -> kit recall --limit 10
-- friction       -> kit doctor
-- conflict       -> kit-vantage verify-memory
-- persist        -> kit learn --tag decision
-
-## 🧠 MEMORY GATE
-ALL memory access MUST go through:
-- kit recall          -- read context
-- kit search          -- locate symbol/topic
-- kit introspect --json -- inspect schema
+- Search/Recall/Introspect → Kit API only.
+- No direct DB/Filesystem access.
+- Routing: unknown schema → introspect | friction → kit doctor.
 
 ## 🚫 HARD RULES
-- no direct DB access
-- no raw SQL
-- no filesystem inference
-- no bypass MemoryRouter
-- no ad-hoc scripts to inspect memory
+
+- No direct filesystem reads outside Kit API.
+- No raw SQL/DB bypass.
+- No ad-hoc memory inspection scripts.
 
 ## 🆘 ESCALATION
-fail -> kit-vantage verify -> kit doctor -> retry
+
+fail → kit-vantage verify → kit doctor → retry
+
+## 🛡️ SELF-CORRECTION
+
+- Before risky mutation: kit doctor.
+- Workspace: Use ${workspaceFolder} relative paths.
+- Isolation: Use .env KIT_PROJECT_ID.
