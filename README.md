@@ -113,6 +113,20 @@ kit-vantage verify-memory
 
 ---
 
+## 🔍 Verification Layer (Optional)
+
+Kit supports external structural verification using **Vantage**. While optional, it is highly recommended for production-grade cognitive kernels to prevent drift and ensure topological integrity.
+
+**Install Vantage:**
+[https://github.com/so-sai/Vantage](https://github.com/so-sai/Vantage)
+
+After installation, you can run forensic verification:
+```bash
+kit-vantage verify-memory
+```
+
+---
+
 ## 🛡️ Core Principles
 
 - **Runtime is Truth**: The executing environment is the only valid state.
@@ -135,4 +149,4 @@ kit doctor --heal   # Automatically repair common artifacts
 
 ## 📌 Version
 
-v1.2.4.post1
+v1.2.4.post2

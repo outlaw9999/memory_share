@@ -42,8 +42,13 @@ def main():
     args = sys.argv[1:]
     
     if not engine:
-        print("[kit-vantage] Error: Vantage binary not found.")
-        print("Please ensure Vantage repository is a sibling or 'vantage' is in PATH.")
+        print("\n❌ Vantage runtime not found.")
+        print("\nVantage is required for structural verification and integrity enforcement.")
+        print("\nInstall Vantage:")
+        print("  Windows: winget install vantage")
+        print("  Mac:     brew install vantage")
+        print("  Linux:   cargo install vantage-cli")
+        print("\nDocs: https://github.com/so-sai/Vantage")
         sys.exit(1)
 
     if args and args[0] == "verify":

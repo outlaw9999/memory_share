@@ -51,7 +51,7 @@ class DiagnosticPrinter(Protocol):
 
 # --- CLI Constants ---
 BOOTSTRAP_SENTINEL: Final[str] = ".kit/bootstrap_v1_2_4.seed"
-CLI_VERSION: Final[str] = "v1.2.4.post1-TITANIUM"
+CLI_VERSION: Final[str] = "v1.2.4.post2"
 BOOTSTRAP_FACTS: Final[list[tuple[str, str]]] = [
     ("kit_startup", "kit startup begins with kit recall project_identity"),
     ("kit_rituals", "Daily: recall & verify. Weekly: hygiene & doctor. Monthly: seal."),
@@ -59,7 +59,7 @@ BOOTSTRAP_FACTS: Final[list[tuple[str, str]]] = [
     ("memory_law", "SQLite is Truth. observations.is_baked=1 is the only valid state for long-term memory."),
     ("arch_lighthouse", "AGENTS.md is the root contract; .kit/ is the private cognitive vault."),
     ("governance", "Maintain Entropy < 0.10. Run 'kit doctor --heal' to purge noise."),
-    ("execution_contract", "All kit operations MUST route through 'kit' CLI (v1.2.4-TITANIUM)."),
+    ("execution_contract", "All kit operations MUST route through 'kit' CLI (v1.2.4.post2)."),
 ]
 
 # --- Console & Safety Helpers ---
@@ -256,6 +256,13 @@ def handle_init(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, *
     seal_kernel(project_db)
     
     _seed_bootstrap_memories(root_path, root_path.name)
+    
+    # v1.2.4-FINAL: Soft-check for Vantage availability
+    import shutil
+    if not (shutil.which("vantage") or shutil.which("kit-vantage")):
+        print_diagnostic(f"\n⚠️ Vantage not detected. Verification features will be limited.")
+        print_diagnostic(f"Install: https://github.com/so-sai/Vantage\n")
+    
     print_diagnostic(f"[OK] Workspace initialized and sealed (v1.2.4-final).")
     print("OK")
     
@@ -914,11 +921,19 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
             report_data["global_db"] = "OK"
             if not getattr(args, "json", False):
                 print_diagnostic("  Global DB:    OK")
-        else:
-            report_data["global_db"] = "MISSING"
-            if not getattr(args, "json", False):
-                print_diagnostic("  Global DB:    MISSING (First learn will create)")
-            
+        
+        # v1.2.4-FINAL: Explicit Vantage Sensor Check
+        import shutil
+        v_found = shutil.which("vantage") or shutil.which("kit-vantage")
+        report_data["vantage"] = "OK" if v_found else "NOT FOUND"
+        
+        if not getattr(args, "json", False):
+            print_diagnostic("\n[VANTAGE INTEGRITY]")
+            if v_found:
+                print_diagnostic(f"  Sensor:       OK")
+            else:
+                print_diagnostic(f"  Sensor:       ❌ NOT FOUND")
+                print_diagnostic(f"  Action:       Install from https://github.com/so-sai/Vantage")
     except Exception as e:
         if not getattr(args, "json", False):
             print_diagnostic(f"[FAIL] HEALTH CHECK FAILED: {e}")
