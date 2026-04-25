@@ -77,6 +77,7 @@ kit = ["kit-test-gate.yaml"]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "AGENTS.md" = "share/memory_share_kit/AGENTS.md"
+"GEMINI.md" = "share/memory_share_kit/GEMINI.md"
 "bootstrap_agent.yaml" = "share/memory_share_kit/bootstrap_agent.yaml"
 "kit/core/schema_default.json" = "share/memory_share_kit/schema_default.json"
 
@@ -85,6 +86,11 @@ include = [
     "kit/",
     "scripts/",
     "AGENTS.md",
+    "GEMINI.md",
+    "README.md",
+    "LICENSE",
+    "VERSION",
+    "bootstrap_agent.yaml",
     "pyproject.toml"
 ]
 
