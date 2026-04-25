@@ -9,6 +9,12 @@
 - **Python 3.14.x Required**
 - This runtime is tested and supported strictly on Python 3.14.4+.
 
+## 🖥 Supported Environment
+
+- **OS**: Windows 10/11 (fully tested)
+- **Runtime**: Python 3.14.4+
+- **Database**: SQLite (bundled with Python 3.14, WAL + STRICT mode)
+
 ---
 
 ## ⚡ Install
@@ -27,10 +33,27 @@ kit init
 
 Initializes the local cognitive environment and seals the kernel.
 
+---
+
+## 🏗 Architecture Overview
+
+The system operates as a deterministic cognitive substrate:
+
 ```text
-.kit/
-  local_brain.db   (SQLite WAL + STRICT)
-  config.json      (Runtime preferences)
+Agent / IDE
+  ↓
+Kit CLI (The Brain)
+  ↓
+Memory Router (Routing & Governance)
+  ↓
+SQLite Storage (JSONB + WAL + STRICT)
+
+Verification Path (Forensic):
+Kit CLI
+  ↓
+Vantage (The Sensor - Rust Core)
+  ↓
+Integrity Verification (Drift Detection)
 ```
 
 ---
@@ -46,7 +69,27 @@ Kit enforces a **4-tier deterministic memory model**:
 
 ---
 
-## 🧠 Usage
+## 🧪 Minimal Workflow Example
+
+The following sequence represents a standard deterministic session:
+
+```bash
+# 1. Initialize
+kit init
+
+# 2. Record a decision or invariant
+kit learn --tag decision "Always use WAL mode for high concurrency"
+
+# 3. Recall the context
+kit recall
+
+# 4. Verify structural integrity
+kit-vantage verify-memory
+```
+
+---
+
+## 🧠 Usage Summary
 
 ### Store knowledge
 ```bash
@@ -79,12 +122,6 @@ kit-vantage verify-memory
 
 ---
 
-## ⚙️ Philosophy
-
-> No repository knowledge required. Only runtime truth matters.
-
----
-
 ## 🛠️ Failure Recovery
 
 If the system enters a friction state or memory drift is detected:
@@ -92,21 +129,6 @@ If the system enters a friction state or memory drift is detected:
 ```bash
 kit doctor          # Diagnose health
 kit doctor --heal   # Automatically repair common artifacts
-```
-
----
-
-## 🧩 Commands Summary
-
-```text
-kit init                    Initialize environment
-kit recall                  List active memories
-kit search                  Full-text search (BM25)
-kit learn                   Record new knowledge
-kit doctor                  System health check
-kit blast                   Analyze impact radius
-kit graph                   Extract structural graph
-kit-vantage verify-memory   Verify kernel integrity
 ```
 
 ---
