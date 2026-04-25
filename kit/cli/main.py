@@ -49,15 +49,26 @@ class DiagnosticPrinter(Protocol):
     """Protocol for diagnostic output reporting (v1.2.4)."""
     def __call__(self, msg: str, level: int = logging.INFO) -> None: ...
 
-# --- CLI Constants ---
+# --- CLI Constants (v1.2.4-TITANIUM) ---
 BOOTSTRAP_SENTINEL: Final[str] = ".kit/bootstrap_v1_2_4.seed"
-CLI_VERSION: Final[str] = "v1.2.4.post2"
+INTERNAL_EPOCH: Final[str] = "1.2.4"
+INTERNAL_DEV_VERSION: Final[str] = "1.2.4.post2"
+
+def get_cli_version() -> str:
+    """Resolves the CLI version from distribution metadata with fallback to dev (AVS)."""
+    import importlib.metadata
+    try:
+        return importlib.metadata.version("memory-share-kit")
+    except importlib.metadata.PackageNotFoundError:
+        return f"{INTERNAL_DEV_VERSION}-dev"
+
 BOOTSTRAP_FACTS: Final[list[tuple[str, str]]] = [
     ("kit_startup", "kit startup begins with kit recall project_identity"),
     ("kit_rituals", "Daily: recall & verify. Weekly: hygiene & doctor. Monthly: seal."),
     ("flow_law", "Multi-step work MUST use 'kit flow run'. Isolation via transactions (v0.1.2)."),
     ("memory_law", "SQLite is Truth. observations.is_baked=1 is the only valid state for long-term memory."),
     ("arch_lighthouse", "AGENTS.md is the root contract; .kit/ is the private cognitive vault."),
+
     ("governance", "Maintain Entropy < 0.10. Run 'kit doctor --heal' to purge noise."),
     ("execution_contract", "All kit operations MUST route through 'kit' CLI (v1.2.4.post2)."),
 ]
@@ -218,7 +229,7 @@ def _seed_bootstrap_memories(root_path: Path, project_name: str) -> bool:
     sentinel.write_text(f"seeded at {datetime.now(UTC)}\n", encoding="utf-8")
     
     import kit.api as api
-    api.learn(uid="project_identity", content=f"Project '{project_name}' initialized and integrated into .kit cognitive system ({CLI_VERSION}).", tag="decision", skip_render=True)
+    api.learn(uid="project_identity", content=f"Project '{project_name}' initialized and integrated into .kit cognitive system ({get_cli_version()}).", tag="decision", skip_render=True)
     
     for uid, content in BOOTSTRAP_FACTS:
         # v1.2.4-TITANIUM: Ensure each bootstrap fact has a unique UID and version provenance
@@ -812,15 +823,25 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
     brain = api.get_brain()
     
     report_data = {
-        "version": CLI_VERSION,
+        "version": get_cli_version(),
         "mode": "unknown",
         "sqlite": "unknown",
         "wal": "unknown",
         "router": "OK",
         "global_db": "unknown",
         "vantage": "unknown",
+        "alignment": "unknown",
         "entropy": 0.0
     }
+    
+    # v1.2.4-FINAL: Version Alignment Layer (SVTL)
+    import importlib.metadata
+    try:
+        pip_v = importlib.metadata.version("memory-share-kit")
+    except importlib.metadata.PackageNotFoundError:
+        pip_v = "development"
+    
+    report_data["pip_version"] = pip_v
 
     if not getattr(args, "json", False):
         print_diagnostic("Kit Doctor v1.2.4-TITANIUM (Heal & Align)")
@@ -891,6 +912,34 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
         print_diagnostic(f"  Router:       {report_data['router']}")
         print_diagnostic(f"  Kernel Seal:  {report_data['kernel_seal']}")
         print_diagnostic(f"  Global DB:    {report_data['global_db']}")
+
+    # --- VIM: Version Identity Map (Production Grade) ---
+    v_cli = get_cli_version()
+    if not getattr(args, "json", False):
+        print_diagnostic("\n[VERSION IDENTITY]")
+        print_diagnostic(f"  Distribution: {v_cli}")
+        
+        # 1. Identity Analysis (AVS)
+        if "-dev" in v_cli:
+             print_diagnostic(f"  Identity:     ✅ DEVELOPMENT (LOCAL SOURCE)")
+        else:
+             print_diagnostic(f"  Identity:     ✅ DISTRIBUTION (STABLE RELEASE)")
+
+        # 2. Execution vs Cognitive (Kernel Compatibility)
+        from kit.core.kit_sealing import SEALED_VERSION
+        kernel_v = seal_info.get("version", "unknown")
+        print_diagnostic(f"  Cognitive:    {kernel_v}")
+        
+        # Semantic Compatibility check (v1.2.4 Epoch)
+        if kernel_v.startswith(INTERNAL_EPOCH):
+            print_diagnostic(f"  Compatibility: ✅ DETERMINISTIC ({INTERNAL_EPOCH}-epoch)")
+            report_data["alignment"] = "OK"
+        elif kernel_v == "unknown":
+             print_diagnostic("  Compatibility:      ⚠️ UNKNOWN (UNSEALED)")
+             report_data["alignment"] = "UNKNOWN"
+        else:
+            print_diagnostic(f"  Compatibility:      ❌ INCOMPATIBLE (SCHEMA DRIFT)")
+            report_data["alignment"] = "INCOMPATIBLE"
     try:
         from kit.core.kit_env import get_substrate_report
         substrate = get_substrate_report()
@@ -1587,7 +1636,7 @@ def _main_impl() -> None:
         description="SAMBrain CLI v1.2.4 - The Elite AI Memory Kernel",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--version", action="version", version=f"kit {CLI_VERSION}")
+    parser.add_argument("--version", action="version", version=f"kit {get_cli_version()}")
     parser.add_argument("--db", help="Path to project database")
     parser.add_argument("--isolated", action="store_true", help="Force isolation")
     subparsers = parser.add_subparsers(dest="command")
