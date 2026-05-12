@@ -28,7 +28,7 @@ class DiagnosticPrinter(Protocol):
 # --- CLI Constants (v1.2.4-TITANIUM) ---
 BOOTSTRAP_SENTINEL: Final[str] = ".kit/bootstrap_v1_2_4.seed"
 INTERNAL_EPOCH: Final[str] = "1.2.4"
-INTERNAL_DEV_VERSION: Final[str] = "1.2.4.post2"
+INTERNAL_DEV_VERSION: Final[str] = "1.2.4"
 
 def get_cli_version() -> str:
     """Resolves the CLI version from distribution metadata with fallback to dev (AVS)."""
@@ -46,7 +46,7 @@ BOOTSTRAP_FACTS: Final[list[tuple[str, str]]] = [
     ("arch_lighthouse", "AGENTS.md is the root contract; .kit/ is the private cognitive vault."),
 
     ("governance", "Maintain Entropy < 0.10. Run 'kit doctor --heal' to purge noise."),
-    ("execution_contract", "All kit operations MUST route through 'kit' CLI (v1.2.4.post2)."),
+    ("execution_contract", "All kit operations MUST route through 'kit' CLI (v1.2.4-FINAL)."),
 ]
 
 # --- Console & Safety Helpers ---
@@ -820,7 +820,7 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
     report_data["pip_version"] = pip_v
 
     if not getattr(args, "json", False):
-        print_diagnostic("Kit Doctor v1.2.4-TITANIUM (Heal & Align)")
+        print_diagnostic("Kit Doctor v1.2.5-GLOBAL-RUNTIME (Heal & Align)")
     
     if getattr(args, "heal", False):
         if not getattr(args, "json", False):
@@ -1718,10 +1718,7 @@ def main() -> None:
             sys.stderr.write(f"FAILED: {e}\n")
         sys.exit(1)
     except RuntimeError as e:
-        if "Interpreter mismatch" in str(e) or "[RUNTIME LOCK]" in str(e):
-            sys.stderr.write("KIT-ENV-LOCK: activate project .venv\n")
-        else:
-            sys.stderr.write(f"FAILED: {e}\n")
+        sys.stderr.write(f"FAILED: {e}\n")
         sys.exit(1)
     except Exception as e:
         import traceback
@@ -1765,27 +1762,8 @@ def _main_impl() -> None:
             fallback_reason=fallback_reason,
             metadata={"classified_mode": classified_mode},
         )
-# --- ECL v2: Runtime Shield Enforcer ---
+    # --- ECL v2: Runtime Shield Enforcer (Removed in v1.2.5 Global Runtime Mode) ---
     substrate = kit_env.get_substrate_report()
-    if substrate["venv_discovered"] != "missing" and not substrate["is_locked"] and os.getenv("KIT_BYPASS_RUNTIME_LOCK") != "1":
-        # Rule II.1: Explicit Failures
-        if len(sys.argv) > 1 and sys.argv[1] not in ["stats", "status", "trace", "init", "init-env", "--help", "-h", "flow", "--version", "-v", "doctor", "where", "context"] and not _raw_repair_governance_mode():
-            # Check if .kit exists for helpful message
-            kit_dir = Path.cwd() / ".kit"
-            hint = ""
-            if not kit_dir.exists():
-                hint = (
-                    "\n"
-                    "Hint: Workspace not initialized.\n"
-                    "Run: kit init\n"
-                    "Then retry your command."
-                )
-            raise RuntimeError(
-                f"[RUNTIME LOCK] Interpreter mismatch.\n"
-                f"Expected: {substrate.get('venv_discovered')}\n"
-                f"Actual:   {substrate.get('interpreter')}"
-                f"{hint}"
-            )
 
     # --- Workspace Initialization Guard (v1.2.4) ---
     if len(sys.argv) > 1 and sys.argv[1] not in ["init", "init-env", "--help", "-h", "where", "status", "stats", "trace"] and not _raw_repair_governance_mode():
@@ -1806,7 +1784,7 @@ def _main_impl() -> None:
 
     parser_start = time.perf_counter()
     parser = argparse.ArgumentParser(
-        description="SAMBrain CLI v1.2.4 - The Elite AI Memory Kernel",
+        description="SAMBrain CLI v1.2.5 - Global Runtime Edition",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--version", action="version", version=f"kit {get_cli_version()}")

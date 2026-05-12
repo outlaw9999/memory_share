@@ -45,17 +45,22 @@ def get_venv_path() -> Path | None:
 
 def is_env_locked() -> bool:
     """Verify if the current process is running from the project's .venv."""
-    venv = get_venv_path()
-    if not venv:
-        return False
-    # Smart Comparison: Check if sys.prefix is inside the discovered venv
-    # This handles slight variations in path strings (UNC vs absolute)
-    try:
-        current_prefix = Path(sys.prefix).resolve()
-        target_prefix = venv.resolve()
-        return current_prefix == target_prefix
-    except Exception:
-        return False
+    # v1.2.5 Global Runtime Mode: The environment is always considered locked/valid
+    # no matter where the python interpreter is running from.
+    if os.environ.get("KIT_ENABLE_ENV_LOCK") == "1":
+        venv = get_venv_path()
+        if not venv:
+            return False
+        # Smart Comparison: Check if sys.prefix is inside the discovered venv
+        # This handles slight variations in path strings (UNC vs absolute)
+        try:
+            current_prefix = Path(sys.prefix).resolve()
+            target_prefix = venv.resolve()
+            return current_prefix == target_prefix
+        except Exception:
+            return False
+            
+    return True
 
 def get_vantage_bin() -> Path | None:
     """Discover the Vantage binary with multi-anchor fallback (v1.2.4-TITANIUM)."""

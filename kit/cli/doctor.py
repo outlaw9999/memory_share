@@ -213,10 +213,10 @@ def run_doctor(
 
     root = brain.root_path
     
-    # 1. PEP 668 / Venv Check
+    # 1. Global Runtime Edition
     substrate = kit_env.get_substrate_report()
     locked = substrate["is_locked"]
-    print(f"  {'✔' if locked else '✖'} Python Interpreter (.venv): {'ACTIVE' if locked else 'DRIFT DETECTED'}", file=sys.stderr)
+    print(f"  {'✔' if locked else '✖'} Python Runtime: {'GLOBAL/ACTIVE' if locked else 'DRIFT DETECTED'}", file=sys.stderr)
 
     # 2. SQLite WAL mode
     wal_healthy = True
@@ -312,7 +312,11 @@ def run_doctor(
     from kit.api import get_brain
 
     # Try to get version from pyproject.toml if possible
-    package_version = "1.2.3-Ultimate"
+    try:
+        import importlib.metadata
+        package_version = importlib.metadata.version("memory-share-kit")
+    except importlib.metadata.PackageNotFoundError:
+        package_version = "1.2.4-FINAL"
 
     brain = get_brain()
 
