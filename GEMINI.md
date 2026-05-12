@@ -1,19 +1,23 @@
-# GEMINI.md 
+# GEMINI.md
 
 ## 🔄 LIFECYCLE
 
 startup (self_heal) → validate → execute → verify → recover
 
-## ⚡ IDE HOOK LAYER
+All lifecycle events resolve through the intent router. Never call kit CLI directly.
 
-- ON_STARTUP        → python scripts/self_heal.py
-- BEFORE_EDIT       → kit recall "`<intent>`"
-- ON_UNKNOWN_SCHEMA → kit introspect --json
-- ON_CORE_SYMBOL    → kit graph "`<path>`"
-- ON_FAIL           → kit doctor
+## ⚡ INTENT HOOK LAYER
+
+| Event              | Intent                     |
+| ------------------ | -------------------------- |
+| ON_STARTUP         | `INTENT: HEALTH`           |
+| BEFORE_EDIT        | `INTENT: RECALL` (context) |
+| ON_UNKNOWN_SCHEMA  | `INTENT: VERIFY`           |
+| ON_CORE_SYMBOL     | `INTENT: VERIFY` (graph)   |
+| ON_FAIL            | `INTENT: HEALTH`           |
 
 ## ✅ VERIFICATION
 
 - syntax: py_compile
 - logic: pytest
-- memory: kit-vantage verify-memory
+- memory: Vantage (via INTENT: VERIFY)

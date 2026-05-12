@@ -2,18 +2,25 @@
 
 ## 🎯 MEMORY GATE
 
-- Search/Recall/Introspect → Kit API only.
 - No direct DB/FS access. No ad-hoc SQL/scripts.
+- Operate via INTENTS only — never call kit CLI directly.
 
-## 🧩 COMMAND ROUTER (CR-C1)
+## 🧠 INTENT ROUTER (IR-C1)
 
-- unknown schema  → `kit introspect --json`
-- build check     → `kit build`
-- unit tests      → `kit test`
-- env/health fix  → `kit doctor`
-- migration       → `kit doctor --migrate-memory`
-- integrity scan  → `kit verify`
-- release gate    → `kit verify-release`
+Agent MUST NOT call kit commands. Emit one of:
+
+| Intent            | When                        |
+| ----------------- | --------------------------- |
+| `INTENT: BUILD`   | structural check            |
+| `INTENT: TEST`    | run unit tests              |
+| `INTENT: VERIFY`  | full integrity scan         |
+| `INTENT: HEALTH`  | env/schema diagnostics      |
+| `INTENT: MIGRATE` | legacy memory path upgrade  |
+| `INTENT: RELEASE` | release gate validation     |
+| `INTENT: LEARN`   | record cognitive observation|
+| `INTENT: RECALL`  | retrieve context            |
+
+Runtime maps intents → kit execution. The command surface is invisible.
 
 ## ⚡ FAST PATH (Dev Only)
 - build → `task build` (or `python -m py_compile kit/**/*.py`)
@@ -22,5 +29,6 @@
 ## 🛡️ RULES & ESCALATION
 
 - Use `${workspaceFolder}` relative paths.
-- Before mutation: `kit doctor`.
-- On failure: `kit verify` → `kit doctor` → retry.
+- Before mutation: emit `INTENT: HEALTH`.
+- On failure: `INTENT: VERIFY` → `INTENT: HEALTH` → retry.
+- Never call `kit ...` directly.
