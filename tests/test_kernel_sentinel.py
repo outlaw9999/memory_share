@@ -48,20 +48,13 @@ def test_sql_ordering():
             # We just ensure the query runs and returns without syntax error in the tie breaker
             pass
 
-# 5. Interpreter Lock Test (Boundary Test)
+# 5. Interpreter Lock Test (Boundary Test — v1.2.5: env-lock removed, always allowed)
 def test_runtime_venv_lock():
-    # Calling the CLI via system python should raise RuntimeError or exit code 1
-    # We use subprocess to run the system python (the global python) 
-    # to simulate a drift.
-    
-    # sys.executable might be the venv. We artificially call 'python' 
-    # which usually maps to the global python on windows if the venv is not activated in the subshell.
+    # v1.2.5: env-lock is permanently disabled (de-friction). Any Python works.
+    # This test verifies the command runs without env-lock error.
     try:
-        # Run module as main
         result = subprocess.run(["python", "-m", "kit.cli.main", "compile"], capture_output=True, text=True)
-        # If it successfully runs, that means 'python' is the venv python, OR the lock failed.
-        # But if drift happens, it should print KIT-ENV-LOCK and exit 1
-        if result.returncode != 0:
-            assert "KIT-ENV-LOCK" in result.stderr
+        # Should succeed or fail with a non-lock error. Must NOT print KIT-ENV-LOCK.
+        assert "KIT-ENV-LOCK" not in result.stderr
     except FileNotFoundError:
-        pass # If 'python' doesn't exist, we can't test global python drift
+        pass
