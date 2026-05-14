@@ -12,7 +12,7 @@ class MemoryPolicy:
     Consolidates Arbitration, Scoring, and Temporal Decay into one deterministic path.
     """
 
-    POLICY_VERSION = "1.2.5-FROZEN"
+    POLICY_VERSION = "1.2.5"
 
     TIER_WEIGHTS = {"frozen": 1.0, "law": 1.0, "global": 0.7, "local": 0.5}
 

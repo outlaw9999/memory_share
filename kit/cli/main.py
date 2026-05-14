@@ -1259,6 +1259,54 @@ def handle_verify(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
     print("VERIFIED")
 
 
+@kit_command(name="release", namespace=CommandNamespace.DIAGNOSTIC, description="Single Authority Release Gate (Verify + Tag + Push)")
+def handle_release(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
+    """Handler for 'kit release' - The ultimate release gate."""
+    import subprocess
+    from kit.cli.main import get_cli_version, handle_verify
+
+    # 1. Epistemic Verification
+    print_diagnostic(">>> Phase 1: Epistemic Verification...")
+    try:
+        handle_verify(args, print_diagnostic, **kwargs)
+    except SystemExit as e:
+        if e.code != 0:
+            print_diagnostic("[FAIL] Release aborted: Verification failed.")
+            sys.exit(1)
+
+    # 2. Working Tree Hygiene
+    print_diagnostic(">>> Phase 2: Structural Hygiene Check...")
+    status = subprocess.run(["git", "status", "--short"], capture_output=True, text=True)
+    if status.stdout.strip():
+        print_diagnostic("[FAIL] Release aborted: Working tree is dirty. Commit your changes first.")
+        print(status.stdout)
+        sys.exit(1)
+
+    # 3. Tagging & Anchoring
+    version = get_cli_version()
+    tag = f"v{version}"
+    print_diagnostic(f">>> Phase 3: Anchoring reality at {tag}...")
+
+    # Check if tag already exists
+    tags = subprocess.run(["git", "tag", "-l", tag], capture_output=True, text=True)
+    if tag in tags.stdout:
+        print_diagnostic(f"[WARN] Tag {tag} already exists. Skipping tagging.")
+    else:
+        subprocess.run(["git", "tag", "-a", tag, "-m", f"release: {tag} titanium stable"], check=True)
+        print_diagnostic(f"[OK] Tag {tag} created.")
+
+    # 4. Global Synchronization
+    print_diagnostic(">>> Phase 4: Global Synchronization (Pushing to main)...")
+    try:
+        subprocess.run(["git", "push", "origin", "main", "--tags"], check=True)
+        print_diagnostic("[OK] Reality synchronized globally.")
+    except subprocess.CalledProcessError as e:
+        print_diagnostic(f"[FAIL] Push failed: {e}")
+        sys.exit(1)
+
+    print_diagnostic(f"\n[TITANIUM SEALED] {tag} is now Ground Truth.")
+
+
 @kit_command(
     name="flow", namespace=CommandNamespace.CORE, description="Unified interactive loop (ask/run/learn/status)"
 )

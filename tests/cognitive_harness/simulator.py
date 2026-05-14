@@ -164,7 +164,7 @@ class DeterministicSimulator:
         if self.config.mock_datetime:
             self._patches.append(patch.object(time, "time", lambda: _SEED_TIME))
             self._patches.append(patch.object(os, "stat", self._mock_stat))
-            self._patches.append(patch.object(os, "path", self._mock_path))
+            # self._patches.append(patch.object(os, "path", self._mock_path)) # v1.2.5: Removed broken mock
 
         if self.config.mock_uuid:
             import uuid as uuid_mod
