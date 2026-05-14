@@ -14,8 +14,21 @@ from typing import Any, Optional, Callable, Final, Protocol, runtime_checkable
 import yaml
 from kit.core import kit_env
 from kit.core.command_registry import CommandNamespace, CommandSideEffect, registry, kit_command
-from kit.core.execution_trace import log_execution_event
+from kit.core.execution_trace import log_execution_event, summarize_execution_paths, summarize_hot_paths, read_execution_events
 from kit.core.policy_schema import LEARN_TAGS
+from kit.core.kit_baking import trigger_async_bake
+from kit.core.consistency_validator import summarize_consistency
+from kit.core.kit_compaction import execute_compaction
+from kit.core.drift_repair import (
+    repair_requires_kernel,
+    validate_repair_mode,
+    build_repair_plan,
+    validate_plan_payload,
+    render_repair_plan,
+    render_repair_diff,
+    apply_repair_plan
+)
+from kit.core.kit_symbol_repair import repair_symbol_debt
 
 # --- Section VII: Structured Logging (code-py-314) ---
 logger = logging.getLogger("kit.cli")

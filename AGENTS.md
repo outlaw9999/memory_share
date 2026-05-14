@@ -1,4 +1,4 @@
-# AGENTS.md
+# AGENTS.md — Canonical Behavioral Contract
 
 ## 🎯 MEMORY GATE
 
@@ -33,6 +33,23 @@ Agent MUST NOT call kit commands. Emit one of:
 
 Runtime maps intents → execution. The command surface is invisible.
 
+## 🔄 LIFECYCLE HOOKS
+
+startup (self_heal) → validate → execute → verify → recover
+
+All lifecycle events resolve through the intent router.
+
+| Event              | Intent                                |
+| ------------------ | ------------------------------------- |
+| ON_STARTUP         | `INTENT: RUNTIME:HEALTH`              |
+| BEFORE_EDIT        | `INTENT: MEMORY:RECALL` (context)     |
+| ON_UNKNOWN_SCHEMA  | `INTENT: VERIFICATION:VERIFY`         |
+| ON_CORE_SYMBOL     | `INTENT: GRAPH:VERIFY`                |
+| ON_FAIL            | `INTENT: RUNTIME:HEALTH`              |
+| PRE_COMMIT         | `INTENT: LIFECYCLE:PRE_COMMIT`        |
+| POST_COMMIT        | `INTENT: LIFECYCLE:POST_COMMIT`       |
+| POST_MERGE         | `INTENT: MEMORY:RECONCILE`            |
+
 ## ⚡ FAST PATH (Dev Only)
 - build → `task build` (or `python -m py_compile kit/**/*.py`)
 - test  → `task test`  (or `pytest -q tests/`)
@@ -43,3 +60,6 @@ Runtime maps intents → execution. The command surface is invisible.
 - Before mutation: emit `INTENT: RUNTIME:HEALTH`.
 - On failure: `INTENT: VERIFICATION:VERIFY` → `INTENT: RUNTIME:HEALTH` → retry.
 - Never call `kit ...` directly.
+- Memory: Vantage (via `INTENT: VERIFICATION:VERIFY`)
+- Logic: `pytest`
+- Syntax: `py_compile`
