@@ -1,13 +1,14 @@
 # kit/scst/adversarial_generator.py
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
 
 class AdversarialQueryGenerator:
     """
     SCST Adversarial Query Generator:
     Attempts to force routing errors via semantic ambiguity and tier confusion baits.
     """
-    def generate(self) -> List[Dict[str, Any]]:
+    def generate(self) -> list[dict[str, Any]]:
         return [
             {
                 "id": "ADV-001",

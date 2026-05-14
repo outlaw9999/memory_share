@@ -4,11 +4,13 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+
 class ConflictType(StrEnum):
     NONE = "none"
     SOFT = "soft"
     SEMANTIC = "semantic"
     AUTHORITY = "authority"
+
 
 @dataclass
 class CoherentMemory:

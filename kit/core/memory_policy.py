@@ -3,26 +3,22 @@
 import math
 import time
 from datetime import datetime
-from typing import List, Any, Optional
+from typing import Any, List, Optional
+
 
 class MemoryPolicy:
     """
     The Single Authority for Memory Truth (v1.2.5-TITANIUM-FROZEN).
     Consolidates Arbitration, Scoring, and Temporal Decay into one deterministic path.
     """
-    
+
     POLICY_VERSION = "1.2.5-TITANIUM-FROZEN"
-    
-    TIER_WEIGHTS = {
-        "frozen": 1.0,
-        "law": 1.0,
-        "global": 0.7,
-        "local": 0.5
-    }
+
+    TIER_WEIGHTS = {"frozen": 1.0, "law": 1.0, "global": 0.7, "local": 0.5}
 
     # --- SQL Authority Constants (v1.2.5-TITANIUM) ---
     # These ensure that even SQL-level ranking follows the unified kernel logic.
-    
+
     SQL_RANKING_FORMULA = """
         importance * 
         ((access_count + 2) / (access_count + 6.0)) *
@@ -46,7 +42,7 @@ class MemoryPolicy:
         WHERE is_active = 1 AND superseded_at IS NULL
     """
 
-    SQL_RECALL_BASE = f"""
+    SQL_RECALL_BASE = """
         SELECT n.uid, o.id, o.importance, o.created_at, o.content 
         FROM observations o
         JOIN nodes n ON o.node_id = n.id
@@ -62,7 +58,7 @@ class MemoryPolicy:
         "note": 0,
         "friction": 0,
         "legacy": 0,
-        "hypothesis": 0
+        "hypothesis": 0,
     }
 
     @staticmethod
@@ -73,48 +69,48 @@ class MemoryPolicy:
         return min(0.94, (importance / 10.0) + 0.5)
 
     @staticmethod
-    def calculate_score(memory: Any, now: Optional[float] = None) -> float:
+    def calculate_score(memory: Any, now: float | None = None) -> float:
         """
         [FROZEN v1.2.5] Deterministic Unified Scoring Function.
         score = confidence * e^(-decay_rate * age) * tier_weight
         """
         now = now if now is not None else time.time()
-        
+
         # 1. Base confidence fallback logic: confidence -> raw importance -> default
-        # We explicitly avoid using 'memory.score' here if possible, as that might be 
+        # We explicitly avoid using 'memory.score' here if possible, as that might be
         # a weighted score (materialized_score).
-        confidence = getattr(memory, 'confidence', None)
+        confidence = getattr(memory, "confidence", None)
         if confidence is None:
-            importance = getattr(memory, 'importance', 1.0)
+            importance = getattr(memory, "importance", 1.0)
             # Standard kit formula: importance scaled to 0.5-0.94 range
             confidence = min(0.94, (importance / 10.0) + 0.5)
-        
+
         # 2. Stable timestamp handling
-        ts_val = getattr(memory, 'created_at', now)
-        
+        ts_val = getattr(memory, "created_at", now)
+
         if ts_val is None:
             ts = now
         elif isinstance(ts_val, str):
             try:
                 # Handle ISO format
-                ts_str = ts_val.replace('Z', '+00:00')
+                ts_str = ts_val.replace("Z", "+00:00")
                 ts = datetime.fromisoformat(ts_str).timestamp()
             except Exception:
                 ts = now
         else:
             try:
                 ts = float(ts_val)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 ts = now
-            
+
         # 3. Deterministic age with safety clamp (1s resolution)
         age_days = max(0.0, (now - ts) / 86400.0)
         decay = math.exp(-0.01 * age_days)
-        
+
         # 4. Tier Authority
-        tier = getattr(memory, 'brain_source', 'local')
+        tier = getattr(memory, "brain_source", "local")
         weight = MemoryPolicy.TIER_WEIGHTS.get(tier, 0.5)
-        
+
         return confidence * decay * weight
 
     @staticmethod
@@ -128,40 +124,40 @@ class MemoryPolicy:
         5. runtime_hash (high-entropy content lock) (desc)
         6. mem_id (final machine-local total order anchor) (desc)
         """
-        tier = getattr(memory, 'brain_source', 'local')
+        tier = getattr(memory, "brain_source", "local")
         tier_weight = MemoryPolicy.TIER_WEIGHTS.get(tier, 0.5)
-        tag = getattr(memory, 'tag', 'decision')
+        tag = getattr(memory, "tag", "decision")
         tag_prio = MemoryPolicy.TAG_PRIORITY.get(tag, 0)
-        
+
         # Synchronized timestamp extraction
-        ts_val = getattr(memory, 'created_at', now)
+        ts_val = getattr(memory, "created_at", now)
         if isinstance(ts_val, str):
             try:
-                ts_str = ts_val.replace('Z', '+00:00')
+                ts_str = ts_val.replace("Z", "+00:00")
                 ts = datetime.fromisoformat(ts_str).timestamp()
             except Exception:
                 ts = now
         else:
             try:
                 ts = float(ts_val) if ts_val else now
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 ts = now
-        
+
         runtime_hash = getattr(memory, "_runtime_hash", 0) or 0
         mem_id = getattr(memory, "id", 0) or 0
 
         return (
-            tag_prio,         # 1. Authority Plane (The Law)
-            boost,            # 2. Contextual Plane (The Scope)
-            tier_weight,      # 3. Source Plane (The Provenance)
-            score,            # 4. Signal Plane (The Importance/Decay)
-            int(ts),          # 5. Stability Plane
-            runtime_hash,     # 6. Content Lock
-            mem_id            # 7. Final Anchor
+            tag_prio,  # 1. Authority Plane (The Law)
+            boost,  # 2. Contextual Plane (The Scope)
+            tier_weight,  # 3. Source Plane (The Provenance)
+            score,  # 4. Signal Plane (The Importance/Decay)
+            int(ts),  # 5. Stability Plane
+            runtime_hash,  # 6. Content Lock
+            mem_id,  # 7. Final Anchor
         )
 
     @staticmethod
-    def resolve(candidates: List[Any], now: Optional[float] = None, context: Optional[dict] = None) -> Optional[Any]:
+    def resolve(candidates: list[Any], now: float | None = None, context: dict | None = None) -> Any | None:
         """
         [FROZEN v1.2.5] Deterministic Arbitration via Canonical Contract.
         Entry point for single-winner resolution.
@@ -174,19 +170,19 @@ class MemoryPolicy:
         """Calculate the final arbitrated score for a memory in context."""
         score = MemoryPolicy.calculate_score(m, now)
         boost = 0.0
-        
+
         agent_id = context.get("agent_id")
         scope = context.get("scope")
         symbol = context.get("symbol")
         m_scope = getattr(m, "scope", "") or ""
-        
+
         if scope and m_scope == scope:
             boost += 0.5
         elif scope and m_scope and scope.startswith(m_scope):
             boost += 0.2
         elif m_scope in ("", "global"):
             boost += 0.1
-            
+
         if symbol and getattr(m, "symbol", None) == symbol:
             boost += 0.3
         if agent_id and getattr(m, "namespace", None) == agent_id:
@@ -194,53 +190,56 @@ class MemoryPolicy:
 
         if getattr(m, "tag", "") == "invariant":
             boost += 100.0
-            
+
         return score + boost
 
     @staticmethod
     def arbitrate(
-        candidates: List[Any], 
-        context: Optional[dict] = None, 
-        limit: int = 15, 
-        now: Optional[float] = None,
-        deduplicate: bool = True
-    ) -> List[Any]:
+        candidates: list[Any],
+        context: dict | None = None,
+        limit: int = 15,
+        now: float | None = None,
+        deduplicate: bool = True,
+    ) -> list[Any]:
         """
         [FROZEN v1.2.5] Deterministic Ranking & Arbitration Kernel.
         The Single Decision Surface for all memory recall.
         """
         if not candidates:
             return []
-            
+
         now = now if now is not None else time.time()
         context = context or {}
-        
+
         # Extract context boosts
-        agent_id = context.get("agent_id")
-        scope = context.get("scope")
-        symbol = context.get("symbol")
-        
+        context.get("agent_id")
+        context.get("scope")
+        context.get("symbol")
+
         scored = []
         for m in candidates:
             # v1.2.5-TITANIUM: Collapse Arbitration Authority to get_boosted_score
             final_score = MemoryPolicy.get_boosted_score(m, context, now)
-            
+
             # Canonical Sort Key (Determinism Plane)
             # Note: canonical_sort_key already takes (score + boost) as its first argument
             key = MemoryPolicy.canonical_sort_key(m, 0.0, now, boost=final_score)
             scored.append((key, m))
-            
+
         # 4. Deterministic Sort (Descending)
         scored.sort(key=lambda x: x[0], reverse=True)
-        
+
         # DEBUG: Print keys for hierarchy verification
         for k, m in scored:
-             import logging
-             logging.getLogger("kit.memory_policy").debug(f"ARBITRATE: key={k}, tag={getattr(m, 'tag', 'N/A')}, id={getattr(m, 'id', 0)}")
-        
+            import logging
+
+            logging.getLogger("kit.memory_policy").debug(
+                f"ARBITRATE: key={k}, tag={getattr(m, 'tag', 'N/A')}, id={getattr(m, 'id', 0)}"
+            )
+
         # 5. Deduplication (Logic Collapse: Prioritize highest rank for same UID)
         if not deduplicate:
-             return [m for _, m in scored][:limit]
+            return [m for _, m in scored][:limit]
 
         seen_uids = set()
         final = []
@@ -251,5 +250,5 @@ class MemoryPolicy:
                 seen_uids.add(uid)
                 if len(final) >= limit:
                     break
-        
+
         return final

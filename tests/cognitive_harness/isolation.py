@@ -20,6 +20,7 @@ from kit.core.memory_topology import MemoryTopology, MemoryTopologyFactory
 @dataclass
 class IsolationTestResult:
     """Result of an isolation test."""
+
     test_name: str
     passed: bool
     message: str
@@ -39,8 +40,8 @@ class MemoryIsolationGuard:
     def __init__(self, project_root: Path):
         self.project_root = project_root
         self.topology = MemoryTopologyFactory.for_project(project_root)
-        self.local_db: Optional[Path] = None
-        self.global_db: Optional[Path] = None
+        self.local_db: Path | None = None
+        self.global_db: Path | None = None
 
     def setup_dbs(self, local_path: Path, global_path: Path):
         """Set up local and global DB paths."""
@@ -95,7 +96,7 @@ class MemoryIsolationGuard:
         brain: SAMBrain,
     ) -> IsolationTestResult:
         """Test that seal() blocks all writes."""
-        from kit.core.kit_lock import seal, is_sealed
+        from kit.core.kit_lock import is_sealed, seal
 
         if is_sealed(self.project_root):
             return IsolationTestResult(
@@ -215,9 +216,7 @@ class MemoryIsolationGuard:
     def _count_observations(self, brain: SAMBrain) -> int:
         """Count active observations."""
         with brain.get_connection() as conn:
-            row = conn.execute(
-                "SELECT COUNT(*) FROM observations WHERE is_active = 1"
-            ).fetchone()
+            row = conn.execute("SELECT COUNT(*) FROM observations WHERE is_active = 1").fetchone()
             return row[0] if row else 0
 
     def _purge_observations(self, brain: SAMBrain):
@@ -234,7 +233,7 @@ class SealingInvariantTest:
     @staticmethod
     def test_write_after_seal(tmp_brain: SAMBrain, tmp_path: Path) -> bool:
         """Verify write fails after seal."""
-        from kit.core.kit_lock import seal, is_sealed
+        from kit.core.kit_lock import is_sealed, seal
 
         seal(tmp_brain.db_path, tmp_path, force_evict=True)
 
@@ -313,13 +312,16 @@ def test_concurrent_isolation() -> IsolationTestResult:
             )
 
         with lock:
-            results.append(IsolationTestResult(
-                test_name="concurrent_worker",
-                passed=True,
-                message=f"Worker {uid_prefix} completed",
-            ))
+            results.append(
+                IsolationTestResult(
+                    test_name="concurrent_worker",
+                    passed=True,
+                    message=f"Worker {uid_prefix} completed",
+                )
+            )
 
     import tempfile
+
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         topology = MemoryTopologyFactory.for_project(tmp_path)
@@ -328,8 +330,8 @@ def test_concurrent_isolation() -> IsolationTestResult:
         brain = SAMBrain(db_path, root_path=tmp_path, topology=topology)
 
         threads = [
-            threading.Thread(target=worker, args=(brain, f"A{i}")),
-            threading.Thread(target=worker, args=(brain, f"B{i}")),
+            threading.Thread(target=worker, args=(brain, "A")),
+            threading.Thread(target=worker, args=(brain, "B")),
         ]
 
         for t in threads:

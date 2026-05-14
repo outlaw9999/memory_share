@@ -25,7 +25,7 @@ def apply_security_lens(file_path: Path, structural_signals: list[Signal]) -> li
     for risk in semantic_risks:
         # Find the best anchor: closest encompassing scope
         best_anchor = None
-        closest_dist = float('inf')
+        closest_dist = float("inf")
 
         for struct in structural_signals:
             # Note: Structural signals (Vantage) currently might not have line numbers
@@ -48,7 +48,7 @@ def apply_security_lens(file_path: Path, structural_signals: list[Signal]) -> li
                 source="security_lens",
                 evidence=risk.evidence,
                 symbol=best_anchor.symbol if best_anchor else None,
-                structural_hash=best_anchor.structural_hash if best_anchor else None
+                structural_hash=best_anchor.structural_hash if best_anchor else None,
             )
         )
 

@@ -30,36 +30,76 @@ from tests.phase10.shadow_harness import ShadowHarness, ShadowRunResult, TraceDi
 # ── Component 1: InvariantRegistry ────────────────────────────────────────────
 
 INVARIANTS: list[dict[str, Any]] = [
-    {"id": "I1", "name": "Epistemic non-interference",
-     "rule": "kit-vantage does not approve memory. It only certifies reality.",
-     "domain": "bounded", "verifiable": True},
-    {"id": "I2", "name": "Traffic governance isolation",
-     "rule": "PolicyGuard does not evaluate truth. It only governs traffic.",
-     "domain": "bounded", "verifiable": True},
-    {"id": "I3", "name": "Memory projection purity",
-     "rule": "MemoryRouter does not evaluate truth or safety. It only projects.",
-     "domain": "grounded", "verifiable": True},
-    {"id": "I4", "name": "Memory determinism",
-     "rule": "Memory is a deterministic consequence of truth, not a source of truth.",
-     "domain": "cross-layer", "verifiable": True},
-    {"id": "I5", "name": "No reverse flow",
-     "rule": "No reverse flow from Plane 2 to Plane 1.",
-     "domain": "cross-layer", "verifiable": True},
-    {"id": "I6", "name": "Frozen planning",
-     "rule": "Runtime never mutates during planning.",
-     "domain": "bounded", "verifiable": True},
-    {"id": "I7", "name": "Single execution gate",
-     "rule": "Single execution gate for all side effects.",
-     "domain": "bounded", "verifiable": True},
-    {"id": "I8", "name": "Deterministic reality transition",
-     "rule": "Cognition may be probabilistic. Reality transitions must be deterministic.",
-     "domain": "cross-layer", "verifiable": True},
-    {"id": "I9", "name": "Git as anchor not oracle",
-     "rule": "Git anchors reality but does not define truth.",
-     "domain": "grounded", "verifiable": False},
-    {"id": "I10", "name": "Containment over prevention",
-     "rule": "Hallucination is contained, not prevented.",
-     "domain": "system", "verifiable": True},
+    {
+        "id": "I1",
+        "name": "Epistemic non-interference",
+        "rule": "kit-vantage does not approve memory. It only certifies reality.",
+        "domain": "bounded",
+        "verifiable": True,
+    },
+    {
+        "id": "I2",
+        "name": "Traffic governance isolation",
+        "rule": "PolicyGuard does not evaluate truth. It only governs traffic.",
+        "domain": "bounded",
+        "verifiable": True,
+    },
+    {
+        "id": "I3",
+        "name": "Memory projection purity",
+        "rule": "MemoryRouter does not evaluate truth or safety. It only projects.",
+        "domain": "grounded",
+        "verifiable": True,
+    },
+    {
+        "id": "I4",
+        "name": "Memory determinism",
+        "rule": "Memory is a deterministic consequence of truth, not a source of truth.",
+        "domain": "cross-layer",
+        "verifiable": True,
+    },
+    {
+        "id": "I5",
+        "name": "No reverse flow",
+        "rule": "No reverse flow from Plane 2 to Plane 1.",
+        "domain": "cross-layer",
+        "verifiable": True,
+    },
+    {
+        "id": "I6",
+        "name": "Frozen planning",
+        "rule": "Runtime never mutates during planning.",
+        "domain": "bounded",
+        "verifiable": True,
+    },
+    {
+        "id": "I7",
+        "name": "Single execution gate",
+        "rule": "Single execution gate for all side effects.",
+        "domain": "bounded",
+        "verifiable": True,
+    },
+    {
+        "id": "I8",
+        "name": "Deterministic reality transition",
+        "rule": "Cognition may be probabilistic. Reality transitions must be deterministic.",
+        "domain": "cross-layer",
+        "verifiable": True,
+    },
+    {
+        "id": "I9",
+        "name": "Git as anchor not oracle",
+        "rule": "Git anchors reality but does not define truth.",
+        "domain": "grounded",
+        "verifiable": False,
+    },
+    {
+        "id": "I10",
+        "name": "Containment over prevention",
+        "rule": "Hallucination is contained, not prevented.",
+        "domain": "system",
+        "verifiable": True,
+    },
 ]
 
 
@@ -90,10 +130,16 @@ class InvariantRegistry:
         import inspect
 
         from kit.runtime.entrypoint import main
+
         src = inspect.getsource(main)
         if "git commit" in src or "git push" in src:
-            v = ViolationRecord("I5", "No reverse flow", datetime.now(UTC).isoformat(),
-                                "Runtime source contains git write commands", version)
+            v = ViolationRecord(
+                "I5",
+                "No reverse flow",
+                datetime.now(UTC).isoformat(),
+                "Runtime source contains git write commands",
+                version,
+            )
             violations.append(v)
             self._log(v)
 
@@ -101,14 +147,21 @@ class InvariantRegistry:
         from kit.intent.execution import Mutability
         from kit.intent.schema import CanonicalIntent, IntentAction, IntentDomain
         from kit.runtime.planner import ExecutionPlan, ExecutionStep
+
         ci = CanonicalIntent(IntentDomain.MEMORY, IntentAction.LEARN)
-        plan = ExecutionPlan(intent=ci, steps=(
-            ExecutionStep(order=0, action="test", handler_ref="mem", mutability=Mutability.SAFE_WRITE),
-        ))
+        plan = ExecutionPlan(
+            intent=ci,
+            steps=(ExecutionStep(order=0, action="test", handler_ref="mem", mutability=Mutability.SAFE_WRITE),),
+        )
         try:
             plan.steps = ()
-            v = ViolationRecord("I6", "Frozen planning", datetime.now(UTC).isoformat(),
-                                "ExecutionPlan is mutable — frozen=True invariant broken", version)
+            v = ViolationRecord(
+                "I6",
+                "Frozen planning",
+                datetime.now(UTC).isoformat(),
+                "ExecutionPlan is mutable — frozen=True invariant broken",
+                version,
+            )
             violations.append(v)
             self._log(v)
         except Exception:
@@ -116,9 +169,15 @@ class InvariantRegistry:
 
         # I7: Single execution gate
         from kit.runtime.entrypoint import RuntimeEngine
+
         if not hasattr(RuntimeEngine, "_execute_step"):
-            v = ViolationRecord("I7", "Single execution gate", datetime.now(UTC).isoformat(),
-                                "_execute_step not found on RuntimeEngine", version)
+            v = ViolationRecord(
+                "I7",
+                "Single execution gate",
+                datetime.now(UTC).isoformat(),
+                "_execute_step not found on RuntimeEngine",
+                version,
+            )
             violations.append(v)
             self._log(v)
 
@@ -148,6 +207,7 @@ class InvariantRegistry:
 
 
 # ── Component 2: BehavioralRegressionDetector ─────────────────────────────────
+
 
 @dataclass
 class BaselineSnapshot:
@@ -211,6 +271,7 @@ class BehavioralRegressionDetector:
 
 # ── Component 3: ShadowTraceArchive ───────────────────────────────────────────
 
+
 @dataclass
 class ShadowTraceEntry:
     event: str
@@ -260,11 +321,13 @@ class ShadowTraceArchive:
         verdict_counts = [e.verdict_count for e in entries]
         if len(set(verdict_counts)) == 1:
             return 0.0
-        return sum(abs(verdict_counts[i] - verdict_counts[i - 1])
-                   for i in range(1, len(verdict_counts))) / len(verdict_counts)
+        return sum(abs(verdict_counts[i] - verdict_counts[i - 1]) for i in range(1, len(verdict_counts))) / len(
+            verdict_counts
+        )
 
 
 # ── Governance Report ─────────────────────────────────────────────────────────
+
 
 @dataclass
 class GovernanceReport:
@@ -277,10 +340,12 @@ class GovernanceReport:
 
     @property
     def summary(self) -> str:
-        return (f"Drift score: {self.drift_score:.3f} | "
-                f"Invariant violations: {self.invariants.get('violations_logged', '?')} | "
-                f"Regression: {'YES' if self.regression.get('regression_detected') else 'no'} | "
-                f"Divergence: {self.divergence}")
+        return (
+            f"Drift score: {self.drift_score:.3f} | "
+            f"Invariant violations: {self.invariants.get('violations_logged', '?')} | "
+            f"Regression: {'YES' if self.regression.get('regression_detected') else 'no'} | "
+            f"Divergence: {self.divergence}"
+        )
 
 
 def run_governance() -> GovernanceReport:
@@ -305,9 +370,7 @@ def run_governance() -> GovernanceReport:
     divergence = {e: archive.divergence_score(e) for e in ["pre-commit", "post-commit", "post-merge"]}
 
     drift = divergence.get("pre-commit", 0.0) + divergence.get("post-commit", 0.0)
-    stable = (len(inv_reg._violations) == 0 and
-              not regression.get("regression_detected") and
-              drift == 0.0)
+    stable = len(inv_reg._violations) == 0 and not regression.get("regression_detected") and drift == 0.0
 
     return GovernanceReport(
         invariants=inv_reg.report(),

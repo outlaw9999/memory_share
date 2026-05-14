@@ -1,14 +1,15 @@
 # kit/scst/temporal_drift.py
 
 import time
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
 
 class TemporalDriftSimulator:
     """
     SCST Temporal Drift Simulator:
     Challenges MCE v2's temporal stability and exponential decay logic.
     """
-    def generate_scenario(self, base_content: Any) -> List[Dict[str, Any]]:
+    def generate_scenario(self, base_content: Any) -> list[dict[str, Any]]:
         now = time.time()
         return [
             {

@@ -33,8 +33,8 @@ def run_kit_command(cwd: Path, *args) -> tuple[int, str, str]:
     env["PYTHONUTF8"] = "1"
     env["VANTAGE_HOME"] = os.path.join(str(repo_root), "non_existent_vantage")
     # v1.2.5-ISOLATION: Use the temp directory as HOME to isolate global_brain.db
-    env["USERPROFILE"] = str(cwd.parent) # For Windows
-    env["HOME"] = str(cwd.parent) # For Unix-like
+    env["USERPROFILE"] = str(cwd.parent)  # For Windows
+    env["HOME"] = str(cwd.parent)  # For Unix-like
 
     cmd = [sys.executable, "-m", "kit"] + list(args)
 
@@ -51,6 +51,7 @@ def run_kit_command(cwd: Path, *args) -> tuple[int, str, str]:
     # Ensure OS has released file handles before next command or cleanup
     if os.name == "nt":
         import time
+
         time.sleep(0.3)
 
     return result.returncode, result.stdout, result.stderr
@@ -96,9 +97,12 @@ class TestKitSystemContract:
                 project_root,
                 "learn",
                 memory_content,
-                "--tag", "pattern",
-                "--uid", "test_pattern_x",
-                "--importance", "0.8",
+                "--tag",
+                "pattern",
+                "--uid",
+                "test_pattern_x",
+                "--importance",
+                "0.8",
             )
             assert rc == 0, f"kit learn failed:\nstdout: {stdout}\nstderr: {stderr}"
             assert "OK" in stdout or "OK" in stderr, "Expected 'OK' on success"
@@ -111,7 +115,7 @@ class TestKitSystemContract:
                 print(f"DEBUG RECALL STDOUT: {stdout}")
                 print(f"DEBUG RECALL STDERR: {stderr}")
             assert rc == 0, f"kit recall failed:\nstdout: {stdout}\nstderr: {stderr}"
-            
+
             # The output of recall is normally a formatted table or text
             assert "test_pattern_x" in stdout, f"Symbol not found in recall output:\n{stdout}"
             assert "pattern X observed" in stdout, f"Content not found in recall output:\n{stdout}"
@@ -120,6 +124,7 @@ class TestKitSystemContract:
             print("\n[PASS] Core Chain VERIFIED")
             if os.name == "nt":
                 import time
+
                 time.sleep(0.25)
 
     @staticmethod
@@ -133,7 +138,7 @@ class TestKitSystemContract:
 
             print("[1] Testing: kit recall without init (should fail)")
             rc, stdout, stderr = run_kit_command(project_root, "recall")
-            
+
             assert rc == 1, "kit recall should fail without initialization"
             assert "Workspace not initialized" in stderr or "Workspace not initialized" in stdout
             print("[OK] Init guard blocked unauthorized recall")
@@ -146,6 +151,7 @@ class TestKitSystemContract:
             print("\n[PASS] Init Guard VERIFIED")
             if os.name == "nt":
                 import time
+
                 time.sleep(0.25)
 
     @staticmethod
@@ -163,12 +169,12 @@ class TestKitSystemContract:
 
             # Init both
             rc1, out1, err1 = run_kit_command(ws1, "init")
-            run_kit_command(ws1, "doctor") # Force schema repair
+            run_kit_command(ws1, "doctor")  # Force schema repair
             print(f"DEBUG: ws1 init out: {out1}\nerr: {err1}")
             rc2, out2, err2 = run_kit_command(ws2, "init")
-            run_kit_command(ws2, "doctor") # Force schema repair
+            run_kit_command(ws2, "doctor")  # Force schema repair
             print(f"DEBUG: ws2 init out: {out2}\nerr: {err2}")
-            
+
             print(f"DEBUG: ws1 content: {list(ws1.glob('**/*'))}")
             sentinel = ws1 / ".kit" / "bootstrap_v1_2_5.seed"
             print(f"DEBUG: ws1 sentinel exists: {sentinel.exists()} at {sentinel}")
@@ -186,10 +192,11 @@ class TestKitSystemContract:
             # Recall in WS2 (should NOT find)
             rc, stdout, _ = run_kit_command(ws2, "recall", "secret")
             assert "WS1 secret" not in stdout
-            
+
             print("\n[PASS] Memory topology isolation VERIFIED")
             if os.name == "nt":
                 import time
+
                 time.sleep(0.25)
 
 

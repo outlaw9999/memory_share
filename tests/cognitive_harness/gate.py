@@ -20,14 +20,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+from tests.cognitive_harness.consistency import (
+    VantageConsistencyChecker,
+    run_friction_stress_test,
+)
 from tests.cognitive_harness.corpus import (
     RegressionCorpus,
     create_default_corpus,
     load_corpus_from_file,
-)
-from tests.cognitive_harness.consistency import (
-    VantageConsistencyChecker,
-    run_friction_stress_test,
 )
 from tests.cognitive_harness.isolation import (
     MemoryIsolationGuard,
@@ -43,6 +43,7 @@ from tests.cognitive_harness.simulator import (
 @dataclass
 class TestResult:
     """Result of a single test."""
+
     test_name: str
     passed: bool
     duration_ms: float
@@ -53,6 +54,7 @@ class TestResult:
 @dataclass
 class GateReport:
     """Report from CI Gate execution."""
+
     timestamp: str
     total_tests: int = 0
     passed: int = 0
@@ -97,14 +99,14 @@ class CIGate:
     Run tests deterministically and fail on any regression.
     """
 
-    def __init__(self, output_path: Optional[Path] = None):
+    def __init__(self, output_path: Path | None = None):
         self.output_path = output_path
         self.report = GateReport(timestamp=datetime.now().isoformat())
 
     def run_flow_regression(
         self,
         brain,
-        corpus: Optional[RegressionCorpus] = None,
+        corpus: RegressionCorpus | None = None,
     ) -> GateReport:
         """Run flow regression tests."""
         if corpus is None:
@@ -210,12 +212,14 @@ class CIGate:
         concurrent_result = test_concurrent_isolation()
         duration = (time.time() - start) * 1000
 
-        self.report.add(TestResult(
-            test_name="concurrent_isolation",
-            passed=concurrent_result.passed,
-            duration_ms=duration,
-            message=concurrent_result.message,
-        ))
+        self.report.add(
+            TestResult(
+                test_name="concurrent_isolation",
+                passed=concurrent_result.passed,
+                duration_ms=duration,
+                message=concurrent_result.message,
+            )
+        )
 
         print(f"  concurrent_isolation: {concurrent_result.message}")
 
@@ -239,9 +243,7 @@ class CIGate:
             )
 
             with brain.get_connection() as conn:
-                row = conn.execute(
-                    "SELECT COUNT(*) FROM observations"
-                ).fetchone()
+                row = conn.execute("SELECT COUNT(*) FROM observations").fetchone()
                 hashes.append(row[0] if row else 0)
 
         is_deterministic = len(set(hashes)) == 1
@@ -262,7 +264,7 @@ class CIGate:
         self,
         brain,
         tmp_path: Path,
-        corpus: Optional[RegressionCorpus] = None,
+        corpus: RegressionCorpus | None = None,
     ) -> GateReport:
         """Run all CI gates."""
         print("[CIGate] Running full test suite...")

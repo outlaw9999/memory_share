@@ -9,6 +9,7 @@ def batch_delete_unsafe(cursor, ids):
         query = "DELETE FROM users WHERE id=%s" % uid
         cursor.execute(query)
 
+
 if __name__ == "__main__":
     # Mock call for local test
     pass

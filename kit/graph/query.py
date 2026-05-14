@@ -4,10 +4,10 @@ KIT Graph Query Engine v1
 Core traversal: blast radius, dependency chain, influence.
 """
 
-import sqlite3
 import logging
-from typing import Optional
+import sqlite3
 from enum import Enum
+from typing import Optional
 
 logger = logging.getLogger("kit.graph.query")
 
@@ -23,14 +23,14 @@ def get_blast_radius(
     start_symbol: str,
     max_depth: int = 5,
     direction: TraversalDirection = TraversalDirection.BIDIRECTIONAL,
-    edge_types: Optional[tuple] = None,
-    include_confidence: bool = False
+    edge_types: tuple | None = None,
+    include_confidence: bool = False,
 ) -> list:
     """Recursive CTE blast radius traversal."""
     if edge_types is None:
-        edge_types = ('IMPORTS', 'INHERITS', 'CALLS')
+        edge_types = ("IMPORTS", "INHERITS", "CALLS")
 
-    placeholders = ','.join('?' * len(edge_types))
+    placeholders = ",".join("?" * len(edge_types))
     edge_list = list(edge_types)
 
     if direction == TraversalDirection.FORWARD:
@@ -92,8 +92,14 @@ def get_blast_radius(
         )
         """
         params = (
-            [start_symbol] + edge_list + [max_depth - 1] + edge_list +
-            [start_symbol] + edge_list + [max_depth - 1] + edge_list
+            [start_symbol]
+            + edge_list
+            + [max_depth - 1]
+            + edge_list
+            + [start_symbol]
+            + edge_list
+            + [max_depth - 1]
+            + edge_list
         )
 
     if include_confidence:
@@ -111,9 +117,10 @@ def find_connected_components(conn: sqlite3.Connection, symbols: list) -> dict:
     if not symbols:
         return []
 
-    placeholders = ','.join('?' * len(symbols))
+    ",".join("?" * len(symbols))
 
-    result = conn.execute(f"""
+    result = conn.execute(
+        """
         WITH RECURSIVE cc(symbol, root) AS (
             SELECT ?, ?
             UNION
@@ -123,14 +130,17 @@ def find_connected_components(conn: sqlite3.Connection, symbols: list) -> dict:
             WHERE se.edge_type IN ('IMPORTS', 'INHERITS')
         )
         SELECT DISTINCT symbol FROM cc
-    """, (symbols[0], symbols[0])).fetchall()
+    """,
+        (symbols[0], symbols[0]),
+    ).fetchall()
 
     return [r[0] for r in result]
 
 
 def get_import_chain(conn: sqlite3.Connection, from_sym: str, to_sym: str) -> list:
     """Find shortest path from one symbol to another."""
-    result = conn.execute("""
+    result = conn.execute(
+        """
         WITH RECURSIVE path_finder(source, target, distance, path) AS (
             SELECT source_symbol, target_symbol, 0, source_symbol || ' -> ' || target_symbol
             FROM structure_edges
@@ -142,6 +152,8 @@ def get_import_chain(conn: sqlite3.Connection, from_sym: str, to_sym: str) -> li
             WHERE pf.distance < 10 AND edge_type = 'IMPORTS'
         )
         SELECT path FROM path_finder WHERE target = ? LIMIT 1
-    """, (from_sym, to_sym)).fetchone()
+    """,
+        (from_sym, to_sym),
+    ).fetchone()
 
     return [result[0]] if result else []

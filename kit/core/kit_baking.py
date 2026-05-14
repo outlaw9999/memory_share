@@ -8,6 +8,7 @@ State machine:
   is_baked=0 (Raw Perception)  --> run_baking_pass() --> is_baked=1 (Verified Truth)
                                                      \\-> is_baked=-1 (Toxic: unanalyzable)
 """
+
 import logging
 import threading
 from typing import Any
@@ -68,12 +69,14 @@ def run_baking_pass(brain: SAMBrain, timeout: int = 10) -> dict:
         # snippet will be handled by subsequent observations created per-symbol in future passes.
         primary_sig = signals[0]
         try:
-            normalize_vantage_signal({
-                "type": primary_sig.uid.split(":")[-1],
-                "id": primary_sig.symbol,
-                "normalized_hash": primary_sig.structural_hash,
-                "uuid": primary_sig.evidence,
-            })
+            normalize_vantage_signal(
+                {
+                    "type": primary_sig.uid.split(":")[-1],
+                    "id": primary_sig.symbol,
+                    "normalized_hash": primary_sig.structural_hash,
+                    "uuid": primary_sig.evidence,
+                }
+            )
 
             # Detect structural drift: if existing hash differs, create a SUPERSEDED_BY link
             existing_hash = brain.lookup_hash(primary_sig.symbol) if primary_sig.symbol else None
@@ -98,7 +101,8 @@ def run_baking_pass(brain: SAMBrain, timeout: int = 10) -> dict:
 
             # Stamp the observation with structural truth
             _stamp_observation(
-                brain, obs_id,
+                brain,
+                obs_id,
                 symbol=primary_sig.symbol or symbol_hint,
                 structural_hash=primary_sig.structural_hash,
             )
@@ -109,21 +113,20 @@ def run_baking_pass(brain: SAMBrain, timeout: int = 10) -> dict:
             _mark_observation(brain, obs_id, is_baked=-1)
             stats["toxic"] += 1
 
-    logger.info(
-        f"[baking] Pass complete. "
-        f"baked={stats['baked']} skipped={stats['skipped']} toxic={stats['toxic']}"
-    )
+    logger.info(f"[baking] Pass complete. baked={stats['baked']} skipped={stats['skipped']} toxic={stats['toxic']}")
     return stats
 
 
 # --- Async Bake Worker (v1.2.3-STABLE) ---
 _BAKE_LOCK = threading.Lock()
 
+
 def trigger_async_bake(brain: SAMBrain, timeout: int = 5) -> None:
     """
     Launch a background pass to graduate observations.
     Non-blocking: returns immediately.
     """
+
     def _worker():
         # Prevent multiple concurrent bake passes in the same process
         if not _BAKE_LOCK.acquire(blocking=False):
@@ -134,6 +137,7 @@ def trigger_async_bake(brain: SAMBrain, timeout: int = 5) -> None:
             _BAKE_LOCK.release()
 
     import os
+
     if os.environ.get("KIT_DISABLE_ASYNC_BAKE") == "1":
         # Synchronous execution for tests/CLI integration
         run_baking_pass(brain, timeout=timeout)
@@ -145,8 +149,10 @@ def trigger_async_bake(brain: SAMBrain, timeout: int = 5) -> None:
 
 def _mark_observation(brain: SAMBrain, obs_id: int, is_baked: int) -> None:
     """Mark an observation's bake state."""
+
     def _op(conn):
         conn.execute("UPDATE observations SET is_baked = ? WHERE id = ?", (is_baked, obs_id))
+
     brain._run_write_transaction(_op)
 
 
@@ -157,9 +163,11 @@ def _stamp_observation(
     structural_hash: str | None,
 ) -> None:
     """Stamp an observation with structural truth and mark as baked."""
+
     def _op(conn):
         conn.execute(
             "UPDATE observations SET is_baked = 1, symbol = ?, structural_hash = ? WHERE id = ?",
             (symbol, structural_hash, obs_id),
         )
+
     brain._run_write_transaction(_op)

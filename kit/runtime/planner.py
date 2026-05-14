@@ -14,6 +14,7 @@ from kit.runtime.resolver import ResolverResult
 @dataclass(frozen=True, order=True)
 class ExecutionStep:
     """A single node in the execution DAG. Immutable after construction."""
+
     order: int
     action: str
     handler_ref: str
@@ -28,6 +29,7 @@ class ExecutionPlan:
     Complete execution DAG. Immutable — no mutation after creation.
     Guarantees replayability and deterministic execution.
     """
+
     intent: CanonicalIntent
     steps: tuple[ExecutionStep, ...]
     plan_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
@@ -37,6 +39,7 @@ class ExecutionPlan:
 @dataclass
 class StepResult:
     """Result of executing one step. Not frozen — populated during execution."""
+
     step: ExecutionStep
     success: bool
     output: dict[str, Any] = field(default_factory=dict)

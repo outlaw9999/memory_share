@@ -18,7 +18,7 @@ def test_single_connect_authority():
         "kit_lock.py",  # Uses connect for WAL checkpoint (administrative)
         "kit_cognitive_core.py",  # Uses connect for read-only URI mode when sealed
         "kit_sealing.py",  # Administrative kernel verification
-        "migrate_brain.py", # Administrative migration utility (v1.2.5)
+        "migrate_brain.py",  # Administrative migration utility (v1.2.5)
     }
 
     # Match ANY connect(...) pattern (v1.2.5-STABILIZE-HARD)
@@ -38,14 +38,14 @@ def test_single_connect_authority():
             continue
 
         content = py_file.read_text(encoding="utf-8", errors="ignore")
-        
+
         # v1.2.5-TITANIUM: Strip comments to prevent false positives in documentation
         stripped_lines = []
         for line in content.splitlines():
             code_part = line.split("#")[0]
             stripped_lines.append(code_part)
         stripped_content = "\n".join(stripped_lines)
-        
+
         matches = CONNECT_PATTERN.findall(stripped_content)
 
         # Filter out authorized calls to our topology wrapper
@@ -53,7 +53,16 @@ def test_single_connect_authority():
         unauthorized = []
         for m in matches:
             if ".connect" in m:
-                if not any(token in m for token in ["topology.connect", "topo.connect", "_topo.connect", "self.topology.connect", ".connect_path"]):
+                if not any(
+                    token in m
+                    for token in [
+                        "topology.connect",
+                        "topo.connect",
+                        "_topo.connect",
+                        "self.topology.connect",
+                        ".connect_path",
+                    ]
+                ):
                     unauthorized.append(m)
             else:
                 unauthorized.append(m)

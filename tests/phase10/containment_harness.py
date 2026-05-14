@@ -13,17 +13,17 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from kit.intent.normalizer import normalize_agent_signal, normalize_git_event
 from kit.intent.execution import ExecutionIntent
-from kit.intent.schema import CanonicalIntent, IntentDomain, IntentAction, TraceStatus
-from kit.intent.registry import IntentRegistry, HandlerDescriptor, IntentResult, RuntimeTrace
-from kit.runtime import RuntimeEngine, PolicyGuard, PlanVerdict
-from kit.runtime.policy_guard import _check_hook_depth
+from kit.intent.normalizer import normalize_agent_signal, normalize_git_event
+from kit.intent.registry import HandlerDescriptor, IntentRegistry, IntentResult, RuntimeTrace
+from kit.intent.schema import CanonicalIntent, IntentAction, IntentDomain, TraceStatus
+from kit.runtime import PlanVerdict, PolicyGuard, RuntimeEngine
 from kit.runtime.planner import ExecutionPlan, ExecutionStep
-from kit.vantage import EpistemicEngine, VerificationRequest, Verdict
-
+from kit.runtime.policy_guard import _check_hook_depth
+from kit.vantage import EpistemicEngine, Verdict, VerificationRequest
 
 # ── Harness Result Types ───────────────────────────────────────────────────────
+
 
 @dataclass
 class DeterminismResult:
@@ -66,12 +66,15 @@ class HarnessReport:
         d = sum(1 for r in self.determinism if r.passed)
         c = sum(1 for r in self.containment if r.passed)
         r = sum(1 for r in self.reverse_flow if r.passed)
-        return (f"Determinism: {d}/{len(self.determinism)} | "
-                f"Containment: {c}/{len(self.containment)} | "
-                f"Reverse-flow: {r}/{len(self.reverse_flow)}")
+        return (
+            f"Determinism: {d}/{len(self.determinism)} | "
+            f"Containment: {c}/{len(self.containment)} | "
+            f"Reverse-flow: {r}/{len(self.reverse_flow)}"
+        )
 
 
 # ── Layer 1: Determinism Checker ──────────────────────────────────────────────
+
 
 def _trace_hash(trace) -> str:
     """Deterministic hash of the execution trace."""
@@ -110,6 +113,7 @@ def check_determinism(input_factory, runs: int = 3) -> DeterminismResult:
 
 
 # ── Layer 2: Containment Injection ────────────────────────────────────────────
+
 
 def _noop_handler(payload):
     ci = payload.intent
@@ -165,6 +169,7 @@ def _validate_containment(signal: str, expected_block: str) -> ContainmentResult
 
 # ── Layer 3: Reverse-Flow / Loop Injection ────────────────────────────────────
 
+
 def check_reverse_flow(scenario: str, setup) -> ReverseFlowResult:
     """Verify intentional loops are blocked by depth/storm prevention."""
     try:
@@ -193,6 +198,7 @@ def check_reverse_flow(scenario: str, setup) -> ReverseFlowResult:
 
 # ── Run All ────────────────────────────────────────────────────────────────────
 
+
 def run_full_harness() -> HarnessReport:
     """Run all three test layers and return a report."""
     report = HarnessReport()
@@ -220,6 +226,7 @@ def run_full_harness() -> HarnessReport:
         payload = normalize_git_event("pre-commit")
         # Simulate depth by modifying env
         import os
+
         os.environ["KIT_HOOK_DEPTH"] = "7"
         ex = ExecutionIntent.from_payload(payload)
         result = guard.check(ex, plan)
@@ -243,7 +250,5 @@ def run_full_harness() -> HarnessReport:
     report.reverse_flow.append(check_reverse_flow("storm (5x same intent)", storm))
     report.reverse_flow.append(check_reverse_flow("epistemic empty request", epistemic_reject))
 
-    report.all_passed = all(
-        r.passed for r in report.determinism + report.containment + report.reverse_flow
-    )
+    report.all_passed = all(r.passed for r in report.determinism + report.containment + report.reverse_flow)
     return report

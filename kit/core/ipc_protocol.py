@@ -12,7 +12,6 @@ import subprocess
 from pathlib import Path
 from typing import Any, Literal
 
-
 # --- TRANSPORT LAYER ---
 
 VANTAGE_BIN = "kit-vantage"
@@ -116,7 +115,7 @@ class VantageResponse:
         self.error = error
 
     @classmethod
-    def from_result(cls, result: dict[str, Any]) -> "VantageResponse":
+    def from_result(cls, result: dict[str, Any]) -> VantageResponse:
         return cls(
             status=result.get("status", "error"),
             data=result.get("data"),

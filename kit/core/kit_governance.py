@@ -57,7 +57,7 @@ def run_preflight(
                 errors="replace",
                 timeout=3.0,
             ).splitlines()
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        except subprocess.CalledProcessError, subprocess.TimeoutExpired:
             result.issues.append({"type": "git", "message": "Not a git repository or no staged files."})
             result.status = "block"
             result.score = 0.0
@@ -105,19 +105,20 @@ def run_preflight(
 
     if not vantage_available:
         result.score -= 0.1
-        result.issues.append({
-            "type": "sensor_degraded",
-            "message": "[WARN] Vantage structural sensor is unavailable. Scoring precision degraded."
-        })
+        result.issues.append(
+            {
+                "type": "sensor_degraded",
+                "message": "[WARN] Vantage structural sensor is unavailable. Scoring precision degraded.",
+            }
+        )
 
     # Integrate Vantage signals as soft weights
     for sig in vantage_signals:
         if sig.uid.startswith("STRUCTURAL:SECURITY_SMELL"):
             result.score -= 0.3
-            result.issues.append({
-                "type": "structural_risk",
-                "message": f"[SOFT] Security smell detected in {sig.symbol or 'unknown'}"
-            })
+            result.issues.append(
+                {"type": "structural_risk", "message": f"[SOFT] Security smell detected in {sig.symbol or 'unknown'}"}
+            )
         elif sig.uid.startswith("STRUCTURAL:COMPLEXITY_SMELL"):
             result.score -= 0.1
             result.suggestions.append(f"Structural complexity detected in {sig.symbol}")

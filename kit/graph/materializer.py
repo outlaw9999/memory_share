@@ -6,13 +6,14 @@ Loads JSONL in batches, normalizes once, builds immutable graph snapshot.
 Zero runtime coupling with Vantage.
 """
 
-import json
-import sqlite3
 import hashlib
+import json
 import logging
 import os
-from typing import Dict, List, Iterator, Optional, Tuple
+import sqlite3
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger("kit.graph.materializer")
 
@@ -26,7 +27,7 @@ class GraphSnapshot:
     def __init__(self, conn: sqlite3.Connection, version: str = SNAPSHOT_VERSION):
         self.conn = conn
         self.version = version
-        self._hash: Optional[str] = None
+        self._hash: str | None = None
 
     @property
     def integrity_hash(self) -> str:
@@ -58,14 +59,14 @@ class Materializer:
 
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
-        self._last_snapshot: Optional[GraphSnapshot] = None
+        self._last_snapshot: GraphSnapshot | None = None
 
     def load_jsonl(self, jsonl_path: str, batch_size: int = BATCH_SIZE) -> int:
         """Load JSONL file into graph. Returns edge count."""
         edges = []
         total = 0
 
-        with open(jsonl_path, "r") as f:
+        with open(jsonl_path) as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -110,33 +111,38 @@ class Materializer:
         self.conn.commit()
         return total
 
-    def _batch_insert(self, edges: List[dict]) -> int:
+    def _batch_insert(self, edges: list[dict]) -> int:
         """Batch insert edges with deduplication (v1.2.5)."""
         batch = []
 
         for edge in edges:
             # v1.2.5 maps 'source' -> 'source_symbol', 'target' -> 'target_symbol'
-            if not all(k in edge for k in ('source', 'target', 'edge_type')):
+            if not all(k in edge for k in ("source", "target", "edge_type")):
                 continue
 
-            batch.append((
-                edge['source'],
-                edge['target'],
-                edge['edge_type'],
-                edge.get('language'),
-                float(edge.get('confidence', 1.0)),
-                edge.get('source_file'),
-                edge.get('line')
-            ))
+            batch.append(
+                (
+                    edge["source"],
+                    edge["target"],
+                    edge["edge_type"],
+                    edge.get("language"),
+                    float(edge.get("confidence", 1.0)),
+                    edge.get("source_file"),
+                    edge.get("line"),
+                )
+            )
 
         if not batch:
             return 0
 
-        self.conn.executemany("""
+        self.conn.executemany(
+            """
             INSERT OR IGNORE INTO structure_edges
             (source_symbol, target_symbol, edge_type, language, confidence, source_file, line)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, batch)
+        """,
+            batch,
+        )
 
         return len(batch)
 
@@ -151,7 +157,7 @@ class Materializer:
         logger.info(f"Graph snapshot created: {snapshot.integrity_hash}")
         return snapshot
 
-    def get_snapshot(self) -> Optional[GraphSnapshot]:
+    def get_snapshot(self) -> GraphSnapshot | None:
         """Get current snapshot."""
         return self._last_snapshot
 

@@ -20,12 +20,7 @@ class ASRRuntime:
     def __init__(self):
         self.trace_buffer: list[dict] = []
 
-    def execute(
-        self,
-        skill_name: str,
-        input_data: dict[str, Any],
-        context: list[StateVector]
-    ) -> SkillOutput:
+    def execute(self, skill_name: str, input_data: dict[str, Any], context: list[StateVector]) -> SkillOutput:
         """
         The ASR Execution Pipeline:
         1. Discovery
@@ -59,10 +54,7 @@ class ASRRuntime:
 
         except Exception as e:
             logger.error(f"Skill execution failed: {skill_name} - {str(e)}")
-            return SkillOutput(
-                status="CRASHED",
-                results={"error": str(e), "traceback": traceback.format_exc()}
-            )
+            return SkillOutput(status="CRASHED", results={"error": str(e), "traceback": traceback.format_exc()})
 
     def _log_trace(self, name: str, input_data: dict, output: SkillOutput):
         """
@@ -73,7 +65,7 @@ class ASRRuntime:
             "status": output.status,
             "observations_count": len(output.proposed_observations),
             "signals_count": len(output.signals),
-            "time_ms": round(output.execution_time_ms, 2)
+            "time_ms": round(output.execution_time_ms, 2),
         }
         self.trace_buffer.append(trace)
 

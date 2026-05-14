@@ -8,14 +8,16 @@ v1.2.5: Defines test scenarios for validating:
 """
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 
 @dataclass
 class GivenWhenThen:
     """A test scenario following Given-When-Then pattern."""
+
     id: str
     description: str
     given: dict
@@ -27,6 +29,7 @@ class GivenWhenThen:
 @dataclass
 class RegressionScenario:
     """A complete regression scenario."""
+
     id: str
     name: str
     description: str
@@ -36,7 +39,7 @@ class RegressionScenario:
     deterministic: bool = True
 
 
-def load_default_corpus() -> "RegressionCorpus":
+def load_default_corpus() -> RegressionCorpus:
     """Load default corpus with flow scenarios."""
     corpus = RegressionCorpus()
     for scenario in DEFAULT_FLOW_SCENARIOS:
@@ -51,7 +54,7 @@ class RegressionCorpus:
     Loads scenarios from JSON files and provides test execution.
     """
 
-    def __init__(self, corpus_dir: Optional[Path] = None, load_defaults: bool = True):
+    def __init__(self, corpus_dir: Path | None = None, load_defaults: bool = True):
         self.corpus_dir = corpus_dir
         self.scenarios: dict[str, RegressionScenario] = {}
         if load_defaults:
@@ -95,23 +98,20 @@ class RegressionCorpus:
             deterministic=data.get("deterministic", True),
         )
 
-    def get_scenario(self, id: str) -> Optional[RegressionScenario]:
+    def get_scenario(self, id: str) -> RegressionScenario | None:
         """Get scenario by ID."""
         return self.scenarios.get(id)
 
     def list_scenarios(
         self,
-        tags: Optional[list[str]] = None,
-        severity: Optional[str] = None,
+        tags: list[str] | None = None,
+        severity: str | None = None,
     ) -> list[RegressionScenario]:
         """List scenarios filtered by tags or severity."""
         results = list(self.scenarios.values())
 
         if tags:
-            results = [
-                s for s in results
-                if s.steps and any(t in s.steps[0].tags for t in tags)
-            ]
+            results = [s for s in results if s.steps and any(t in s.steps[0].tags for t in tags)]
 
         if severity:
             results = [s for s in results if s.severity == severity]
@@ -138,16 +138,20 @@ class RegressionCorpus:
         for step in scenario.steps:
             try:
                 result = executor(step)
-                results["steps_executed"].append({
-                    "step_id": step.id,
-                    "result": result,
-                })
+                results["steps_executed"].append(
+                    {
+                        "step_id": step.id,
+                        "result": result,
+                    }
+                )
             except Exception as e:
                 results["success"] = False
-                results["errors"].append({
-                    "step_id": step.id,
-                    "error": str(e),
-                })
+                results["errors"].append(
+                    {
+                        "step_id": step.id,
+                        "error": str(e),
+                    }
+                )
 
         return results["success"], results
 
@@ -213,9 +217,7 @@ DEFAULT_FLOW_SCENARIOS = [
                 id="g1",
                 description="Brain with fact",
                 given={
-                    "observations": [
-                        {"uid": "test:fact1", "content": "A test fact"}
-                    ],
+                    "observations": [{"uid": "test:fact1", "content": "A test fact"}],
                 },
                 when={
                     "action": "recall",

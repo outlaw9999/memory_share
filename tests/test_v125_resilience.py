@@ -9,14 +9,15 @@ Tests system resilience under failure conditions:
 - Concurrent access conflicts
 """
 
-import pytest
-import tempfile
 import os
+import sqlite3
+import tempfile
 import threading
 import time
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-import sqlite3
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from kit.api import resolve_paths
 
@@ -73,8 +74,8 @@ class TestV124Resilience:
         conn.close()
 
         # Corrupt the DB by writing invalid data
-        with open(self.test_db, 'wb') as f:
-            f.write(b'INVALID_SQLITE_HEADER')  # Corrupt header
+        with open(self.test_db, "wb") as f:
+            f.write(b"INVALID_SQLITE_HEADER")  # Corrupt header
 
         # Test that system detects corruption and handles gracefully
         try:
@@ -89,18 +90,18 @@ class TestV124Resilience:
     def test_signal_collision_resolution(self):
         """Test resolution of conflicting signals."""
         signals = [
-            {'id': 'signal_1', 'priority': 0.8, 'action': 'learn', 'content': 'High priority'},
-            {'id': 'signal_2', 'priority': 0.8, 'action': 'forget', 'content': 'Same priority conflict'},
-            {'id': 'signal_3', 'priority': 0.6, 'action': 'recall', 'content': 'Lower priority'}
+            {"id": "signal_1", "priority": 0.8, "action": "learn", "content": "High priority"},
+            {"id": "signal_2", "priority": 0.8, "action": "forget", "content": "Same priority conflict"},
+            {"id": "signal_3", "priority": 0.6, "action": "recall", "content": "Lower priority"},
         ]
 
         # Test collision resolution (same priority, different actions)
         # Should resolve by ID ordering or other deterministic method
-        resolved_signals = sorted(signals, key=lambda x: (x['priority'], x['id']), reverse=True)
+        resolved_signals = sorted(signals, key=lambda x: (x["priority"], x["id"]), reverse=True)
         winner = resolved_signals[0]
 
-        assert winner['id'] == 'signal_2'  # Higher ID wins in tie
-        assert winner['action'] == 'forget'
+        assert winner["id"] == "signal_2"  # Higher ID wins in tie
+        assert winner["action"] == "forget"
 
     def test_concurrent_access_wal_checkpoint(self):
         """Test WAL checkpoint under concurrent access."""
@@ -141,7 +142,7 @@ class TestV124Resilience:
         """Test cleanup of phantom file handles."""
         # Create a file and hold a handle
         test_file = self.temp_dir / "phantom.db"
-        handle = open(test_file, 'w')
+        handle = open(test_file, "w")
         handle.write("test data")
         handle.flush()
 
@@ -150,7 +151,7 @@ class TestV124Resilience:
         handle.close()  # Release handle
 
         # Test that file is now accessible
-        with open(test_file, 'r') as f:
+        with open(test_file) as f:
             content = f.read()
 
         assert content == "test data"
@@ -167,6 +168,7 @@ class TestV124Resilience:
         # Create "snapshot" (copy)
         snapshot_db = self.temp_dir / "snapshot.db"
         import shutil
+
         shutil.copy2(primary_db, snapshot_db)
 
         # Modify primary
@@ -175,8 +177,8 @@ class TestV124Resilience:
         conn.close()
 
         # Corrupt snapshot
-        with open(snapshot_db, 'wb') as f:
-            f.write(b'CORRUPTED')
+        with open(snapshot_db, "wb") as f:
+            f.write(b"CORRUPTED")
 
         # Test recovery logic (should detect corruption and use primary)
         # In real kit, this would trigger fallback to live DB
@@ -194,11 +196,11 @@ class TestV124Resilience:
         operations.append(self._safe_operation("fail_simulated"))
         operations.append(self._safe_operation("success_2"))
 
-        successful_ops = [op for op in operations if op['status'] == 'success']
+        successful_ops = [op for op in operations if op["status"] == "success"]
         assert len(successful_ops) == 2  # Two should succeed despite one failure
 
     def _safe_operation(self, name):
         """Simulate a safe operation that handles failures."""
         if name == "fail_simulated":
-            return {'status': 'failed', 'name': name}
-        return {'status': 'success', 'name': name}
+            return {"status": "failed", "name": name}
+        return {"status": "success", "name": name}

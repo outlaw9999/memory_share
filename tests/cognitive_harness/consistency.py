@@ -16,6 +16,7 @@ from typing import Any, Optional
 @dataclass
 class SignalDrift:
     """Represents a signal drift event."""
+
     signal_id: str
     old_hash: str
     new_hash: str
@@ -26,6 +27,7 @@ class SignalDrift:
 @dataclass
 class ConsistencyReport:
     """Report of consistency checks."""
+
     checks_passed: int = 0
     checks_failed: int = 0
     drifts: list[SignalDrift] = field(default_factory=list)
@@ -72,11 +74,13 @@ class VantageConsistencyChecker:
             return False, msg
 
         self._last_friction_time = current_time
-        self._friction_history.append({
-            "signal": signal,
-            "reason": reason,
-            "timestamp": current_time,
-        })
+        self._friction_history.append(
+            {
+                "signal": signal,
+                "reason": reason,
+                "timestamp": current_time,
+            }
+        )
 
         return True, f"Friction triggered appropriately for {signal}"
 
@@ -120,9 +124,9 @@ class VantageConsistencyChecker:
     def check_signal_stability(
         self,
         symbol: str,
-        old_hash: Optional[str],
+        old_hash: str | None,
         new_hash: str,
-    ) -> Optional[SignalDrift]:
+    ) -> SignalDrift | None:
         """
         Check if signal hash is stable.
 
@@ -201,9 +205,9 @@ class SignalValidator:
         """Validate signal structure."""
         errors = []
 
-        for field in SignalValidator.REQUIRED_FIELDS:
-            if field not in signal:
-                errors.append(f"Missing required field: {field}")
+        for f in SignalValidator.REQUIRED_FIELDS:
+            if f not in signal:
+                errors.append(f"Missing required field: {f}")
 
         confidence = signal.get("confidence", "")
         if confidence not in ["high", "medium", "low"]:

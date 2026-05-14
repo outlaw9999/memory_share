@@ -50,7 +50,7 @@ def is_stdin_ready(timeout: float = FAST_TIMEOUT) -> bool:
             import select
 
             return bool(select.select([sys.stdin], [], [], timeout)[0])
-        except (ImportError, AttributeError, OSError):
+        except ImportError, AttributeError, OSError:
             return True
     else:
         if os.name == "nt":
@@ -60,7 +60,7 @@ def is_stdin_ready(timeout: float = FAST_TIMEOUT) -> bool:
             import select
 
             return bool(select.select([sys.stdin], [], [], timeout)[0])
-        except (ImportError, AttributeError, OSError):
+        except ImportError, AttributeError, OSError:
             return False
 
 

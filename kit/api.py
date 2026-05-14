@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Any
 
 from kit.core.kit_cognitive_core import RankingAssessment, SAMBrain, SAMBrainError
-from kit.core.rmil import warmup_memory # RMIL v1.0
 from kit.core.memory_topology import MemoryTopologyFactory
+from kit.core.rmil import warmup_memory  # RMIL v1.0
 
 # v1.2.5-LOCK: Vantage is external-binary-only; called from kit_baking, NOT from learn().
 
@@ -22,12 +22,13 @@ def resolve_paths(force_local: bool = False, mode: str = "auto") -> tuple[Path, 
     Standard Path Resolver for .kit Kernel. (v1.2.5-COLLAPSE)
     """
     cwd = Path.cwd().resolve()
-    
+
     if force_local or mode == "isolated":
         root_path = cwd
         # v1.2.5 Debug
         if os.getenv("KIT_LOG_LEVEL") == "DEBUG":
             import logging
+
             logging.getLogger("kit.api").debug(f"resolve_paths(force_local=True) -> root_path={root_path} (cwd={cwd})")
     else:
         # Determine repo boundary (.git) as the absolute ceiling
@@ -36,7 +37,7 @@ def resolve_paths(force_local: bool = False, mode: str = "auto") -> tuple[Path, 
             if (parent / ".git").exists():
                 repo_root = parent
                 break
-        
+
         # Walk up to find .kit directory
         root_path = cwd
         for parent in [cwd] + list(cwd.parents):
@@ -63,9 +64,10 @@ def init_kernel(db_path: Path | None = None, mode: str = "auto") -> None:
     target_project_db = db_path if db_path else project_db
     _brain_instance = SAMBrain(target_project_db, root_path=root_path)
     _brain_instance.attach_global(global_db)
-    
+
     # --- RMIL v1.0: Warmup working memory ---
     from kit import api
+
     warmup_memory(api)
 
 
@@ -114,7 +116,7 @@ def learn(
         meta.update(metadata)
 
     resolved_uid = uid if uid else str(uuid.uuid4())
-    
+
     return brain.learn(
         uid=resolved_uid,
         content=content,
@@ -134,9 +136,11 @@ def learn(
 
 import functools
 
+
 @functools.lru_cache(maxsize=32)
 def _cached_search(query: str, limit: int, at: str | None, agent_id: str | None, fast: bool) -> list[Any]:
     return get_brain().search(query, limit, at_timestamp=at, agent_id=agent_id, fast=fast)
+
 
 # @epistemic: search
 @traced("api.search")
@@ -174,8 +178,9 @@ def _cached_recall(
         fast=fast,
         include_profile=include_profile,
         since=since,
-        until=until
+        until=until,
     )
+
 
 # @epistemic: recall
 @traced("api.recall")
@@ -206,7 +211,7 @@ def recall(
         fast,
         include_profile,
         since,
-        until
+        until,
     )
     if include_profile:
         return result  # Already a tuple (memories, profile)
@@ -294,7 +299,7 @@ def reflect_check(
     scope: str | None = None,
     external_signals: list[Any] | None = None,
     file_path: Path | None = None,
-    deep: bool = False
+    deep: bool = False,
 ) -> dict[str, Any]:
     """Run cognitive reflection check (v1.2.5 TITANIUM)."""
     from kit.core.kit_platform import GIT_TIMEOUT, run_safe
@@ -314,12 +319,7 @@ def reflect_check(
             diff_text = ""
 
     report = run_reflect(
-        get_brain(),
-        diff_text,
-        scope=scope,
-        external_signals=external_signals,
-        file_path=file_path,
-        deep=deep
+        get_brain(), diff_text, scope=scope, external_signals=external_signals, file_path=file_path, deep=deep
     )
 
     # MEC v1: Map unified signals to legacy issue format for backward compatibility
@@ -331,7 +331,7 @@ def reflect_check(
                 "uid": sig.uid,
                 "message": sig.evidence or f"Signal detected: {sig.uid}",
                 "confidence": sig.confidence,
-                "source": sig.source
+                "source": sig.source,
             }
         )
 
@@ -341,15 +341,17 @@ def reflect_check(
         "signals": [s.model_dump() if hasattr(s, "model_dump") else s for s in report.signals],
         "issues": issues,
         "suggestions": report.suggestions,
-        "confirmations": report.confirmations
+        "confirmations": report.confirmations,
     }
 
 
 # --- Procedural Skill Layer (L3) ---
 
+
 def list_procedural_skills() -> list[dict[str, Any]]:
     """List all compiled YAML-based skills in the brain."""
     from kit.skills.matcher import list_procedural_skills
+
     return list_procedural_skills()
 
 

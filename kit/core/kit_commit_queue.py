@@ -5,6 +5,7 @@ Acts as an Epistemic Firewall between Ingestion (IO) and Cognition (Recall).
 """
 
 from __future__ import annotations
+
 import json
 import logging
 import sqlite3
@@ -18,35 +19,43 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("kit.commit_kernel")
 
+
 @dataclass
 class CommitEvent:
     content: str
     symbol: str
-    metadata: Dict
+    metadata: dict
     structural_hash: str
     timestamp: float = field(default_factory=time.time)
 
+
 class CommitQueue:
     """Deterministic Commit Layer with Snapshot Consistency."""
-    
-    def __init__(self, brain: SAMBrain, clock_seconds: float = 5.0, batch_limit: int = 100, on_flush: Optional[Callable[[List[CommitEvent]], None]] = None):
+
+    def __init__(
+        self,
+        brain: SAMBrain,
+        clock_seconds: float = 5.0,
+        batch_limit: int = 100,
+        on_flush: Callable[[list[CommitEvent]], None] | None = None,
+    ):
         self.brain = brain
         self.clock_seconds = clock_seconds
         self.batch_limit = batch_limit
         self.on_flush = on_flush
-        
-        self._queue: List[CommitEvent] = []
+
+        self._queue: list[CommitEvent] = []
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
-        
+
         # v1.2.5-TITANIUM: Dedicated Commit Thread (The Clock)
-        self._clock_thread: Optional[threading.Thread] = None
-        
+        self._clock_thread: threading.Thread | None = None
+
     def start(self):
         """Start the background commit clock."""
         if self._clock_thread and self._clock_thread.is_alive():
             return
-            
+
         self._stop_event.clear()
         self._clock_thread = threading.Thread(target=self._run_clock, name="Kit-Commit-Clock", daemon=True)
         self._clock_thread.start()
@@ -66,47 +75,48 @@ class CommitQueue:
         with self._lock:
             if not self._queue:
                 return
-            
+
             count = len(self._queue)
             logger.info(f"CommitKernel: Committing batch of {count} events...")
-            
+
             try:
+
                 def _batch_commit_op(conn: sqlite3.Connection):
                     for event in self._queue:
                         # PURE IO: No triggers, no SRE, no repair during this phase.
                         # We just commit the raw structural perception.
-                        
+
                         # node upsert
                         node_uid = f"sensor:{event.structural_hash}"
-                        conn.execute("""
+                        conn.execute(
+                            """
                             INSERT INTO nodes (uid, node_type, status, visibility)
                             VALUES (?, 'observation', 'active', 'local')
                             ON CONFLICT(uid) DO NOTHING
-                        """, (node_uid,))
-                        
+                        """,
+                            (node_uid,),
+                        )
+
                         node_row = conn.execute("SELECT id FROM nodes WHERE uid = ?", (node_uid,)).fetchone()
                         node_id = node_row["id"]
-                        
+
                         # observation insert
-                        conn.execute("""
+                        conn.execute(
+                            """
                             INSERT INTO observations 
                             (node_id, content, symbol, symbol_source, importance, materialized_score, metadata, structural_hash, tag, layer)
                             VALUES (?, ?, ?, 'sensor', 0.1, 0.1, ?, ?, 'pattern', 'semantic')
-                        """, (
-                            node_id, 
-                            event.content, 
-                            event.symbol, 
-                            json.dumps(event.metadata), 
-                            event.structural_hash
-                        ))
-                
+                        """,
+                            (node_id, event.content, event.symbol, json.dumps(event.metadata), event.structural_hash),
+                        )
+
                 # Perform the transaction
                 self.brain._run_write_transaction(_batch_commit_op)
-                
+
                 # v1.2.5-STAGE5.5.3: Graduation Callback
                 committed_events = list(self._queue)
                 self._queue.clear()
-                
+
                 if self.on_flush:
                     try:
                         self.on_flush(committed_events)
@@ -114,7 +124,7 @@ class CommitQueue:
                         logger.error(f"CommitKernel: Graduation callback failed: {e}")
 
                 logger.info(f"CommitKernel: Successfully committed {count} events. Snapshot synchronized.")
-                
+
             except Exception as e:
                 # v1.2.5-TITANIUM: On failure, we KEEP the queue for next retry
                 # This ensures zero-data-loss for structural streams.

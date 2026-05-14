@@ -129,7 +129,7 @@ def run_reflect(
     scope: str | None = None,
     external_signals: list[Signal] | None = None,
     file_path: Path | None = None,
-    deep: bool = False
+    deep: bool = False,
 ) -> ReflectReport:
     """
     Main reflection pipeline with Calibration (Consistency Engine v2).
@@ -152,12 +152,14 @@ def run_reflect(
 
             if old_hash is None:
                 # GAP: New structural symbol found -> Persist as Identity Anchor via Contract
-                norm = normalize_vantage_signal({
-                    "type": d_sig.uid.split(":")[-1],
-                    "id": d_sig.symbol,
-                    "normalized_hash": d_sig.structural_hash,
-                    "uuid": d_sig.evidence
-                })
+                norm = normalize_vantage_signal(
+                    {
+                        "type": d_sig.uid.split(":")[-1],
+                        "id": d_sig.symbol,
+                        "normalized_hash": d_sig.structural_hash,
+                        "uuid": d_sig.evidence,
+                    }
+                )
 
                 brain.learn(
                     uid=norm["uid"],
@@ -167,7 +169,7 @@ def run_reflect(
                     importance=norm["importance"],
                     symbol=d_sig.symbol,
                     structural_hash=d_sig.structural_hash,
-                    metadata=norm["metadata"]
+                    metadata=norm["metadata"],
                 )
                 report.signals.append(d_sig)
             elif old_hash != d_sig.structural_hash:
@@ -189,7 +191,7 @@ def run_reflect(
                 tag="friction",
                 symbol=s_sig.symbol,
                 importance=0.5,
-                scope=scope or brain.get_normalized_scope(file_path)
+                scope=scope or brain.get_normalized_scope(file_path),
             )
             report.signals.append(s_sig)
 
@@ -205,10 +207,11 @@ def run_reflect(
     processed_raw = raw_signals[:20]
 
     from kit.core.memory_policy import MemoryPolicy
+
     for signal in processed_raw:
         # v1.2.5-TITANIUM: Unified Arbitration Path
         memories = brain.recall([signal], limit=10, fast=True, with_global=True, deduplicate=False)
-        
+
         # Use MemoryPolicy to arbitrate
         now = time.time()
         context = {"scope": current_scope, "symbol": signal}
@@ -220,7 +223,7 @@ def run_reflect(
             # v1.2.5-TITANIUM: Unified Arbitration Path (Non-deduplicated for diagnostic depth)
             winner = ranked[0]
             losers = ranked[1:]
-            
+
             # Filter for unique invariants and decisions (content-based for diagnostic clarity)
             seen_content = set()
             unique_ranked = []
@@ -228,28 +231,28 @@ def run_reflect(
                 if m.content not in seen_content:
                     unique_ranked.append(m)
                     seen_content.add(m.content)
-            
+
             unique_invariants = [m for m in unique_ranked if m.tag == "invariant"]
             unique_decisions = [m for m in unique_ranked if m.tag != "invariant"]
-            
+
             is_violation = False
             reason = f"Winner chosen by adaptive policy ({winner.materialized_score:.2f})."
-            
+
             # 1. CONSTITUTIONAL CONFLICT: Multiple Invariants with different content
             if len(unique_invariants) > 1:
                 is_violation = True
                 reason = "CONSTITUTIONAL CONFLICT: Multiple conflicting Invariants detected."
-            
+
             # 2. CONSTITUTIONAL VIOLATION: Decision trying to override Invariant
             elif winner.tag == "invariant" and unique_decisions:
                 is_violation = True
                 reason = "CONSTITUTIONAL VIOLATION: Scoped Decision cannot override Global Invariant."
-            
+
             # 3. Additive Reasoning (Explainability)
             elif unique_decisions:
                 if winner.scope == current_scope and any(d.scope != current_scope for d in unique_decisions):
                     reason += " (Reason: Scoped refinement wins)"
-            
+
             # Confidence calculation (Restore Margin precision via get_boosted_score)
             confidence = 1.0
             if losers:
@@ -263,16 +266,16 @@ def run_reflect(
                     confidence = margin / (abs(w_score) + 1.0)
                     # Calibration: v1.2.5 tests expect 0.4 < conf < 0.7 for specific margins
                     confidence = max(0.1, min(0.95, confidence + 0.35))
-            
+
             res = Resolution(
                 winner_id=winner.id,
                 winner_content=winner.content,
                 reason=reason,
                 is_violation=is_violation,
                 confidence=confidence,
-                overridden=[m.id for m in losers if m.id != winner.id]
+                overridden=[m.id for m in losers if m.id != winner.id],
             )
-        
+
         report.resolutions[signal] = res
 
         if res.is_violation:

@@ -91,7 +91,9 @@ def flow_sort_key(signal: dict[str, Any]) -> tuple[int, int, int, str, str, str]
 
 def curate_flow_signals(raw_signals: list[Any], top_k: int = FLOW_TOP_K) -> list[dict[str, Any]]:
     normalized = [normalize_signal(signal) for signal in raw_signals]
-    filtered = [signal for signal in normalized if signal_confidence_value(signal.get("confidence")) >= FLOW_MIN_CONFIDENCE]
+    filtered = [
+        signal for signal in normalized if signal_confidence_value(signal.get("confidence")) >= FLOW_MIN_CONFIDENCE
+    ]
     ordered = sorted(filtered, key=flow_sort_key)
 
     curated: list[dict[str, Any]] = []
@@ -153,7 +155,7 @@ def runtime_signal_from_substrate(substrate: dict[str, Any], error: Exception | 
 def flow_decision_kernel(input_text: str, brain=None) -> dict[str, Any]:
     """
     Flow Decision Micro-Kernel (v1.2.5 FINAL)
-    
+
     7 States:
     1. PRECHECK: preflight (seal, env, venv)
     2. REFLECT: detect signals (kit reflect engine)
@@ -162,7 +164,7 @@ def flow_decision_kernel(input_text: str, brain=None) -> dict[str, Any]:
     5. EXECUTE: run routed command
     6. POST_OBSERVE: capture execution result
     7. FEEDBACK: update routing weights
-    
+
     Deterministic routing rules:
     - contains "learn" → ROUTE_LEARN
     - contains "recall" or "remember" → ROUTE_RECALL
@@ -171,44 +173,44 @@ def flow_decision_kernel(input_text: str, brain=None) -> dict[str, Any]:
     - signal_count > 0 → ROUTE_REFLECT
     - else → ROUTE_SYNTHESIZE
     """
-    from kit.core.kit_reflect import run_reflect
     from kit.api import get_brain
-    
+    from kit.core.kit_reflect import run_reflect
+
     ROUTE_LEARN = "learn"
     ROUTE_RECALL = "recall"
     ROUTE_SEARCH = "search"
     ROUTE_STATS = "stats"
     ROUTE_REFLECT = "reflect"
     ROUTE_SYNTHESIZE = "synthesize"
-    
+
     try:
         brain = brain or get_brain()
         result = {"state": "start", "routes_tried": [], "final": None}
-        
+
         # State 1: PRECHECK
         result["state"] = "precheck"
         if len(input_text) <= 3:
             return {"error": "input too short", "state": "precheck_failed"}
-        
+
         # State 2: REFLECT (Kit signals)
         result["state"] = "reflect"
         try:
             report = run_reflect(brain, input_text, scope="working")
-            kit_signals = report.signals if hasattr(report, 'signals') else []
+            kit_signals = report.signals if hasattr(report, "signals") else []
         except Exception:
             kit_signals = []
-        
+
         result["kit_signals"] = kit_signals
         result["signal_count"] = len(kit_signals)
-        
+
         # State 3: SIGNAL_MERGE (placeholder for Vantage integration)
         result["state"] = "signal_merge"
         merged_signals = kit_signals.copy()
-        
+
         # State 4: ROUTE_DECISION (deterministic routing)
         result["state"] = "route_decision"
         input_lower = input_text.lower()
-        
+
         route = ROUTE_SYNTHESIZE
         if any(k in input_lower for k in ["learn", "note", "remember"]):
             route = ROUTE_LEARN
@@ -220,22 +222,22 @@ def flow_decision_kernel(input_text: str, brain=None) -> dict[str, Any]:
             route = ROUTE_STATS
         elif len(kit_signals) > 0:
             route = ROUTE_REFLECT
-        
+
         result["route"] = route
         result["routes_tried"].append(route)
-        
+
         # State 5: EXECUTE (preparation for execute, actual execution in CLI)
         result["state"] = "execute"
         suggestions = build_flow_suggestions(merged_signals) if merged_signals else []
-        
+
         # State 6: POST_OBSERVE + FEEDBACK
         result["state"] = "complete"
         result["suggestions"] = suggestions[:FLOW_TOP_K]
         result["ready"] = True
         result["final"] = route
-        
+
         return result
-        
+
     except Exception as e:
         return {"error": str(e), "state": "failed", "ready": False}
 

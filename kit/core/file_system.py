@@ -26,6 +26,7 @@ class FileContent:
 
 class EncodingError(Exception):
     """Raised when a file cannot be read safely due to encoding or binary content."""
+
     def __init__(self, path: Path, message: str, status: EncodingStatus):
         self.path = path
         self.message = message
@@ -131,30 +132,32 @@ def read_text_safe(path: Path) -> FileContent:
 
     # 1. Check for UTF-8-SIG or UTF-16 BOM first.
     # This protects UTF-16 files (which often contain NULL bytes) from being flagged as binary.
-    if raw_bytes.startswith(b'\xef\xbb\xbf'):
+    if raw_bytes.startswith(b"\xef\xbb\xbf"):
         try:
-            text = raw_bytes.decode('utf-8-sig')
-            return FileContent(path, text, 'utf-8-sig', EncodingStatus.BOM_DETECTED)
+            text = raw_bytes.decode("utf-8-sig")
+            return FileContent(path, text, "utf-8-sig", EncodingStatus.BOM_DETECTED)
         except Exception:
             pass
 
-    if raw_bytes.startswith((b'\xff\xfe', b'\xfe\xff')):
+    if raw_bytes.startswith((b"\xff\xfe", b"\xfe\xff")):
         try:
             # Note: utf-16 decoder handles the BOM automatically
-            text = raw_bytes.decode('utf-16')
-            return FileContent(path, text, 'utf-16', EncodingStatus.BOM_DETECTED)
+            text = raw_bytes.decode("utf-16")
+            return FileContent(path, text, "utf-16", EncodingStatus.BOM_DETECTED)
         except Exception:
             pass
 
     # 2. Binary Check (only if no BOM is present)
     # Heuristic: If NULL byte is present and not part of a known encoding, it's likely binary.
-    if b'\x00' in raw_bytes:
-        raise EncodingError(path, "NULL byte detected in non-BOM file. Likely binary content.", EncodingStatus.BINARY_FILE)
+    if b"\x00" in raw_bytes:
+        raise EncodingError(
+            path, "NULL byte detected in non-BOM file. Likely binary content.", EncodingStatus.BINARY_FILE
+        )
 
     # 3. Deterministic Pipeline: UTF-8 -> Fail
     try:
-        text = raw_bytes.decode('utf-8')
-        return FileContent(path, text, 'utf-8', EncodingStatus.OK)
+        text = raw_bytes.decode("utf-8")
+        return FileContent(path, text, "utf-8", EncodingStatus.OK)
     except UnicodeDecodeError as e:
         # If UTF-8 fails and we reached here (no NULL bytes), it's either high-bit ANSI or Corrupted.
         # Kit V1.2.5 policy: We DO NOT guess. We FAIL.

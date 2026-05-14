@@ -312,7 +312,9 @@ def init_db(conn: sqlite3.Connection):
 
     # Initialize ROOT commit and main branch
     try:
-        conn.execute("INSERT OR IGNORE INTO commits (id, agent_id, message) VALUES ('ROOT', 'system', 'Initial cognitive root')")
+        conn.execute(
+            "INSERT OR IGNORE INTO commits (id, agent_id, message) VALUES ('ROOT', 'system', 'Initial cognitive root')"
+        )
         conn.execute("INSERT OR IGNORE INTO branches (name, head_commit_id) VALUES ('main', 'ROOT')")
     except sqlite3.OperationalError:
         pass
@@ -334,8 +336,13 @@ def init_db(conn: sqlite3.Connection):
     _add_column_safe(conn, "observations", "canonical_id", "canonical_id INTEGER")
 
     # Perception-Cognition split (v1.2.5-LOCK)
-    _add_column_safe(conn, "observations", "is_baked", "is_baked BOOLEAN DEFAULT 0",
-                     backfill="UPDATE observations SET is_baked = 1 WHERE is_baked IS NULL OR is_baked = 0")
+    _add_column_safe(
+        conn,
+        "observations",
+        "is_baked",
+        "is_baked BOOLEAN DEFAULT 0",
+        backfill="UPDATE observations SET is_baked = 1 WHERE is_baked IS NULL OR is_baked = 0",
+    )
 
     # Baked index
     _ensure_index(conn, "idx_obs_baked", "CREATE INDEX IF NOT EXISTS idx_obs_baked ON observations(is_baked)")
@@ -436,35 +443,53 @@ def init_db(conn: sqlite3.Connection):
         conn.execute("PRAGMA foreign_keys=ON")
 
     # materialized_score
-    _add_column_safe(conn, "observations", "materialized_score",
-                     "materialized_score REAL NOT NULL DEFAULT 1.0")
+    _add_column_safe(conn, "observations", "materialized_score", "materialized_score REAL NOT NULL DEFAULT 1.0")
 
     is_active_backfill = """
     UPDATE observations SET is_active = 1 WHERE is_active IS NULL
     """
-    _add_column_safe(conn, "observations", "is_active", "is_active BOOLEAN DEFAULT 1",
-                     backfill=is_active_backfill)
+    _add_column_safe(conn, "observations", "is_active", "is_active BOOLEAN DEFAULT 1", backfill=is_active_backfill)
 
     # created_at_bucket
     try:
-        conn.execute("ALTER TABLE observations ADD COLUMN created_at_bucket INTEGER GENERATED ALWAYS AS (CAST(strftime('%Y%m%d%H', created_at) AS INTEGER)) VIRTUAL")
+        conn.execute(
+            "ALTER TABLE observations ADD COLUMN created_at_bucket INTEGER GENERATED ALWAYS AS (CAST(strftime('%Y%m%d%H', created_at) AS INTEGER)) VIRTUAL"
+        )
         logger.info("Migrated: Added created_at_bucket to observations")
     except sqlite3.OperationalError:
         pass
 
     # === Phase 4: Final indexes ===
-    _ensure_index(conn, "idx_obs_bucket", "CREATE INDEX IF NOT EXISTS idx_obs_bucket ON observations(created_at_bucket, importance)")
+    _ensure_index(
+        conn,
+        "idx_obs_bucket",
+        "CREATE INDEX IF NOT EXISTS idx_obs_bucket ON observations(created_at_bucket, importance)",
+    )
     _ensure_index(conn, "idx_nodes_uid", "CREATE INDEX IF NOT EXISTS idx_nodes_uid ON nodes(uid)")
     _ensure_index(conn, "idx_obs_node", "CREATE INDEX IF NOT EXISTS idx_obs_node ON observations(node_id)")
     _ensure_index(conn, "idx_obs_commit", "CREATE INDEX IF NOT EXISTS idx_obs_commit ON observations(commit_id)")
     _ensure_index(conn, "idx_obs_branch", "CREATE INDEX IF NOT EXISTS idx_obs_branch ON observations(branch)")
     _ensure_index(conn, "idx_obs_namespace", "CREATE INDEX IF NOT EXISTS idx_obs_namespace ON observations(namespace)")
-    _ensure_index(conn, "idx_obs_scope_created", "CREATE INDEX IF NOT EXISTS idx_obs_scope_created ON observations(scope, created_at DESC)")
-    _ensure_index(conn, "idx_obs_node_scope", "CREATE INDEX IF NOT EXISTS idx_obs_node_scope ON observations(node_id, scope)")
+    _ensure_index(
+        conn,
+        "idx_obs_scope_created",
+        "CREATE INDEX IF NOT EXISTS idx_obs_scope_created ON observations(scope, created_at DESC)",
+    )
+    _ensure_index(
+        conn, "idx_obs_node_scope", "CREATE INDEX IF NOT EXISTS idx_obs_node_scope ON observations(node_id, scope)"
+    )
     _ensure_index(conn, "idx_obs_symbol", "CREATE INDEX IF NOT EXISTS idx_obs_symbol ON observations(symbol)")
-    _ensure_index(conn, "idx_obs_active_score", "CREATE INDEX IF NOT EXISTS idx_obs_active_score ON observations(is_active, materialized_score DESC)")
+    _ensure_index(
+        conn,
+        "idx_obs_active_score",
+        "CREATE INDEX IF NOT EXISTS idx_obs_active_score ON observations(is_active, materialized_score DESC)",
+    )
     _ensure_index(conn, "idx_obs_hash", "CREATE INDEX IF NOT EXISTS idx_obs_hash ON observations(structural_hash)")
-    _ensure_index(conn, "idx_obs_recall_optimized", "CREATE INDEX IF NOT EXISTS idx_obs_recall_optimized ON observations(is_active, scope, materialized_score DESC)")
+    _ensure_index(
+        conn,
+        "idx_obs_recall_optimized",
+        "CREATE INDEX IF NOT EXISTS idx_obs_recall_optimized ON observations(is_active, scope, materialized_score DESC)",
+    )
     _ensure_index(conn, "idx_metrics_event", "CREATE INDEX IF NOT EXISTS idx_metrics_event ON metrics(event_type)")
 
     # === Phase 5: Symbol Reconciliation Engine ===

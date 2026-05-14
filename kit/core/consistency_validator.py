@@ -162,11 +162,7 @@ def summarize_consistency(
         if cli_surface.get(command, {}).get("options") and command not in registry_commands
     )
     observability_overlap = sorted(route_commands & observability_commands)
-    policy_runtime_lines = [
-        line.strip()
-        for line in policy_text.splitlines()
-        if POLICY_RUNTIME_RE.search(line)
-    ]
+    policy_runtime_lines = [line.strip() for line in policy_text.splitlines() if POLICY_RUNTIME_RE.search(line)]
 
     supported_vantage_commands = set(vantage_capabilities.get("commands", []))
     unsupported_vantage_mappings = []

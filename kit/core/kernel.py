@@ -17,7 +17,7 @@ def _sanitize_row(row: dict[str, Any]) -> dict[str, Any]:
     count = row.get("access_count", 0)
     try:
         clean["access_count"] = max(0, int(count)) if count is not None else 0
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         clean["access_count"] = 0
 
     # 2. Structural Hash hygiene
@@ -54,6 +54,7 @@ def _calculate_conflict(history: list[dict[str, Any]]) -> float:
 
     # Ratio of signals that differ from the most common signal
     from collections import Counter
+
     counts = Counter(hashes)
     most_common_count = counts.most_common(1)[0][1]
 
@@ -61,9 +62,7 @@ def _calculate_conflict(history: list[dict[str, Any]]) -> float:
 
 
 def compute_state_vector(
-    row: dict[str, Any],
-    anchor_row: dict[str, Any] | None = None,
-    history: list[dict[str, Any]] | None = None
+    row: dict[str, Any], anchor_row: dict[str, Any] | None = None, history: list[dict[str, Any]] | None = None
 ) -> StateVector:
     """
     Hydrate a StateVector with Full Epistemic Enforcement (Titanium v1.2.5).
@@ -119,5 +118,5 @@ def compute_state_vector(
         state=state,
         reason=reason,
         severity=severity,
-        requires_review=requires_review
+        requires_review=requires_review,
     )

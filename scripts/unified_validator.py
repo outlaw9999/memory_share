@@ -7,15 +7,15 @@ Single source of truth for all validation: CI/CD + TDD + Flow Runtime
 This system collapses all fragmented validation into one coherent framework.
 """
 
+import json
 import os
 import subprocess
 import sys
-import json
 import tempfile
-from pathlib import Path
-from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from kit.api import resolve_paths
 
@@ -26,7 +26,7 @@ class ValidationResult:
     component: str
     status: str  # 'PASS', 'FAIL', 'SKIP'
     duration: float
-    details: Dict[str, Any]
+    details: dict[str, Any]
     timestamp: str
 
 
@@ -34,8 +34,8 @@ class ValidationResult:
 class SystemValidationReport:
     """Complete validation report."""
     overall_status: str
-    components: List[ValidationResult]
-    summary: Dict[str, Any]
+    components: list[ValidationResult]
+    summary: dict[str, Any]
     generated_at: str
 
 
@@ -44,12 +44,12 @@ class UnifiedValidator:
 
     def __init__(self):
         self.repo_root = Path(__file__).resolve().parents[1]
-        self.results: List[ValidationResult] = []
+        self.results: list[ValidationResult] = []
         # v1.2.4-PURE: Use a fresh, random temp directory for absolute statelessness
         self._temp_dir = tempfile.TemporaryDirectory(prefix="kit_val_")
         self.validation_home = Path(self._temp_dir.name)
 
-    def run_command(self, cmd: str | list, cwd: Optional[Path] = None) -> tuple[bool, str, str]:
+    def run_command(self, cmd: str | list, cwd: Path | None = None) -> tuple[bool, str, str]:
         """Run a command and return success status, stdout, stderr.
         
         Accepts either a list of args (preferred, cross-platform safe) or
@@ -94,7 +94,7 @@ class UnifiedValidator:
         """Standardized pytest args via current interpreter."""
         return [sys.executable, "-m", "pytest"]
 
-    def validate_component(self, name: str, command: str, cwd: Optional[Path] = None) -> ValidationResult:
+    def validate_component(self, name: str, command: str, cwd: Path | None = None) -> ValidationResult:
         """Validate a single component."""
         start_time = datetime.now()
 
@@ -302,7 +302,7 @@ class UnifiedValidator:
 
         return report
 
-    def export_report(self, report: SystemValidationReport, output_path: Optional[Path] = None):
+    def export_report(self, report: SystemValidationReport, output_path: Path | None = None):
         """Export validation report to JSON."""
         if output_path is None:
             output_path = self.repo_root / "validation_report.json"

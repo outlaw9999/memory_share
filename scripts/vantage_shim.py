@@ -23,7 +23,7 @@ def main():
         vantage_base / "kit-vantage",
         vantage_base / "target" / "release" / "vantage.exe",
         vantage_base / "target" / "release" / "vantage",
-        Path("kit-vantage.exe"), # Root of current repo
+        Path("kit-vantage.exe"),  # Root of current repo
         Path("kit-vantage"),
     ]
     

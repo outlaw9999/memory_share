@@ -1,5 +1,6 @@
 from typing import Any
 
+
 def migrate_context(data: dict[str, Any]) -> dict[str, Any]:
     """
     Schema migration handler for execution_context payloads.
@@ -10,7 +11,4 @@ def migrate_context(data: dict[str, Any]) -> dict[str, Any]:
     if version == "1.0":
         return data
 
-    raise RuntimeError(
-        f"Unsupported schema version: {version}. "
-        "Upgrade Toolkit or check migration policies."
-    )
+    raise RuntimeError(f"Unsupported schema version: {version}. Upgrade Toolkit or check migration policies.")

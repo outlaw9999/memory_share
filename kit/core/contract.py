@@ -8,6 +8,7 @@ from typing import Any, ClassVar
 @dataclass(frozen=True)
 class VantageMapping:
     """Rules for mapping a Vantage structural signal to an atomic fact."""
+
     SIGNAL_TO_TAG: ClassVar[dict[str, str]] = {
         "FUNCTION": "decision",
         "CLASS": "invariant",
@@ -59,6 +60,6 @@ def normalize_vantage_signal(raw_vantage_json: dict[str, Any]) -> dict[str, Any]
         "metadata": {
             "vantage_uuid": raw_vantage_json.get("uuid"),
             "ast_depth": raw_vantage_json.get("depth", 0),
-            "engine": "vantage-verify-v1.2.5"
-        }
+            "engine": "vantage-verify-v1.2.5",
+        },
     }

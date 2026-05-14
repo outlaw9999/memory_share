@@ -58,10 +58,10 @@ class RiskEngine:
                     signals.append(
                         RiskSignal(
                             category=RiskCategory.SQL_INJECTION,
-                            confidence="high" if "f\"" in clean_line or "%" in clean_line else "medium",
+                            confidence="high" if 'f"' in clean_line or "%" in clean_line else "medium",
                             line=line_num,
                             content=clean_line,
-                            evidence=f"Pattern match: {pattern.pattern}"
+                            evidence=f"Pattern match: {pattern.pattern}",
                         )
                     )
 
@@ -78,7 +78,7 @@ class RiskEngine:
                         confidence="high",
                         line=line_num,
                         content=clean_line,
-                        evidence="SQL_12: execute() detected inside a loop (Batch Loop Risk)"
+                        evidence="SQL_12: execute() detected inside a loop (Batch Loop Risk)",
                     )
                 )
 
@@ -119,7 +119,7 @@ class RiskEngine:
                                 confidence="high",
                                 line=last_route_line,
                                 content=last_route_content,
-                                evidence="AUTH_01: Route defined without visible authentication guard"
+                                evidence="AUTH_01: Route defined without visible authentication guard",
                             )
                         )
                         last_route_line = -1

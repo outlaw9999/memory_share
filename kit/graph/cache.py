@@ -5,13 +5,13 @@ Caches query results for zero-lag IDE queries.
 Invalidates on file hash change or Vantage rerun.
 """
 
-import sqlite3
 import hashlib
 import json
 import logging
+import sqlite3
 import time
-from typing import Dict, List, Optional, Any
 from functools import lru_cache
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("kit.graph.cache")
 
@@ -47,14 +47,17 @@ class QueryCache:
         param_str = json.dumps(params, sort_keys=True)
         return hashlib.sha256(f"{query_type}:{param_str}".encode()).hexdigest()
 
-    def get(self, query_type: str, **params) -> Optional[Any]:
+    def get(self, query_type: str, **params) -> Any | None:
         """Get cached result if valid."""
         key = self._make_key(query_type, **params)
-        row = self.conn.execute("""
+        row = self.conn.execute(
+            """
             SELECT result_json, created_at, ttl, graph_hash
             FROM query_cache
             WHERE query_key = ?
-        """, (key,)).fetchone()
+        """,
+            (key,),
+        ).fetchone()
 
         if not row:
             return None
@@ -67,16 +70,19 @@ class QueryCache:
 
         return json.loads(result_json)
 
-    def set(self, query_type: str, graph_hash: str, result: Any, ttl: Optional[int] = None, **params):
+    def set(self, query_type: str, graph_hash: str, result: Any, ttl: int | None = None, **params):
         """Cache query result."""
         key = self._make_key(query_type, **params)
         ttl = ttl or self.ttl
 
-        self.conn.execute("""
+        self.conn.execute(
+            """
             INSERT OR REPLACE INTO query_cache
             (query_key, query_type, result_json, created_at, ttl, graph_hash)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (key, query_type, json.dumps(result), int(time.time()), ttl, graph_hash))
+        """,
+            (key, query_type, json.dumps(result), int(time.time()), ttl, graph_hash),
+        )
 
     def invalidate(self, key: str):
         """Invalidate single cache entry."""
@@ -93,33 +99,35 @@ class QueryCache:
 
     def invalidate_on_graph_change(self, new_hash: str):
         """Invalidate stale entries when graph changes."""
-        stale = self.conn.execute("""
+        stale = self.conn.execute(
+            """
             SELECT query_key FROM query_cache
             WHERE graph_hash != ?
-        """, (new_hash,)).fetchall()
+        """,
+            (new_hash,),
+        ).fetchall()
 
         for row in stale:
             self.invalidate(row[0])
 
         logger.info(f"Invalidated {len(stale)} stale cache entries")
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get cache statistics."""
         total = self.conn.execute("SELECT COUNT(*) FROM query_cache").fetchone()[0]
 
-        by_type = dict(self.conn.execute("""
+        by_type = dict(
+            self.conn.execute("""
             SELECT query_type, COUNT(*)
             FROM query_cache
             GROUP BY query_type
-        """).fetchall())
+        """).fetchall()
+        )
 
-        return {
-            "total_entries": total,
-            "by_type": by_type
-        }
+        return {"total_entries": total, "by_type": by_type}
 
 
-def cached_blast(conn: sqlite3.Connection, graph_hash: str, symbol: str, max_depth: int = 5, **params) -> List:
+def cached_blast(conn: sqlite3.Connection, graph_hash: str, symbol: str, max_depth: int = 5, **params) -> list:
     """Cached blast query."""
     cache = QueryCache(conn)
 
@@ -128,6 +136,7 @@ def cached_blast(conn: sqlite3.Connection, graph_hash: str, symbol: str, max_dep
         return result
 
     from kit.graph.api import GraphQueryAPI
+
     api = GraphQueryAPI(conn)
     result = api.blast(symbol, max_depth=max_depth, **params)
 
@@ -135,7 +144,7 @@ def cached_blast(conn: sqlite3.Connection, graph_hash: str, symbol: str, max_dep
     return result
 
 
-def cached_impact(conn: sqlite3.Connection, graph_hash: str, symbol: str, **params) -> Dict:
+def cached_impact(conn: sqlite3.Connection, graph_hash: str, symbol: str, **params) -> dict:
     """Cached impact query."""
     cache = QueryCache(conn)
 
@@ -144,6 +153,7 @@ def cached_impact(conn: sqlite3.Connection, graph_hash: str, symbol: str, **para
         return result
 
     from kit.graph.api import GraphQueryAPI
+
     api = GraphQueryAPI(conn)
     result = api.impact(symbol, **params)
 

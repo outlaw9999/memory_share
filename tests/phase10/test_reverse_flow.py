@@ -2,13 +2,14 @@
 # Proves P3: ∀ loop, blocked(loop) = True
 
 import os
-from kit.runtime import PolicyGuard
-from kit.runtime.policy_guard import _check_hook_depth
-from kit.runtime.planner import ExecutionPlan, ExecutionStep
-from kit.intent.schema import CanonicalIntent, IntentDomain, IntentAction
+
 from kit.intent import normalize_git_event
 from kit.intent.execution import ExecutionIntent, Mutability
-from kit.vantage import EpistemicEngine, VerificationRequest, Verdict
+from kit.intent.schema import CanonicalIntent, IntentAction, IntentDomain
+from kit.runtime import PolicyGuard
+from kit.runtime.planner import ExecutionPlan, ExecutionStep
+from kit.runtime.policy_guard import _check_hook_depth
+from kit.vantage import EpistemicEngine, Verdict, VerificationRequest
 
 
 def test_hook_depth_blocked():

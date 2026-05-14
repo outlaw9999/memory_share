@@ -1,7 +1,8 @@
 """FS executor for dispatcher."""
+
+import logging
 import os
 import sys
-import logging
 from pathlib import Path
 
 logger = logging.getLogger("kit.fs_dispatch")

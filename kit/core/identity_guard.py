@@ -30,11 +30,6 @@ def check_identity_hijack(symbol: str, proposed_hash: str | None, anchor_hash: s
 
     # If hashes mismatch, it's a structural drift explosion (Identity Hijack)
     if proposed_hash != anchor_hash:
-        return {
-            "state": "BLOCK",
-            "reason": "IDENTITY_MISMATCH",
-            "severity": "HIGH",
-            "requires_review": True
-        }
+        return {"state": "BLOCK", "reason": "IDENTITY_MISMATCH", "severity": "HIGH", "requires_review": True}
 
     return {}

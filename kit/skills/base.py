@@ -11,6 +11,7 @@ T_in = TypeVar("T_in", bound=BaseModel)
 
 class SkillInput(BaseModel):
     """Base model for all skill parameters."""
+
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -19,6 +20,7 @@ class SkillOutput(BaseModel):
     Standardized Epistemic Proposal.
     Skills do not learn; they propose.
     """
+
     status: str = "SUCCESS"
     results: dict[str, Any] = Field(default_factory=dict)
     proposed_observations: list[dict[str, Any]] = Field(default_factory=list)

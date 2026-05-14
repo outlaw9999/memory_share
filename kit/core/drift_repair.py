@@ -118,7 +118,9 @@ def _build_observability_plan(issue: dict[str, Any]) -> RepairPlan | None:
 
     return RepairPlan.model_validate(
         {
-            "drift_id": _drift_id("observability_self_noise_overlap", f"{file_path}:{source_line}", before_hash, after_hash),
+            "drift_id": _drift_id(
+                "observability_self_noise_overlap", f"{file_path}:{source_line}", before_hash, after_hash
+            ),
             "type": DriftType.MECHANICAL,
             "source": f"{file_path}:{source_line}",
             "before": current_literal,

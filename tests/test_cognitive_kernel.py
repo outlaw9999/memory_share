@@ -24,10 +24,10 @@ def test_authority_hierarchy(brain):
     brain.learn("db_q1", "Use PostgreSQL", symbol="db_choice", tag="decision", importance=0.5)
     brain.learn("db_q2", "MUST use SQLite", symbol="db_choice", tag="invariant", importance=0.4)
     brain.learn("db_q3", "Maybe use Redis", symbol="db_choice", tag="note", importance=0.5)
-    
+
     # Recall
     results = brain.recall(["db_choice"])
-    
+
     # Invariant should be top despite lower importance because of primary sort by tag
     assert len(results) >= 2, f"Expected at least 2 results, got {len(results)}"
     assert results[0].tag == "invariant", f"Expected 'invariant' but got '{results[0].tag}'"
@@ -73,7 +73,7 @@ def test_snapshot_syncer_refreshes_after_local_write(tmp_path):
     brain = SAMBrain(db_path, root_path=tmp_path)
     # v1.2.5-TITANIUM: Force start syncer for background sync verification
     brain._start_snapshot_syncer()
-    
+
     brain.learn("sync", "Local change triggers snapshot refresh", tag="decision", importance=0.8)
 
     snapshot_path = brain.topology.resolve("local", "snapshot")
@@ -93,20 +93,22 @@ def test_immutable_ledger_supersede(brain):
     # Use unique content to avoid idempotency hits from other tests
     content1 = f"Use JWT {time.time()}"
     content2 = f"Use OAuth2 {time.time()}"
-    
+
     id1 = brain.learn("auth", content1, tag="decision")
-    
+
     # Supersede id1 with id2
     id2 = brain.learn("auth", content2, tag="decision", supersede_id=id1)
-    
+
     with brain.get_connection() as conn:
         # Check id1 (Old)
         row1 = conn.execute("SELECT is_active, superseded_at FROM observations WHERE id = ?", (id1,)).fetchone()
         assert row1["is_active"] == 0
         assert row1["superseded_at"] is not None
-        
+
         # Check id2 (New)
-        row2 = conn.execute("SELECT is_active, superseded_at, supersedes_id FROM observations WHERE id = ?", (id2,)).fetchone()
+        row2 = conn.execute(
+            "SELECT is_active, superseded_at, supersedes_id FROM observations WHERE id = ?", (id2,)
+        ).fetchone()
         assert row2["is_active"] == 1
         assert row2["superseded_at"] is None
         assert row2["supersedes_id"] == id1
@@ -117,7 +119,7 @@ def test_compute_at_write_materialized_score(brain):
     Test 3: Compute-at-Write (Score precomputation)
     """
     fact_id = brain.learn("cache", "Use Redis", tag="decision", importance=0.8)
-    
+
     with brain.get_connection() as conn:
         row = conn.execute("SELECT materialized_score FROM observations WHERE id = ?", (fact_id,)).fetchone()
         assert row["materialized_score"] > 0
@@ -131,16 +133,16 @@ def test_preflight_blocks_invariant_violation(brain):
     """
     # 1. Learn an Invariant (Lower importance: 0.1)
     brain.learn("security", "NEVER log passwords", tag="invariant", importance=0.1)
-    
+
     # 2. Learn a Decision (Higher importance: 1.0)
     # 1.0 * 0.333 + 0.2 (bonus) = 0.533  vs  0.1 * 0.333 + 0.3 (bonus) = 0.333
     brain.learn("security", "It is okay to log in debug", tag="decision", importance=1.0)
-    
+
     # Run reflect
     diff = "import security\n+ logging.log(password)"
     report = run_reflect(brain, diff)
-    
-    # The Decision wins the score but because an Invariant exists for the same signal, 
+
+    # The Decision wins the score but because an Invariant exists for the same signal,
     # resolve_cognitive_conflict should return is_violation=True.
     assert report.status == "BLOCK"
     assert "security" in report.resolutions
@@ -153,16 +155,16 @@ def test_full_cognitive_loop(brain):
     """
     # 1. Learn
     brain.learn("auth_service", "Auth tokens must have 30s skew tolerance", tag="invariant")
-    
+
     # 2. Recall (Internal check)
     memories = brain.recall(["auth_service"])
     assert len(memories) > 0
     assert "30s" in memories[0].content
-    
+
     # 3. Reflect
     diff = "import auth_service\n+ validate_token(now)"
     report = run_reflect(brain, diff)
-    
+
     # Should find confirmation since there's no conflict
     assert report.status == "PASS"
     assert "auth_service" in report.confirmations
@@ -176,11 +178,11 @@ def test_hard_authority_invariant_wins(brain):
     brain.learn("db", "Use SQLite", tag="invariant", importance=0.4)
     # Local decision (higher score bonus +0.2)
     brain.learn("db", "Use Postgres", tag="decision", scope="src", importance=1.0)
-    
+
     # In recall, Invariant should still be prioritized by the engine due to tag sort
     results = brain.recall(["db"], here=True)
     assert results[0].tag == "invariant"
-    
+
     # In reflect, resolve_cognitive_conflict should return violation if any invariant is overridden
     diff = "import db\n+ connect()"
     report = run_reflect(brain, diff, scope="src")
@@ -194,7 +196,7 @@ def test_stdlib_ignored_in_gaps(brain):
     """
     diff = "import os\nimport sys\nimport datetime\n+ print(now)"
     report = run_reflect(brain, diff)
-    
+
     # None of these should be in gaps (gaps are reported as signals with GAP: prefix)
     gaps = [s for s in report.signals if s.uid.startswith("GAP:")]
     assert len(gaps) == 0
@@ -207,10 +209,10 @@ def test_invariant_conflict_blocks(brain):
     """
     brain.learn("auth", "Use JWT", tag="invariant")
     brain.learn("auth", "Use Session", tag="invariant")
-    
+
     diff = "import auth\n+ authenticate()"
     report = run_reflect(brain, diff)
-    
+
     # Two invariants conflict -> Should still be BLOCK
     assert report.status == "BLOCK"
     # But resolve_cognitive_conflict just picks the best invariant currently.
@@ -219,7 +221,7 @@ def test_invariant_conflict_blocks(brain):
     # If they conflict, it's a mess.
     assert "auth" in report.resolutions
     report = run_reflect(brain, diff)
-    
+
     # Two invariants conflict -> Should still be BLOCK
     assert report.status == "BLOCK"
     # But resolve_cognitive_conflict just picks the best invariant currently.

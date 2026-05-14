@@ -1,13 +1,14 @@
 # kit/scst/conflict_generator.py
 
-from typing import Dict, Any
+from typing import Any, Dict
+
 
 class ConflictGenerator:
     """
     SCST Conflict Generator:
     Forces MCE to resolve competing truths across LOCAL, GLOBAL, and FROZEN tiers.
     """
-    def generate_explosive_conflict(self) -> Dict[str, Any]:
+    def generate_explosive_conflict(self) -> dict[str, Any]:
         return {
             "key": "system_invariant_alpha",
             "tiers": {

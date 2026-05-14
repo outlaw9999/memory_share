@@ -5,6 +5,7 @@ Ensures 'Immediacy' for IDE agents while 'Consistency' is handled by the Commit 
 """
 
 from __future__ import annotations
+
 import logging
 import threading
 from typing import TYPE_CHECKING, List, Optional, Set
@@ -14,14 +15,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("kit.l0_cache")
 
+
 class L0Cache:
     """In-memory cache for 'Hot' memories (uncommitted or just-committed)."""
-    
+
     def __init__(self, max_size: int = 200):
         self.max_size = max_size
-        self._memories: List[Memory] = []
+        self._memories: list[Memory] = []
         self._lock = threading.Lock()
-        
+
     def push(self, memory: Memory):
         """Push a new hot memory into the cache."""
         with self._lock:
@@ -30,12 +32,12 @@ class L0Cache:
                 self._memories.pop(0)
             self._memories.append(memory)
 
-    def search(self, query: Optional[str] = None, limit: int = 10) -> List[Memory]:
+    def search(self, query: str | None = None, limit: int = 10) -> list[Memory]:
         """Fast in-memory keyword search."""
         with self._lock:
             if not query:
                 return self._memories[-limit:][::-1]
-            
+
             # Simple keyword matching for L0 immediacy
             # Full FTS is handled by the SQLite (Slow Path)
             query_parts = query.lower().split()
@@ -48,16 +50,13 @@ class L0Cache:
                     break
             return matches
 
-    def clear_by_hashes(self, structural_hashes: Set[str]):
+    def clear_by_hashes(self, structural_hashes: set[str]):
         """Remove memories from L0 once they are committed to SQLite (Graduation)."""
         with self._lock:
-            # Note: Memory object doesn't have structural_hash directly, 
+            # Note: Memory object doesn't have structural_hash directly,
             # but we can match by node_uid (which is sensor:<hash>)
-            self._memories = [
-                m for m in self._memories 
-                if not any(h in m.node_uid for h in structural_hashes)
-            ]
-            
+            self._memories = [m for m in self._memories if not any(h in m.node_uid for h in structural_hashes)]
+
     def clear_all(self):
         """Clear the entire L0 cache."""
         with self._lock:

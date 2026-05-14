@@ -48,14 +48,18 @@ Thumbs.db
 .kit/brain.db.bak
 .kit/shadow.log*
 
-# Workspace Hygiene (v1.2.4)
+# Shadow / governance
+*.jsonl
+shadow_traces/
+
+# Workspace Hygiene (v1.2.5)
+.kit_test_session/
 scratch/
 audit_test.json
 archive_backup/.antigravity_cache/
 validation_report.json
 runtime_call_graph.json
 .test_*
-.kit_test_session/
 *.db-wal
 *.db-shm
 

@@ -139,28 +139,28 @@ def run_doctor(
                                 f"  - {row['name']:8}: {healthy:20} [S:{successes} F:{failures}] Latency: {latency:.2f}s",
                                 file=sys.stderr,
                             )
-                        except (KeyError, TypeError, ValueError):
+                        except KeyError, TypeError, ValueError:
                             print(f"  - {row['name']:8}: Error reading metrics data.", file=sys.stderr)
 
     # --- Environment Audit ---
     if migrate_memory:
         print("\n[MEMORY MIGRATION]", file=sys.stderr)
-        from kit.skills.migrate_brain import migrate_and_merge
         from kit.core.memory_topology import MemoryTopologyFactory
-        
+        from kit.skills.migrate_brain import migrate_and_merge
+
         topo = brain.topology
         root = brain.root_path
-        
+
         # Local Migration
         legacy_local = root / ".kit" / "brain.db"
         new_local = topo.resolve("local", "local")
-        
+
         if legacy_local.exists():
             if not new_local.exists():
                 print(f"  - Migrating: {legacy_local.name} -> {new_local.name}")
                 try:
                     legacy_local.rename(new_local)
-                    print(f"  ✔ Local memory migrated.")
+                    print("  ✔ Local memory migrated.")
                 except Exception as e:
                     print(f"  ✖ Local migration failed: {e}")
             else:
@@ -169,13 +169,13 @@ def run_doctor(
                 try:
                     temp_merged = new_local.with_suffix(".merged.db")
                     migrate_and_merge(str(legacy_local), str(new_local), str(temp_merged))
-                    
+
                     if temp_merged.exists():
                         backup = new_local.with_suffix(".premerge.bak")
                         new_local.rename(backup)
                         temp_merged.rename(new_local)
                         legacy_local.rename(legacy_local.with_suffix(".migrated.bak"))
-                        print(f"  ✔ Local memory merged and schema aligned.")
+                        print("  ✔ Local memory merged and schema aligned.")
                 except Exception as e:
                     print(f"  ✖ Merge failed: {e}")
 
@@ -188,54 +188,67 @@ def run_doctor(
             print(f"  - Migrating: {legacy_global.name} -> {new_global.name}")
             try:
                 legacy_global.rename(new_global)
-                print(f"  ✔ Global memory migrated.")
+                print("  ✔ Global memory migrated.")
             except Exception as e:
                 print(f"  ✖ Global migration failed: {e}")
 
     if heal:
         print("\n[HYGIENE HEALING]", file=sys.stderr)
         from kit.core.kit_hygiene import perform_hygiene_cleanup
+
         removed = perform_hygiene_cleanup(brain.root_path, dry_run=False)
         if removed:
             print(f"  ✔ Removed {len(removed)} disposable artifacts.", file=sys.stderr)
-            for r in removed[:5]: # Print first 5
+            for r in removed[:5]:  # Print first 5
                 print(f"    - {r}", file=sys.stderr)
             if len(removed) > 5:
-                print(f"    - ... and {len(removed)-5} more", file=sys.stderr)
+                print(f"    - ... and {len(removed) - 5} more", file=sys.stderr)
         else:
             print("  ✔ Workspace is already clean.", file=sys.stderr)
 
     print("\n[SYSTEM AUDIT]", file=sys.stderr)
-    from pathlib import Path
     import os
     import subprocess
+    from pathlib import Path
+
     from kit.core import kit_env
 
     root = brain.root_path
-    
+
     # 1. Global Runtime Edition
     substrate = kit_env.get_substrate_report()
     locked = substrate["is_locked"]
-    print(f"  {'✔' if locked else '✖'} Python Runtime: {'GLOBAL/ACTIVE' if locked else 'DRIFT DETECTED'}", file=sys.stderr)
+    print(
+        f"  {'✔' if locked else '✖'} Python Runtime: {'GLOBAL/ACTIVE' if locked else 'DRIFT DETECTED'}", file=sys.stderr
+    )
 
     # 2. SQLite WAL mode
     wal_healthy = True
     try:
         with brain.get_connection() as conn:
             journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
-            if journal_mode.lower() != 'wal':
+            if journal_mode.lower() != "wal":
                 wal_healthy = False
     except:
         wal_healthy = False
-    print(f"  {'✔' if wal_healthy else '✖'} SQLite WAL Mode:           {'HEALTHY' if wal_healthy else 'NOT ENABLED'}", file=sys.stderr)
+    print(
+        f"  {'✔' if wal_healthy else '✖'} SQLite WAL Mode:           {'HEALTHY' if wal_healthy else 'NOT ENABLED'}",
+        file=sys.stderr,
+    )
 
     # 3. Git Repo
     dot_git = root / ".git"
-    print(f"  {'✔' if dot_git.exists() else '✖'} Git Repository:            {'DETECTED' if dot_git.exists() else 'NOT FOUND'}", file=sys.stderr)
+    print(
+        f"  {'✔' if dot_git.exists() else '✖'} Git Repository:            {'DETECTED' if dot_git.exists() else 'NOT FOUND'}",
+        file=sys.stderr,
+    )
 
     # 4. .kit Accessibility
     kit_dir = root / ".kit"
-    print(f"  {'✔' if kit_dir.is_dir() else '✖'} .kit Infrastructure:      {'ACCESSIBLE' if kit_dir.is_dir() else 'MISSING'}", file=sys.stderr)
+    print(
+        f"  {'✔' if kit_dir.is_dir() else '✖'} .kit Infrastructure:      {'ACCESSIBLE' if kit_dir.is_dir() else 'MISSING'}",
+        file=sys.stderr,
+    )
 
     # 5. Shell Aliases (Experimental check)
     if sys.platform == "win32":
@@ -243,26 +256,32 @@ def run_doctor(
         aliases_found = False
         try:
             # We try to run Get-Command for one of our functions
-            res = subprocess.run(["powershell", "-Command", "Get-Command kb -ErrorAction SilentlyContinue"], capture_output=True)
+            res = subprocess.run(
+                ["powershell", "-Command", "Get-Command kb -ErrorAction SilentlyContinue"], capture_output=True
+            )
             if res.returncode == 0:
                 aliases_found = True
         except:
             pass
-        print(f"  {'✔' if aliases_found else '✖'} PowerShell Kit Functions: {'READY' if aliases_found else 'NOT DETECTED (Run ./kit-activate.ps1)'}", file=sys.stderr)
+        print(
+            f"  {'✔' if aliases_found else '✖'} PowerShell Kit Functions: {'READY' if aliases_found else 'NOT DETECTED (Run ./kit-activate.ps1)'}",
+            file=sys.stderr,
+        )
 
     if fix_shell and sys.platform == "win32":
         print("\n[FIX] Shell & Infrastructure mutation requested...", file=sys.stderr)
-        
+
         # 1. PowerShell Aliases
         print("  - To persist aliases, ensure you source 'kit-activate.ps1' in your $PROFILE.", file=sys.stderr)
-        
+
         # 2. Python Infrastructure (Vết sẹo Python)
         from kit.core import kit_env
+
         substrate = kit_env.get_substrate_report()
-        
+
         if not substrate["is_locked"]:
             print("  - DRIFT DETECTED: Attempting automated Python Infrastructure Rebirth...", file=sys.stderr)
-            
+
             # Skill: Tactical Strike (taskkill)
             print("    * Tactical Strike: Terminating zombie Language Servers...", file=sys.stderr)
             try:
@@ -270,16 +289,18 @@ def run_doctor(
                 subprocess.run(["taskkill", "/F", "/IM", "pylance", "/T"], capture_output=True)
             except:
                 pass
-                
+
             # Skill: Hard Purge & Rebirth
-            venv_path = Path(substrate["venv_discovered"]) if substrate["venv_discovered"] != "missing" else root / ".venv"
+            venv_path = (
+                Path(substrate["venv_discovered"]) if substrate["venv_discovered"] != "missing" else root / ".venv"
+            )
             if venv_path.exists():
                 print(f"    * Hard Purge: Removing corrupted venv at {venv_path}...", file=sys.stderr)
                 try:
                     shutil.rmtree(venv_path)
                 except Exception as e:
                     print(f"    ⚠️ Failed to purge venv: {e}", file=sys.stderr)
-            
+
             print("    * Rebirth: You must run 'python -m venv .venv' and reinstall dependencies.", file=sys.stderr)
             print("    💡 Tip: Use 'kit boot' after recreation to verify.", file=sys.stderr)
 
@@ -289,9 +310,10 @@ def run_doctor(
             print("  - Cleaning .vscode/settings.json (Vết sẹo Python fix)...", file=sys.stderr)
             try:
                 import json
-                with open(vscode_settings, "r", encoding="utf-8") as f:
+
+                with open(vscode_settings, encoding="utf-8") as f:
                     settings = json.load(f)
-                
+
                 dirty = False
                 for key in ["python.defaultInterpreterPath", "python.pythonPath"]:
                     if key in settings:
@@ -300,7 +322,7 @@ def run_doctor(
                         if ":" in val or ("venv" in val.lower() and "${workspaceFolder}" not in val):
                             del settings[key]
                             dirty = True
-                
+
                 if dirty:
                     with open(vscode_settings, "w", encoding="utf-8") as f:
                         json.dump(settings, f, indent=4)
@@ -314,6 +336,7 @@ def run_doctor(
     # Try to get version from pyproject.toml if possible
     try:
         import importlib.metadata
+
         package_version = importlib.metadata.version("memory-share-kit")
     except importlib.metadata.PackageNotFoundError:
         package_version = "1.2.5-FINAL"
@@ -360,6 +383,7 @@ def run_doctor(
     elif VANTAGE_BIN and VANTAGE_BIN.exists():
         try:
             import subprocess
+
             result = subprocess.run(
                 [str(VANTAGE_BIN), "verify-memory", "--json"],
                 capture_output=True,
@@ -368,17 +392,18 @@ def run_doctor(
             )
             if result.returncode == 0:
                 import json
+
                 data = json.loads(result.stdout) if result.stdout.strip() else {}
                 records = data.get("records", 0)
                 valid = data.get("valid_hashes", 0)
-                print(f"  ✅ Vantage: Memory integrity verified", file=sys.stderr)
+                print("  ✅ Vantage: Memory integrity verified", file=sys.stderr)
                 print(f"     Records: {records} | Valid: {valid}", file=sys.stderr)
             else:
-                print(f"  ⚠️  Vantage: Issues detected", file=sys.stderr)
-                print(f"     Run `kit-vantage verify-memory -d` for details", file=sys.stderr)
+                print("  ⚠️  Vantage: Issues detected", file=sys.stderr)
+                print("     Run `kit-vantage verify-memory -d` for details", file=sys.stderr)
         except Exception as e:
             print(f"  ⚠️  Vantage check failed: {e}", file=sys.stderr)
     else:
-        print(f"  ℹ️  Vantage: Not installed (Run `RUST_BACKTRACE=1 cargo install --path .` to enable)", file=sys.stderr)
+        print("  ℹ️  Vantage: Not installed (Run `RUST_BACKTRACE=1 cargo install --path .` to enable)", file=sys.stderr)
 
     print("\nAll subsystems operational.", file=sys.stderr)

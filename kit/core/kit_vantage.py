@@ -19,7 +19,7 @@ def invoke_vantage(path: Path, timeout: int = 10, strict: bool = False) -> list[
     Implementation of Phase B 'Neural Wiring' (v1.2.5-TITANIUM).
     """
     if not VANTAGE_BIN or not VANTAGE_BIN.exists():
-        msg = f"Vantage binary missing. Please set VANTAGE_HOME or install to project root."
+        msg = "Vantage binary missing. Please set VANTAGE_HOME or install to project root."
         if strict:
             raise RuntimeError(msg)
         logger.error(msg)
@@ -33,13 +33,7 @@ def invoke_vantage(path: Path, timeout: int = 10, strict: bool = False) -> list[
 
     try:
         # v1.2.5: Fast-failure with strict timeout to prevent IDE/CLI hang
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
 
         if result.returncode != 0:
             logger.warning(f"Vantage returned non-zero status ({result.returncode}) for {path.name}")
@@ -61,8 +55,8 @@ def invoke_vantage(path: Path, timeout: int = 10, strict: bool = False) -> list[
                     line=v_sig.get("line", 0),
                     source="vantage",
                     evidence=v_sig.get("id"),  # Store UUID as evidence for L3 reasoning
-                    symbol=v_sig.get("id"),     # Identity
-                    structural_hash=v_sig.get("norm_hash")  # AST-stable fingerprint
+                    symbol=v_sig.get("id"),  # Identity
+                    structural_hash=v_sig.get("norm_hash"),  # AST-stable fingerprint
                 )
             )
 
@@ -88,7 +82,9 @@ def invoke_vantage_on_text(code: str, suffix: str = ".py", timeout: int = 5, str
         # Normalize line endings to LF before sending to Vantage to ensure consistent hashing
         normalized_code = code.replace("\r\n", "\n")
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=suffix, prefix="kit_v_", delete=False, encoding="utf-8") as tmp:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=suffix, prefix="kit_v_", delete=False, encoding="utf-8"
+        ) as tmp:
             tmp.write(normalized_code)
             tmp_name = tmp.name
 
@@ -115,7 +111,9 @@ def get_graph(path: Path, timeout: int = 15) -> dict:
 
     # Vantage v1.2.5 graph command requires a file target
     if path.is_dir():
-        logger.warning(f"get_graph: target is a directory {path}. Vantage graph requires a file. Scanning entry point...")
+        logger.warning(
+            f"get_graph: target is a directory {path}. Vantage graph requires a file. Scanning entry point..."
+        )
         # Fallback: look for __init__.py or main.py
         for entry in ["__init__.py", "main.py"]:
             if (path / entry).exists():
@@ -125,7 +123,7 @@ def get_graph(path: Path, timeout: int = 15) -> dict:
             return {"nodes": [], "edges": []}
 
     cmd = [str(VANTAGE_BIN), "graph", str(path), "--json"]
-    
+
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=True)
         return json.loads(result.stdout)
@@ -151,6 +149,7 @@ def invoke_vantage_batch(items: list[dict], timeout: int = 30) -> list[list[Sign
 if __name__ == "__main__":
     # Internal diagnostic mode
     import sys
+
     if len(sys.argv) > 1:
         test_path = Path(sys.argv[1])
         print(f"Diagnostics: Invoking Vantage on {test_path}...")

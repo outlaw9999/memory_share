@@ -64,10 +64,12 @@ class PolicyGuard:
                 violations.append(f"{rule.name}: error — {e}")
 
         # Always record for storm detection
-        self._recent.append((
-            (execution_intent.intent, execution_intent.source),
-            time.monotonic(),
-        ))
+        self._recent.append(
+            (
+                (execution_intent.intent, execution_intent.source),
+                time.monotonic(),
+            )
+        )
 
         return PlanVerdict(
             approved=len(violations) == 0,
@@ -76,15 +78,18 @@ class PolicyGuard:
         )
 
     def _add_builtins(self) -> None:
-        self._rules.extend([
-            PolicyRule(name="depth_limit", check=_check_depth),
-            PolicyRule(name="storm_prevention", check=lambda ei, ep: _check_storm(ei, ep, self._recent)),
-            PolicyRule(name="fingerprint", check=lambda ei, ep: _check_fingerprint(ei, ep, self._fingerprints)),
-            PolicyRule(name="hook_depth", check=_check_hook_depth),
-        ])
+        self._rules.extend(
+            [
+                PolicyRule(name="depth_limit", check=_check_depth),
+                PolicyRule(name="storm_prevention", check=lambda ei, ep: _check_storm(ei, ep, self._recent)),
+                PolicyRule(name="fingerprint", check=lambda ei, ep: _check_fingerprint(ei, ep, self._fingerprints)),
+                PolicyRule(name="hook_depth", check=_check_hook_depth),
+            ]
+        )
 
 
 # ── Built-in Rule Implementations ──────────────────────────────────────────────
+
 
 def _check_depth(execution_intent: ExecutionIntent, plan: ExecutionPlan) -> str | None:
     depth = execution_intent.payload.context.execution_depth
@@ -93,22 +98,16 @@ def _check_depth(execution_intent: ExecutionIntent, plan: ExecutionPlan) -> str 
     return None
 
 
-def _check_storm(execution_intent: ExecutionIntent, plan: ExecutionPlan,
-                 recent: deque) -> str | None:
+def _check_storm(execution_intent: ExecutionIntent, plan: ExecutionPlan, recent: deque) -> str | None:
     now = time.monotonic()
     fingerprint = (execution_intent.intent, execution_intent.source)
-    count = sum(
-        1 for f, t in recent
-        if f == fingerprint and now - t < _STORM_WINDOW
-    )
+    count = sum(1 for f, t in recent if f == fingerprint and now - t < _STORM_WINDOW)
     if count >= _MAX_STORM_COUNT:
-        return (f"Hook storm detected: {count + 1}x "
-                f"{execution_intent.intent} in {_STORM_WINDOW}s")
+        return f"Hook storm detected: {count + 1}x {execution_intent.intent} in {_STORM_WINDOW}s"
     return None
 
 
-def _check_fingerprint(execution_intent: ExecutionIntent, plan: ExecutionPlan,
-                       fingerprints: dict) -> str | None:
+def _check_fingerprint(execution_intent: ExecutionIntent, plan: ExecutionPlan, fingerprints: dict) -> str | None:
     """Reject if same (caller, intent, commit) executed within dedup window."""
     commit = execution_intent.payload.commit_hash or execution_intent.payload.context.trace_id
     key = (
@@ -121,8 +120,7 @@ def _check_fingerprint(execution_intent: ExecutionIntent, plan: ExecutionPlan,
     if key in fingerprints:
         last = fingerprints[key]
         if now - last < _FINGERPRINT_WINDOW:
-            return (f"Duplicate execution blocked: "
-                    f"{execution_intent.intent} already ran {now - last:.1f}s ago")
+            return f"Duplicate execution blocked: {execution_intent.intent} already ran {now - last:.1f}s ago"
     fingerprints[key] = now
     return None
 
@@ -131,7 +129,7 @@ def _check_hook_depth(execution_intent: ExecutionIntent, plan: ExecutionPlan) ->
     raw = os.environ.get("KIT_HOOK_DEPTH", "0")
     try:
         depth = max(0, int(raw))
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         depth = 0
     if depth > _MAX_HOOK_DEPTH:
         return f"Hook depth {depth} exceeds limit of {_MAX_HOOK_DEPTH}"

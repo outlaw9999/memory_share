@@ -1,21 +1,21 @@
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.getcwd())
 
 from kit.core.l3_registry import (
-    L3Rule,
-    RuleSeverity,
-    RULES,
     MANDATORY_RULES,
     RECOMMENDED_RULES,
-    get_rule_by_id,
+    RULES,
+    VERSION,
+    L3Rule,
+    RuleSeverity,
+    export_rules_for_extraction,
     get_all_rules,
+    get_compliance_score,
     get_mandatory_rules,
     get_recommended_rules,
-    export_rules_for_extraction,
-    get_compliance_score,
-    VERSION,
+    get_rule_by_id,
 )
 
 

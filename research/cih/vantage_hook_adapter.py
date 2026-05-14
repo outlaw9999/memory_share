@@ -1,6 +1,8 @@
 # kit/cih/vantage_hook_adapter.py
 
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any, Dict, Optional
+
 from kit.cih.runtime_injector import CIHRuntimeInjector
 
 
@@ -19,7 +21,7 @@ class VantageExecutionHookAdapter:
     # -----------------------------
     # PRE-HOOK (optional)
     # -----------------------------
-    def pre(self, node: Dict[str, Any], context: Dict[str, Any]) -> None:
+    def pre(self, node: dict[str, Any], context: dict[str, Any]) -> None:
         """
         Called BEFORE execution (lightweight capture only).
         """
@@ -31,10 +33,10 @@ class VantageExecutionHookAdapter:
     # -----------------------------
     def post(
         self,
-        node: Dict[str, Any],
-        context: Dict[str, Any],
-        result: Optional[Any] = None,
-        error: Optional[Exception] = None,
+        node: dict[str, Any],
+        context: dict[str, Any],
+        result: Any | None = None,
+        error: Exception | None = None,
         execution_time_ms: float = 0.0,
     ) -> None:
         """
@@ -57,13 +59,13 @@ class VantageExecutionHookAdapter:
     # -----------------------------
     def _build_event(
         self,
-        node: Dict[str, Any],
-        context: Dict[str, Any],
+        node: dict[str, Any],
+        context: dict[str, Any],
         phase: str,
         result: Any = None,
-        error: Optional[Exception] = None,
+        error: Exception | None = None,
         execution_time_ms: float = 0.0,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
 
         fan_in = len(context.get("inputs", []))
         fan_out = len(context.get("outputs", []))

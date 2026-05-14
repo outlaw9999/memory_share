@@ -44,8 +44,13 @@ logger = logging.getLogger("kit.runtime.engine")
 class RuntimeEngine:
     """Single execution gate for the entire KIT runtime."""
 
-    def __init__(self, registry: IntentRegistry, guard: PolicyGuard | None = None,
-                 epistemic: EpistemicEngine | None = None, shadow_mode: bool = False):
+    def __init__(
+        self,
+        registry: IntentRegistry,
+        guard: PolicyGuard | None = None,
+        epistemic: EpistemicEngine | None = None,
+        shadow_mode: bool = False,
+    ):
         self._registry = registry
         self._resolver = Resolver(registry)
         self._planner = Planner()
@@ -83,19 +88,24 @@ class RuntimeEngine:
                         memory_delta={},
                         side_effects=[str(execution_intent.intent)],
                     ),
-                    proof_mode=ProofMode.STRICT if execution_intent.mutability.value == "structural" else ProofMode.RELAXED,
+                    proof_mode=ProofMode.STRICT
+                    if execution_intent.mutability.value == "structural"
+                    else ProofMode.RELAXED,
                 )
                 epi_result = self._epistemic.verify(epi_request)
-                trace.verdicts.entries.append(VerdictRecord(
-                    validator="kit-vantage",
-                    status=epi_result.verdict.value,
-                    reason=epi_result.explanation,
-                ))
+                trace.verdicts.entries.append(
+                    VerdictRecord(
+                        validator="kit-vantage",
+                        status=epi_result.verdict.value,
+                        reason=epi_result.explanation,
+                    )
+                )
                 if not epi_result.approved:
                     trace.metadata.status = TraceStatus.FAILED
                     trace.record("rejected_by_epistemic_gate")
                     return self._build_result(
-                        execution_intent, trace,
+                        execution_intent,
+                        trace,
                         error=f"Epistemic gate: {epi_result.reason_code.value} — {epi_result.explanation}",
                     )
                 trace.record("epistemic_approved")
@@ -131,7 +141,10 @@ class RuntimeEngine:
                     if not step_result.success:
                         trace.metadata.status = TraceStatus.FAILED
                         return self._build_result(
-                            execution_intent, trace, error=step_result.error, retryable=True,
+                            execution_intent,
+                            trace,
+                            error=step_result.error,
+                            retryable=True,
                         )
 
             trace.metadata.status = TraceStatus.SUCCESS
@@ -181,7 +194,9 @@ class RuntimeEngine:
             duration = (time.monotonic() - start) * 1000
             if duration > timeout * 1000:
                 return StepResult(
-                    step=step, success=False, error=f"Step timed out after {duration:.0f}ms",
+                    step=step,
+                    success=False,
+                    error=f"Step timed out after {duration:.0f}ms",
                     duration_ms=duration,
                 )
             return StepResult(
@@ -242,6 +257,7 @@ def _build_hook_registry() -> IntentRegistry:
 #   Single-process, single-thread, deterministic.
 #   This guarantees replayability, testability, and debuggability.
 
+
 def main() -> None:
     """
     CLI entry point for kit-runtime.
@@ -287,14 +303,18 @@ def main() -> None:
         result = engine.run(ex)
 
         if args.json:
-            print(json.dumps({
-                "status": result.status.value,
-                "intent": str(result.intent),
-                "trace_id": result.trace.metadata.trace_id,
-                "error": result.error,
-                "verification": result.verification_status,
-                "retryable": result.retryable,
-            }))
+            print(
+                json.dumps(
+                    {
+                        "status": result.status.value,
+                        "intent": str(result.intent),
+                        "trace_id": result.trace.metadata.trace_id,
+                        "error": result.error,
+                        "verification": result.verification_status,
+                        "retryable": result.retryable,
+                    }
+                )
+            )
         else:
             print(f"[kit-runtime] {result.status.value} — {result.intent}")
             if result.error:

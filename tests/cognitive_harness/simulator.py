@@ -8,16 +8,16 @@ to ensure "same input + same initial brain = same final brain state + same decis
 import json
 import sqlite3
 import threading
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Generator, Optional
+from typing import Any, Optional
 from unittest.mock import patch
 
 from kit.core.kit_cognitive_core import SAMBrain
 from kit.core.memory_topology import MemoryTopologyFactory
-
 
 _SEED_COUNTER = 0
 _SEED_TIME = 1700000000.0  # Fixed epoch for reproducibility
@@ -37,17 +37,18 @@ def _deterministic_time() -> float:
 
 def _deterministic_now() -> datetime:
     """Return deterministic datetime."""
-    return datetime.fromtimestamp(_SEED_TIME, tz=timezone.utc)
+    return datetime.fromtimestamp(_SEED_TIME, tz=UTC)
 
 
 def _deterministic_strftime(fmt: str) -> str:
     """Return deterministic strftime."""
-    return datetime.fromtimestamp(_SEED_TIME, tz=timezone.utc).strftime(fmt)
+    return datetime.fromtimestamp(_SEED_TIME, tz=UTC).strftime(fmt)
 
 
 @dataclass
 class SimulatorConfig:
     """Configuration for deterministic simulator."""
+
     seed: int = 42
     mock_datetime: bool = True
     mock_uuid: bool = True
@@ -130,14 +131,14 @@ class DeterministicSimulator:
     def __init__(
         self,
         tmp_path: Path,
-        config: Optional[SimulatorConfig] = None,
+        config: SimulatorConfig | None = None,
     ):
         self.tmp_path = tmp_path
         self.config = config or SimulatorConfig()
-        self.brain: Optional[SAMBrain] = None
+        self.brain: SAMBrain | None = None
         self._patches: list = []
         self._snapshots: list[FlowSnapshot] = []
-        self._start_time: Optional[float] = None
+        self._start_time: float | None = None
 
     def setup(self) -> SAMBrain:
         """Initialize brain with deterministic mocks."""
@@ -154,13 +155,10 @@ class DeterministicSimulator:
 
     def _install_mocks(self):
         """Install deterministic mocks."""
-        import time
-        import uuid as uuid_mod
-        import random
         import os
+        import time
 
         seed = self.config.seed
-
         self._patches = []
 
         if self.config.mock_datetime:
@@ -168,18 +166,19 @@ class DeterministicSimulator:
             self._patches.append(patch.object(os, "stat", self._mock_stat))
             self._patches.append(patch.object(os, "path", self._mock_path))
 
-    def _mock_path(self, path):
-        """Mock path functions."""
-        return path
-
         if self.config.mock_uuid:
+            import uuid as uuid_mod
+
             def make_uuid():
                 global _SEED_COUNTER
                 _SEED_COUNTER += 1
                 return _deterministic_uuid4(_SEED_COUNTER)
+
             self._patches.append(patch.object(uuid_mod, "uuid4", make_uuid))
 
         if self.config.mock_random:
+            import random
+
             rng = random.Random(seed)
             self._patches.append(patch.object(random, "random", rng.random))
             self._patches.append(patch.object(random, "randint", rng.randint))
@@ -190,11 +189,13 @@ class DeterministicSimulator:
 
     def _mock_stat(self, path: Any, *args, **kwargs):
         """Mock stat to return deterministic times."""
+
         class MockStatResult:
             def __init__(self, mtime):
                 self.st_mtime = mtime
                 self.st_ctime = mtime
                 self.st_atime = mtime
+
         return MockStatResult(_SEED_TIME)
 
     def _uninstall_mocks(self):
@@ -204,7 +205,7 @@ class DeterministicSimulator:
         self._patches.clear()
 
     @contextmanager
-    def isolate_vantage(self, signals: list) -> Generator[DeterministickerMock, None, None]:
+    def isolate_vantage(self, signals: list) -> Generator[DeterministickerMock]:
         """Temporarily mock Vantage response."""
         from kit.core import kit_vantage
 
@@ -217,7 +218,7 @@ class DeterministicSimulator:
             kit_vantage.invoke_vantage = original
 
     @contextmanager
-    def isolate_datetime(self, epoch: float) -> Generator[None, None, None]:
+    def isolate_datetime(self, epoch: float) -> Generator[None]:
         """Temporarily set deterministic time."""
         global _SEED_TIME
         original = _SEED_TIME
@@ -295,10 +296,12 @@ class StateDiff:
             modified = []
             for key in common:
                 if before_rows[key] != after_rows[key]:
-                    modified.append({
-                        "before": before_rows[key],
-                        "after": after_rows[key],
-                    })
+                    modified.append(
+                        {
+                            "before": before_rows[key],
+                            "after": after_rows[key],
+                        }
+                    )
 
             if added:
                 diff["added"][table] = [after_rows[k] for k in added]

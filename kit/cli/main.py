@@ -1,55 +1,68 @@
 import argparse
+import json
 import logging
 import os
 import re
 import shutil
 import sys
 import sysconfig
-import json
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional, Callable, Final, Protocol, runtime_checkable
+from typing import Any, Final, Optional, Protocol, runtime_checkable
 
 import yaml
+
 from kit.core import kit_env
-from kit.core.command_registry import CommandNamespace, CommandSideEffect, registry, kit_command
-from kit.core.execution_trace import log_execution_event, summarize_execution_paths, summarize_hot_paths, read_execution_events
-from kit.core.policy_schema import LEARN_TAGS
-from kit.core.kit_baking import trigger_async_bake
+from kit.core.command_registry import CommandNamespace, CommandSideEffect, kit_command, registry
 from kit.core.consistency_validator import summarize_consistency
-from kit.core.kit_compaction import execute_compaction
 from kit.core.drift_repair import (
-    repair_requires_kernel,
-    validate_repair_mode,
+    apply_repair_plan,
     build_repair_plan,
-    validate_plan_payload,
-    render_repair_plan,
     render_repair_diff,
-    apply_repair_plan
+    render_repair_plan,
+    repair_requires_kernel,
+    validate_plan_payload,
+    validate_repair_mode,
 )
+from kit.core.execution_trace import (
+    log_execution_event,
+    read_execution_events,
+    summarize_execution_paths,
+    summarize_hot_paths,
+)
+from kit.core.kit_baking import trigger_async_bake
+from kit.core.kit_compaction import execute_compaction
 from kit.core.kit_symbol_repair import repair_symbol_debt
+from kit.core.policy_schema import LEARN_TAGS
 
 # --- Section VII: Structured Logging (code-py-314) ---
 logger = logging.getLogger("kit.cli")
 
+
 @runtime_checkable
 class DiagnosticPrinter(Protocol):
     """Protocol for diagnostic output reporting (v1.2.5)."""
+
     def __call__(self, msg: str, level: int = logging.INFO) -> None: ...
+
 
 # --- CLI Constants (v1.2.5-TITANIUM) ---
 BOOTSTRAP_SENTINEL: Final[str] = ".kit/bootstrap_v1_2_5.seed"
 INTERNAL_EPOCH: Final[str] = "1.2.5"
 INTERNAL_DEV_VERSION: Final[str] = "1.2.5"
 
+
 def get_cli_version() -> str:
     """Resolves the CLI version from distribution metadata with fallback to dev (AVS)."""
     import importlib.metadata
+
     try:
         return importlib.metadata.version("memory-share-kit")
     except importlib.metadata.PackageNotFoundError:
         return f"{INTERNAL_DEV_VERSION}-dev"
+
 
 BOOTSTRAP_FACTS: Final[list[tuple[str, str]]] = [
     ("kit_startup", "kit startup begins with kit recall project_identity"),
@@ -57,17 +70,18 @@ BOOTSTRAP_FACTS: Final[list[tuple[str, str]]] = [
     ("flow_law", "Multi-step work MUST use 'kit flow run'. Isolation via transactions (v0.1.2)."),
     ("memory_law", "SQLite is Truth. observations.is_baked=1 is the only valid state for long-term memory."),
     ("arch_lighthouse", "AGENTS.md is the root contract; .kit/ is the private cognitive vault."),
-
     ("governance", "Maintain Entropy < 0.10. Run 'kit doctor --heal' to purge noise."),
     ("execution_contract", "All kit operations MUST route through 'kit' CLI (v1.2.5-FINAL)."),
 ]
 
 # --- Console & Safety Helpers ---
 
+
 def print_diagnostic(msg: str, level: int = logging.INFO) -> None:
     """Standard diagnostic output callback."""
     sys.stderr.write(f"{msg}\n")
     logger.log(level, msg)
+
 
 def _configure_console_encoding() -> None:
     """Configures console encoding with explicit error boundaries (Rule II.1)."""
@@ -78,19 +92,29 @@ def _configure_console_encoding() -> None:
         if stream and hasattr(stream, "reconfigure"):
             try:
                 stream.reconfigure(encoding="utf-8", errors="replace")
-            except (IOError, AttributeError) as e:
+            except (OSError, AttributeError) as e:
                 # Rule II.1: No Silent Failures
                 logger.warning(f"Console reconfiguration failed for {stream_name}: {e}")
 
-def _cognitive_guardrail(text: str, tag: Optional[str]) -> bool:
+
+def _cognitive_guardrail(text: str, tag: str | None) -> bool:
     """Detects 'logic smells' in cognitive ingestion (Rule V.2)."""
-    smell_patterns = [r"\d+%", r"\d+ms", r"\d+s\s", r"\d+(KB|MB|GB|B)", r"cpu|ram|usage|load", r"error|exception", r"\d{4}-\d{2}-\d{2}"]
+    smell_patterns = [
+        r"\d+%",
+        r"\d+ms",
+        r"\d+s\s",
+        r"\d+(KB|MB|GB|B)",
+        r"cpu|ram|usage|load",
+        r"error|exception",
+        r"\d{4}-\d{2}-\d{2}",
+    ]
     smell_keywords = {"currently", "now", "today", "recently", "temporary"}
     found_pattern = any(re.search(p, text, re.IGNORECASE) for p in smell_patterns)
     found_keyword = any(k in text.lower() for k in smell_keywords)
     if tag in ("invariant", "decision"):
         return found_pattern or found_keyword
     return False
+
 
 def _bootloader_template() -> str:
     """Returns the canonical portable AGENTS.md template (v1.2.5-TITANIUM)."""
@@ -119,12 +143,13 @@ def _bootloader_template() -> str:
         "fail \u2192 verify \u2192 doctor \u2192 retry\n"
     )
 
-def _packaged_asset_root() -> Optional[Path]:
+
+def _packaged_asset_root() -> Path | None:
     """Resolves the root path for packaged assets using Pathlib exclusively."""
     source_root = Path(__file__).resolve().parents[2]
     if (source_root / "docs" / "reference.md").exists():
         return source_root
-    
+
     # Fallback to sysconfig data path
     data_path_str = sysconfig.get_path("data")
     if data_path_str:
@@ -133,7 +158,8 @@ def _packaged_asset_root() -> Optional[Path]:
         return shared_root if shared_root.exists() else None
     return None
 
-def _copy_if_missing(source_root: Optional[Path], relative_path: str, target_root: Path) -> bool:
+
+def _copy_if_missing(source_root: Path | None, relative_path: str, target_root: Path) -> bool:
     """Atomic copy helper using Pathlib (Rule I.1)."""
     if source_root is None:
         return False
@@ -141,7 +167,7 @@ def _copy_if_missing(source_root: Optional[Path], relative_path: str, target_roo
     target_path = target_root / relative_path
     if not source_path.exists() or target_path.exists():
         return False
-    
+
     try:
         target_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source_path, target_path)
@@ -149,6 +175,7 @@ def _copy_if_missing(source_root: Optional[Path], relative_path: str, target_roo
     except OSError as e:
         logger.error(f"Failed to copy asset {relative_path}: {e}")
         return False
+
 
 def _remove_if_exists(path: Path) -> bool:
     """Safe removal using Pathlib."""
@@ -164,6 +191,7 @@ def _remove_if_exists(path: Path) -> bool:
         logger.warning(f"Could not remove {path}: {e}")
         return False
 
+
 def _cleanup_empty_parent(path: Path, stop_at: Path) -> None:
     """Recursively removes empty parents up to a boundary."""
     current = path.parent
@@ -174,6 +202,7 @@ def _cleanup_empty_parent(path: Path, stop_at: Path) -> None:
             break
         current = current.parent
 
+
 def _reset_managed_onboarding_files(root_path: Path, print_diagnostic: DiagnosticPrinter) -> None:
     """Purges managed cognitive artifacts."""
     legacy_paths = [root_path / "docs" / "reference.md", root_path / "scripts" / "kitf.ps1"]
@@ -182,170 +211,189 @@ def _reset_managed_onboarding_files(root_path: Path, print_diagnostic: Diagnosti
             if _remove_if_exists(path):
                 print_diagnostic(f"Cleaned legacy {path.name}")
                 _cleanup_empty_parent(path, root_path)
-    
+
     _remove_if_exists(root_path / "AGENTS.md")
     _remove_if_exists(root_path / ".kit")
+
 
 def _materialize_onboarding_files(root_path: Path, print_diagnostic: DiagnosticPrinter) -> None:
     """Crystalizes the .kit cognitive substrate (v1.2.5)."""
     asset_root = _packaged_asset_root()
     kit_dir = root_path / ".kit"
     kit_dir.mkdir(parents=True, exist_ok=True)
-    
+
     agents_md = root_path / "AGENTS.md"
     if not agents_md.exists():
         if not _copy_if_missing(asset_root, "AGENTS.md", root_path):
             agents_md.write_text(_bootloader_template(), encoding="utf-8")
-    
+
     onboarding_files = ["scripts/kitf.ps1", "bootstrap_agent.yaml"]
     for rel_path in onboarding_files:
         _copy_if_missing(asset_root, rel_path, kit_dir if "scripts" in rel_path else root_path)
-        
+
     # v1.2.5: Schema Loader external-first fallback
     kit_schema = kit_dir / "kit_schema.json"
     if not kit_schema.exists():
         fallback_schema = Path(__file__).resolve().parent.parent / "core" / "schema_default.json"
         if fallback_schema.exists():
             import shutil
+
             shutil.copyfile(fallback_schema, kit_schema)
+
 
 def _seed_bootstrap_memories(root_path: Path, project_name: str) -> bool:
     """Seeds deterministic starter pack memories (Rule III.2)."""
     sentinel = root_path / BOOTSTRAP_SENTINEL
     if sentinel.exists():
         return False
-    
+
     sentinel.write_text(f"seeded at {datetime.now(UTC)}\n", encoding="utf-8")
-    
+
     import kit.api as api
-    api.learn(uid="project_identity", content=f"Project '{project_name}' initialized and integrated into .kit cognitive system ({get_cli_version()}).", tag="decision", skip_render=True)
-    
+
+    api.learn(
+        uid="project_identity",
+        content=f"Project '{project_name}' initialized and integrated into .kit cognitive system ({get_cli_version()}).",
+        tag="decision",
+        skip_render=True,
+    )
+
     for uid, content in BOOTSTRAP_FACTS:
         # v1.2.5-TITANIUM: Ensure each bootstrap fact has a unique UID and version provenance
         bootstrap_meta = {"version": "1.2.5-TITANIUM", "source": "bootstrap"}
-        api.learn(uid=uid, content=content, tag="decision", namespace="bootstrap", metadata=bootstrap_meta, skip_render=True)
-    
+        api.learn(
+            uid=uid, content=content, tag="decision", namespace="bootstrap", metadata=bootstrap_meta, skip_render=True
+        )
+
     return True
+
 
 # --- Command Registry Handlers (Strictly Typed) ---
 
+
 @kit_command(
-    name="init", 
-    namespace=CommandNamespace.CORE, 
-    description="Initialize a new .kit memory space", 
-    side_effect=CommandSideEffect.MUTATION
+    name="init",
+    namespace=CommandNamespace.CORE,
+    description="Initialize a new .kit memory space",
+    side_effect=CommandSideEffect.MUTATION,
 )
 def handle_init(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit init' command."""
     import kit.api as api
     from kit.api import resolve_paths
-    
+
     _, project_db, root_path = resolve_paths(force_local=True)
     api.init_kernel(project_db, mode="isolated")
-    
+
     # v1.2.5-FINAL: Initialize graph schema (structure_edges + call_resolutions)
-    from kit.graph.schema import init_graph_db
     from kit.core.memory_topology import MemoryTopology
+    from kit.graph.schema import init_graph_db
+
     topology = MemoryTopology(project_root=root_path)
     conn = topology.connect("local", "local")
     init_graph_db(conn)
     conn.close()
-    
+
     _materialize_onboarding_files(root_path, print_diagnostic)
     from kit.core.kit_sealing import seal_kernel
+
     seal_kernel(project_db)
-    
+
     _seed_bootstrap_memories(root_path, root_path.name)
-    
+
     # v1.2.5-FINAL: Soft-check for Vantage availability
     import shutil
+
     if not (shutil.which("vantage") or shutil.which("kit-vantage")):
-        print_diagnostic(f"\n⚠️ Vantage not detected. Verification features will be limited.")
-        print_diagnostic(f"Install: https://github.com/so-sai/Vantage\n")
-    
+        print_diagnostic("\n⚠️ Vantage not detected. Verification features will be limited.")
+        print_diagnostic("Install: https://github.com/so-sai/Vantage\n")
+
     print_diagnostic(f"[OK] Workspace initialized and sealed ({get_cli_version()}).")
     print("OK")
-    
+
     # v1.2.5: Vantage Integrity Gating (Soft Check on Init)
-    from kit.core.kit_vantage import VANTAGE_BIN
     import subprocess
+
+    from kit.core.kit_vantage import VANTAGE_BIN
+
     if VANTAGE_BIN and VANTAGE_BIN.exists() and os.getenv("KIT_DISABLE_ASYNC_BAKE") != "1":
         try:
             subprocess.run([str(VANTAGE_BIN), "verify-memory"], capture_output=True, timeout=5.0)
         except subprocess.TimeoutExpired:
             logger.warning("Vantage integrity check timed out during init.")
-        
+
     print("OK")
+
 
 @kit_command(
     name="init-env",
     namespace=CommandNamespace.CORE,
-    description="Standardize VSCode and .env for relative path anchoring (v1.2.5)"
+    description="Standardize VSCode and .env for relative path anchoring (v1.2.5)",
 )
 def handle_init_env(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Standardize project environment files."""
     root = Path.cwd()
     vscode_dir = root / ".vscode"
     vscode_dir.mkdir(exist_ok=True)
-    
+
     settings_path = vscode_dir / "settings.json"
     settings = {
         "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
         "python.terminal.useEnvFile": True,
         "python.analysis.extraPaths": ["${workspaceFolder}"],
-        "terminal.integrated.env.windows": {
-            "PYTHONPATH": "${workspaceFolder}"
-        },
-        "files.watcherExclude": {
-            "**/.kit/**": True,
-            "**/.pytest_cache/**": True
-        }
+        "terminal.integrated.env.windows": {"PYTHONPATH": "${workspaceFolder}"},
+        "files.watcherExclude": {"**/.kit/**": True, "**/.pytest_cache/**": True},
     }
     import json
+
     with open(settings_path, "w") as f:
         json.dump(settings, f, indent=2)
-        
+
     env_path = root / ".env"
     with open(env_path, "w") as f:
         f.write("PYTHONPATH=.\n")
-        
+
     print_diagnostic(f"[OK] Environment standardized at {root}")
     print("OK")
 
 
 @kit_command(
-    name="learn", 
-    namespace=CommandNamespace.MEMORY, 
-    description="Ingest a new observation", 
+    name="learn",
+    namespace=CommandNamespace.MEMORY,
+    description="Ingest a new observation",
     side_effect=CommandSideEffect.MUTATION,
     input_schema={
         "content": "string (or STDIN)",
         "tag": LEARN_TAGS,
         "namespace": "string (default: shared)",
         "importance": "float (0.0 - 1.0)",
-        "symbol": "string (semantic node)"
-    }
+        "symbol": "string (semantic node)",
+    },
 )
-
-def handle_learn(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, current_context: str = "shared", **kwargs: Any) -> None:
+def handle_learn(
+    args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, current_context: str = "shared", **kwargs: Any
+) -> None:
     """Handler for 'kit learn' command."""
     from functools import partial
+
     import kit.api as api
     from kit.core.kernel_engine import DeterministicKernel
     from kit.core.kernel_fsm import ExecutionFrame
-    
+    from kit.core.kit_platform import FAST_TIMEOUT, read_stdin_fail_fast
+
     kernel = DeterministicKernel(session_id=os.getenv("KIT_SESSION_ID", "local-exec"))
     kernel.bind_brain(api.get_brain())
-    
+
     content = getattr(args, "content", None) or read_stdin_fail_fast(timeout=FAST_TIMEOUT)
     if not content:
         print_diagnostic("Error: No content provided. (Use --content or pipe data via STDIN)")
         sys.exit(1)
-    
+
     if _cognitive_guardrail(content, args.tag):
         print_diagnostic("[WARN] COGNITIVE FRICTION: Potential dynamic/volatile data detected.")
-    
+
     import json
+
     metadata = {}
     if getattr(args, "metadata", None):
         try:
@@ -355,58 +403,66 @@ def handle_learn(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
             sys.exit(1)
 
     action_call = partial(
-        api.get_brain().learn, 
-        uid=getattr(args, "uid", None) or current_context, 
-        content=content, 
-        tag=args.tag, 
-        node_type=args.kind, 
+        api.get_brain().learn,
+        uid=getattr(args, "uid", None) or current_context,
+        content=content,
+        tag=args.tag,
+        node_type=args.kind,
         importance=args.importance,
         namespace=getattr(args, "namespace", "shared"),
         symbol=getattr(args, "symbol", None),
-        metadata=metadata
+        metadata=metadata,
     )
-    
+
     frame = ExecutionFrame(action=action_call, command=f"learn:{getattr(args, 'uid', 'anonymous')}")
     kernel.submit(frame)
-    
+
     if kernel.run():
         trigger_async_bake(api.get_brain())
-        
+
         # v1.2.5: Mute narrative logs
         print("OK")
     else:
         # v1.2.5-TITANIUM: Propagate semantic error code if present
         err_msg = frame.stderr or "Kernel execution failed during ingestion."
         if "KIT-SEALED" in err_msg:
-             sys.stderr.write("KIT-SEALED: Run 'kit unseal --reason <msg>' to continue learning.\n")
-             sys.exit(1)
+            sys.stderr.write("KIT-SEALED: Run 'kit unseal --reason <msg>' to continue learning.\n")
+            sys.exit(1)
         raise RuntimeError(err_msg)
 
+
 @kit_command(
-    name="recall", 
-    namespace=CommandNamespace.MEMORY, 
+    name="recall",
+    namespace=CommandNamespace.MEMORY,
     description="Recall ranked context (Project + Global)",
     input_schema={
         "entities": "list[string] (optional keywords)",
         "limit": "int (default: 15)",
         "query": "string (FTS search)",
         "here": "bool (limit to project scope)",
-        "since": "relative date (e.g., 2d, 1h)"
-    }
+        "since": "relative date (e.g., 2d, 1h)",
+    },
 )
-
-def handle_recall(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, current_context: str = "shared", **kwargs: Any) -> None:
+def handle_recall(
+    args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, current_context: str = "shared", **kwargs: Any
+) -> None:
     """Handler for 'kit recall' command."""
-    import kit.api as api
     import re
     from datetime import datetime, timedelta
 
+    import kit.api as api
+
     def _parse_relative_date(val: str | None) -> str | None:
-        if not val: return None
+        if not val:
+            return None
         match = re.match(r"(\d+)([dhm])", val.lower())
         if match:
             count, unit = int(match.group(1)), match.group(2)
-            delta = timedelta(days=count) if unit == "d" else (timedelta(hours=count) if unit == "h" else timedelta(minutes=count))
+            delta = (
+                timedelta(days=count)
+                if unit == "d"
+                else (timedelta(hours=count) if unit == "h" else timedelta(minutes=count))
+            )
             # v1.2.5-patch: Format to SQLite compatible timestamp in UTC
             return (datetime.now(UTC) - delta).strftime("%Y-%m-%d %H:%M:%S")
         return val
@@ -414,17 +470,17 @@ def handle_recall(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
     # v1.2.5-patch: If no entities provided, pass None to enable Progressive Recall Fallback
     entities = args.entities if (hasattr(args, "entities") and args.entities) else None
     is_here = getattr(args, "here", False)
-    
+
     memories = api.recall(
-        entities, 
-        limit=getattr(args, "limit", 15), 
-        here=is_here, 
+        entities,
+        limit=getattr(args, "limit", 15),
+        here=is_here,
         with_global=getattr(args, "with_global", False),
         query=getattr(args, "query", None),
         since=_parse_relative_date(getattr(args, "since", None)),
-        until=_parse_relative_date(getattr(args, "until", None))
+        until=_parse_relative_date(getattr(args, "until", None)),
     )
-    
+
     if not memories:
         print_diagnostic("No context found.")
     else:
@@ -433,52 +489,52 @@ def handle_recall(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
             uid_str = f" [{m.node_uid}]" if hasattr(m, "node_uid") and m.node_uid else ""
             sys.stdout.write(f"* [{m.brain_source}:{m.tag}]{uid_str} {m.content}\n")
 
+
 @kit_command(
-    name="context", 
-    namespace=CommandNamespace.MEMORY, 
-    description="Alias for recall --here (Project context awareness)"
+    name="context", namespace=CommandNamespace.MEMORY, description="Alias for recall --here (Project context awareness)"
 )
 def handle_context(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit context' (alias for recall --here)."""
-    setattr(args, "here", True)
+    args.here = True
     return handle_recall(args, print_diagnostic, **kwargs)
 
+
 @kit_command(
-    name="search", 
-    namespace=CommandNamespace.SEARCH, 
+    name="search",
+    namespace=CommandNamespace.SEARCH,
     description="Hybrid FTS5 keyword search",
-    input_schema={
-        "query": "string (FTS query)",
-        "limit": "int (default: 15)"
-    }
+    input_schema={"query": "string (FTS query)", "limit": "int (default: 15)"},
 )
 def handle_search(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit search' command."""
     import kit.api as api
+
     query = getattr(args, "query", "")
     memories = api.search(query, limit=getattr(args, "limit", 15))
-    
+
     if not memories:
         print_diagnostic(f"No matches found for '{query}'.")
     else:
         for m in memories:
             sys.stdout.write(f"* [ID:{m.id}][{m.brain_source}] {m.content}\n")
 
+
 @kit_command(
-    name="stats", 
-    namespace=CommandNamespace.DIAGNOSTIC, 
+    name="stats",
+    namespace=CommandNamespace.DIAGNOSTIC,
     description="Show AI Kernel health and Quality Index (GQI 2.0)",
     input_schema={
         "json": "bool (machine readable output)",
         "paths": "bool (execution path summary)",
         "hotpaths": "bool (executor-heavy command summary)",
-        "limit": "int (telemetry sample size)"
-    }
+        "limit": "int (telemetry sample size)",
+    },
 )
 def handle_stats(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit stats' command (v1.2.5-STAGE5.1)."""
     if getattr(args, "consistency", False):
         import json as json_lib
+
         report = summarize_consistency()
         if getattr(args, "json", False):
             sys.stdout.write(json_lib.dumps(report, indent=2) + "\n")
@@ -500,8 +556,7 @@ def handle_stats(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
                 detail = ", ".join(issue["commands"])
             elif "items" in issue:
                 detail = ", ".join(
-                    f"{item['command']}->{item.get('mapped_subcommand', '?')}"
-                    for item in issue["items"]
+                    f"{item['command']}->{item.get('mapped_subcommand', '?')}" for item in issue["items"]
                 )
             else:
                 detail = "; ".join(issue.get("lines", []))
@@ -511,6 +566,7 @@ def handle_stats(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
 
     if getattr(args, "hotpaths", False):
         import json as json_lib
+
         report = summarize_hot_paths(limit=getattr(args, "limit", 200))
         if getattr(args, "json", False):
             sys.stdout.write(json_lib.dumps(report, indent=2) + "\n")
@@ -533,6 +589,7 @@ def handle_stats(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
 
     if getattr(args, "paths", False):
         import json as json_lib
+
         summary = summarize_execution_paths(limit=getattr(args, "limit", 200))
         if getattr(args, "json", False):
             sys.stdout.write(json_lib.dumps(summary, indent=2) + "\n")
@@ -570,11 +627,13 @@ def handle_stats(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
         sys.stdout.write("=" * 40 + "\n")
         return
 
-    import kit.api as api
     import json as json_lib
+
+    import kit.api as api
+
     brain = api.get_brain()
     stats = brain.get_stats()
-    
+
     if getattr(args, "json", False):
         sys.stdout.write(json_lib.dumps(stats, indent=2) + "\n")
     else:
@@ -584,100 +643,98 @@ def handle_stats(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
         sys.stdout.write(f"Quality Score: {gqi.get('quality_score', 0):.2f} / 1.00\n")
         sys.stdout.write(f"Entropy Score: {gqi.get('entropy_score', 0):.4f}\n")
         sys.stdout.write("-" * 40 + "\n")
-        
+
         sys.stdout.write("PERFORMANCE:\n")
         sys.stdout.write(f"  Recall Hit Rate: {gqi.get('recall_hit_rate', 0):.1f}%\n")
         sys.stdout.write(f"  Avg Latency:     {gqi.get('avg_recall_latency_ms', 0):.2f}ms\n")
-        
+
         sys.stdout.write("\nHYGIENE:\n")
         sys.stdout.write(f"  Symbol Debt:     {gqi.get('symbol_debt_ratio', 0):.1f}%\n")
         sys.stdout.write(f"  Symbol Health:   {gqi.get('symbol_health', 0):.1f}% (Hierarchical)\n")
         sys.stdout.write(f"  Duplicates:      {gqi.get('duplicate_ratio', 0):.1f}%\n")
         sys.stdout.write(f"  Orphan Edges:    {gqi.get('orphan_ratio', 0):.1f}%\n")
-        
+
         sys.stdout.write("\nCOMPACTION:\n")
         sys.stdout.write(f"  Canonicalized:   {gqi.get('canonical_count', 0)}\n")
         sys.stdout.write(f"  Merged Records:  {gqi.get('merged_count', 0)}\n")
-        
+
         sys.stdout.write("\nNAMESPACES:\n")
         for ns, count in stats.get("namespaces", {}).items():
             sys.stdout.write(f"  - {ns:12} : {count}\n")
-        
+
         # v1.2.5-STAGE5.5: SRE Drift Metrics
         with brain.get_connection(readonly=True) as conn:
             drift_avg = conn.execute("SELECT AVG(final_score) FROM symbol_drift_events").fetchone()[0] or 0.0
-            pending_proposals = conn.execute("SELECT COUNT(*) FROM symbol_reconciliation_proposals WHERE status = 'pending'").fetchone()[0]
-            
+            pending_proposals = conn.execute(
+                "SELECT COUNT(*) FROM symbol_reconciliation_proposals WHERE status = 'pending'"
+            ).fetchone()[0]
+
         sys.stdout.write("\nEVOLUTION (SRE 5.5):\n")
         sys.stdout.write(f"  Avg Drift Score: {drift_avg:.4f}\n")
         sys.stdout.write(f"  Pending Proposals: {pending_proposals}\n")
-        
+
         sys.stdout.write("=" * 40 + "\n")
+
 
 @kit_command(
     name="retention",
     namespace=CommandNamespace.CORE,
     description="Execute snapshot lifecycle (tiered retention policy)",
-    side_effect=CommandSideEffect.MUTATION
+    side_effect=CommandSideEffect.MUTATION,
 )
 def handle_retention(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit retention' command (v1.2.5-STAGE5.1)."""
     import kit.api as api
-    from kit.core.kit_retention import execute_retention, RetentionPolicy
-    
-    policy = RetentionPolicy(
-        keep_hot=getattr(args, "hot", 3),
-        dry_run=getattr(args, "dry_run", False)
-    )
-    
+    from kit.core.kit_retention import RetentionPolicy, execute_retention
+
+    policy = RetentionPolicy(keep_hot=getattr(args, "hot", 3), dry_run=getattr(args, "dry_run", False))
+
     brain = api.get_brain()
     print_diagnostic(f"Retention: Running lifecycle purge (Dry-run: {policy.dry_run})...")
     report = execute_retention(brain, policy)
-    
-    print_diagnostic(f"Retention Complete: {report['purged']} purged, {report['preserved']} preserved, {report['errors']} errors.")
+
+    print_diagnostic(
+        f"Retention Complete: {report['purged']} purged, {report['preserved']} preserved, {report['errors']} errors."
+    )
     print("OK")
 
-@kit_command(
-    name="metrics", 
-    namespace=CommandNamespace.DIAGNOSTIC, 
-    description="Alias for stats (Longevity Metrics)"
-)
+
+@kit_command(name="metrics", namespace=CommandNamespace.DIAGNOSTIC, description="Alias for stats (Longevity Metrics)")
 def handle_metrics(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Alias for 'kit stats'."""
     return handle_stats(args, print_diagnostic, **kwargs)
 
-@kit_command(
-    name="status", 
-    namespace=CommandNamespace.DIAGNOSTIC, 
-    description="Alias for stats --verbose"
-)
+
+@kit_command(name="status", namespace=CommandNamespace.DIAGNOSTIC, description="Alias for stats --verbose")
 def handle_status(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit status' command."""
-    setattr(args, "verbose", True)
+    args.verbose = True
     return handle_stats(args, print_diagnostic, **kwargs)
+
 
 @kit_command(
     name="preflight",
     namespace=CommandNamespace.MEMORY,
     description="Run cognitive governance checks before committing",
-    side_effect=CommandSideEffect.READ_ONLY
+    side_effect=CommandSideEffect.READ_ONLY,
 )
 def handle_preflight(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit preflight' command."""
     import kit.api as api
     from kit.core.kit_governance import run_preflight
-    
+    from kit.core.kit_platform import FAST_TIMEOUT, read_stdin_fail_fast
+
     # Preflight expects diff via stdin
     diff_text = read_stdin_fail_fast(timeout=FAST_TIMEOUT)
     brain = api.get_brain()
-    
+
     result = run_preflight(
         commit_msg=getattr(args, "message", ""),
         brain=brain,
         strict_mode=getattr(args, "strict", False),
-        diff_text=diff_text
+        diff_text=diff_text,
     )
-    
+
     if result.status == "block":
         print_diagnostic(f"[FAIL] PREFLIGHT BLOCK: Score {result.score:.2f}")
         for issue in result.issues:
@@ -690,21 +747,26 @@ def handle_preflight(args: argparse.Namespace, print_diagnostic: DiagnosticPrint
     else:
         print_diagnostic(f"[OK] PREFLIGHT PASS: Score {result.score:.2f}")
 
+
 @kit_command(
     name="compact",
     namespace=CommandNamespace.CORE,
     description="Consolidate semantically redundant memories into Canonical entries",
-    side_effect=CommandSideEffect.MUTATION
+    side_effect=CommandSideEffect.MUTATION,
 )
 def handle_compact(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit compact' command (v1.2.5-STAGE5.3)."""
     import kit.api as api
+
     brain = api.get_brain()
     ns = getattr(args, "namespace", "shared")
     print_diagnostic(f"Compacting namespace '{ns}' into Canonical Model...")
     report = execute_compaction(brain, namespace=ns)
-    print_diagnostic(f"Compaction Complete: {report['canonicalized']} canonicalized, {report['merged']} records merged.")
+    print_diagnostic(
+        f"Compaction Complete: {report['canonicalized']} canonicalized, {report['merged']} records merged."
+    )
     print("OK")
+
 
 @kit_command(
     name="repair",
@@ -717,8 +779,8 @@ def handle_compact(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter
         "apply": "bool (guarded apply entry point)",
         "confirm": "bool (required for apply)",
         "json": "bool (machine readable output)",
-        "symbol_debt": "bool (legacy explicit symbol repair)"
-    }
+        "symbol_debt": "bool (legacy explicit symbol repair)",
+    },
 )
 def handle_repair(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit repair' command (Repair Contract v1)."""
@@ -780,17 +842,16 @@ def handle_repair(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
         )
     sys.exit(1)
 
-@kit_command(
-    name="where", 
-    namespace=CommandNamespace.RUNTIME, 
-    description="Show current memory context and brain path"
-)
+
+@kit_command(name="where", namespace=CommandNamespace.RUNTIME, description="Show current memory context and brain path")
 def handle_where(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit where' command."""
     import kit.api as api
+
     brain = api.get_brain()
     sys.stdout.write(f"CWD:   {Path.cwd()}\n")
     sys.stdout.write(f"Local: {brain.db_path}\n")
+
 
 @kit_command(
     name="doctor",
@@ -801,16 +862,18 @@ def handle_where(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
         "mode": "safe | aggressive",
         "heal": "bool (execute repair sequence)",
         "migrate-memory": "bool (v1.2.3 -> v1.2.5)",
-        "json": "bool (machine readable output)"
-    }
+        "json": "bool (machine readable output)",
+    },
 )
 def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit doctor' command."""
-    import kit.api as api
     import json as json_lib
+
+    import kit.api as api
+
     root_path = Path.cwd()
     brain = api.get_brain()
-    
+
     report_data = {
         "version": get_cli_version(),
         "mode": "unknown",
@@ -820,30 +883,32 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
         "global_db": "unknown",
         "vantage": "unknown",
         "alignment": "unknown",
-        "entropy": 0.0
+        "entropy": 0.0,
     }
-    
+
     # v1.2.5-FINAL: Version Alignment Layer (SVTL)
     import importlib.metadata
+
     try:
         pip_v = importlib.metadata.version("memory-share-kit")
     except importlib.metadata.PackageNotFoundError:
         pip_v = "development"
-    
+
     report_data["pip_version"] = pip_v
 
     if not getattr(args, "json", False):
         print_diagnostic("Kit Doctor v1.2.5-GLOBAL-RUNTIME (Heal & Align)")
-    
+
     if getattr(args, "heal", False):
         if not getattr(args, "json", False):
             print_diagnostic("Starting system-wide healing sequence...")
-        # 1. Physical Hygiene
+        from kit.core.kit_hygiene import perform_hygiene_cleanup
+
         removed = perform_hygiene_cleanup(root_path, dry_run=False)
         for f in removed:
             if not getattr(args, "json", False):
                 print_diagnostic(f"  [HEALED] Removed noise artifact: {f}")
-            
+
         # 2. Cognitive Hygiene (Flow v0.1.2)
         if not getattr(args, "json", False):
             print_diagnostic("  [HEALED] Purging stale cognitive transactions...")
@@ -856,20 +921,22 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
                 AND json_extract(metadata, '$._flow_id') IN (SELECT id FROM flow_runs WHERE state = 'failed')
             """)
             obs_removed = cursor.rowcount
-            
+
             tx_removed = cursor.rowcount
-            
+
         # 3. Symbol Repair (v1.2.5-STAGE5.2)
         if not getattr(args, "json", False):
             print_diagnostic("  [HEALED] Repairing symbol debt...")
         repaired_symbols = repair_symbol_debt(api.get_brain())
 
-
         if not getattr(args, "json", False):
-            print_diagnostic(f"Healing complete. {len(removed)} artifacts purged. {obs_removed} unbaked observations cleaned. {tx_removed} failed transactions archived. {repaired_symbols} symbols repaired.")
+            print_diagnostic(
+                f"Healing complete. {len(removed)} artifacts purged. {obs_removed} unbaked observations cleaned. {tx_removed} failed transactions archived. {repaired_symbols} symbols repaired."
+            )
     else:
         # Default diagnostic scan
         from kit.core.kit_hygiene import generate_hygiene_report
+
         report = generate_hygiene_report(root_path)
         report_data["entropy"] = report.noise_score
         if report.noise_score > 0.1:
@@ -881,7 +948,8 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
                 print_diagnostic("[OK] Workspace hygiene is within stable bounds.")
 
     # --- System Startup Check (v1.2.5 Production Hardening) ---
-    from kit.core.kit_sealing import verify_kernel_seal, seal_kernel
+    from kit.core.kit_sealing import seal_kernel, verify_kernel_seal
+
     db_path = brain.db_path
     seal_info = verify_kernel_seal(db_path)
     if seal_info["status"] == "sealed":
@@ -890,10 +958,11 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
         report_data["kernel_seal"] = f"unsealed ({seal_info.get('reason', 'Missing')})"
         if getattr(args, "fix", False):
             seal_kernel(db_path)
-            report_data["kernel_seal"] = f"v1.2.5-final (Restored)"
+            report_data["kernel_seal"] = "v1.2.5-final (Restored)"
 
     if not getattr(args, "json", False):
         from kit.core.kit_env import ExecutionMode, get_execution_mode
+
         print_diagnostic("\n[SYSTEM HEALTH]")
         print_diagnostic(f"  Runtime Mode: {get_execution_mode().value}")
         print_diagnostic(f"  SQLite:       {report_data['sqlite']}")
@@ -907,43 +976,44 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
     if not getattr(args, "json", False):
         print_diagnostic("\n[VERSION IDENTITY]")
         print_diagnostic(f"  Distribution: {v_cli}")
-        
+
         # 1. Identity Analysis (AVS)
         if "-dev" in v_cli:
-             print_diagnostic(f"  Identity:     ✅ DEVELOPMENT (LOCAL SOURCE)")
+            print_diagnostic("  Identity:     ✅ DEVELOPMENT (LOCAL SOURCE)")
         else:
-             print_diagnostic(f"  Identity:     ✅ DISTRIBUTION (STABLE RELEASE)")
+            print_diagnostic("  Identity:     ✅ DISTRIBUTION (STABLE RELEASE)")
 
         # 2. Execution vs Cognitive (Kernel Compatibility)
         from kit.core.kit_sealing import SEALED_VERSION
+
         kernel_v = seal_info.get("version", "unknown")
         print_diagnostic(f"  Cognitive:    {kernel_v}")
-        
+
         # Semantic Compatibility check (v1.2.5 Epoch)
         if kernel_v.startswith(INTERNAL_EPOCH):
             print_diagnostic(f"  Compatibility: ✅ DETERMINISTIC ({INTERNAL_EPOCH}-epoch)")
             report_data["alignment"] = "OK"
         elif kernel_v == "unknown":
-             print_diagnostic("  Compatibility:      ⚠️ UNKNOWN (UNSEALED)")
-             report_data["alignment"] = "UNKNOWN"
+            print_diagnostic("  Compatibility:      ⚠️ UNKNOWN (UNSEALED)")
+            report_data["alignment"] = "UNKNOWN"
         else:
-            print_diagnostic(f"  Compatibility:      ❌ INCOMPATIBLE (SCHEMA DRIFT)")
+            print_diagnostic("  Compatibility:      ❌ INCOMPATIBLE (SCHEMA DRIFT)")
             report_data["alignment"] = "INCOMPATIBLE"
     # --- Environment Audit ---
     if getattr(args, "migrate_memory", False):
         if not getattr(args, "json", False):
             print_diagnostic("\n[MEMORY MIGRATION]")
-        
-        from kit.skills.migrate_brain import migrate_and_merge
+
         from kit.core.memory_topology import MemoryTopologyFactory
-        
+        from kit.skills.migrate_brain import migrate_and_merge
+
         topo = brain.topology
         root = brain.root_path
-        
+
         # Local Migration
         legacy_local = root / ".kit" / "brain.db"
         new_local = topo.resolve("local", "local")
-        
+
         if legacy_local.exists():
             if not new_local.exists():
                 if not getattr(args, "json", False):
@@ -951,7 +1021,7 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
                 try:
                     legacy_local.rename(new_local)
                     if not getattr(args, "json", False):
-                        print_diagnostic(f"  ✔ Local memory migrated.")
+                        print_diagnostic("  ✔ Local memory migrated.")
                 except Exception as e:
                     if not getattr(args, "json", False):
                         print_diagnostic(f"  ✖ Local migration failed: {e}")
@@ -963,19 +1033,19 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
                     # v1.2.5: Atomic Merge Strategy
                     temp_merged = new_local.with_suffix(".merged.db")
                     migrate_and_merge(str(legacy_local), str(new_local), str(temp_merged))
-                    
+
                     # Verify and swap
                     if temp_merged.exists():
                         # Backup current new_local just in case
                         backup = new_local.with_suffix(".premerge.bak")
                         new_local.rename(backup)
                         temp_merged.rename(new_local)
-                        
+
                         # Move legacy to bak
                         legacy_local.rename(legacy_local.with_suffix(".migrated.bak"))
-                        
+
                         if not getattr(args, "json", False):
-                            print_diagnostic(f"  ✔ Local memory merged and schema aligned.")
+                            print_diagnostic("  ✔ Local memory merged and schema aligned.")
                 except Exception as e:
                     if not getattr(args, "json", False):
                         print_diagnostic(f"  ✖ Merge failed: {e}")
@@ -991,54 +1061,57 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
             try:
                 legacy_global.rename(new_global)
                 if not getattr(args, "json", False):
-                    print_diagnostic(f"  ✔ Global memory migrated.")
+                    print_diagnostic("  ✔ Global memory migrated.")
             except Exception as e:
                 if not getattr(args, "json", False):
                     print_diagnostic(f"  ✖ Global migration failed: {e}")
 
     try:
         from kit.core.kit_env import get_substrate_report
+
         substrate = get_substrate_report()
-        
+
         mode = "production" if substrate["is_locked"] else "development"
         report_data["mode"] = mode
         if not getattr(args, "json", False):
             print_diagnostic(f"  Runtime Mode: {mode}")
-        
+
         with api.get_brain().get_connection() as conn:
             conn.execute("SELECT 1").fetchone()
             report_data["sqlite"] = "OK"
             if not getattr(args, "json", False):
                 print_diagnostic("  SQLite:       OK")
-            
+
             pragma_wal = conn.execute("PRAGMA journal_mode").fetchone()[0]
             report_data["wal"] = pragma_wal.upper()
             if not getattr(args, "json", False):
                 print_diagnostic(f"  WAL Mode:     {pragma_wal.upper()}")
-            
+
         if not getattr(args, "json", False):
             print_diagnostic("  Router:       OK")
-        
+
         # Check Global DB
         from kit.api import resolve_paths
+
         _, global_db, _ = resolve_paths()
         if global_db.exists():
             report_data["global_db"] = "OK"
             if not getattr(args, "json", False):
                 print_diagnostic("  Global DB:    OK")
-        
+
         # v1.2.5-FINAL: Explicit Vantage Sensor Check
         import shutil
+
         v_found = shutil.which("vantage") or shutil.which("kit-vantage")
         report_data["vantage"] = "OK" if v_found else "NOT FOUND"
-        
+
         if not getattr(args, "json", False):
             print_diagnostic("\n[VANTAGE INTEGRITY]")
             if v_found:
-                print_diagnostic(f"  Sensor:       OK")
+                print_diagnostic("  Sensor:       OK")
             else:
-                print_diagnostic(f"  Sensor:       ❌ NOT FOUND")
-                print_diagnostic(f"  Action:       Install from https://github.com/so-sai/Vantage")
+                print_diagnostic("  Sensor:       ❌ NOT FOUND")
+                print_diagnostic("  Action:       Install from https://github.com/so-sai/Vantage")
     except Exception as e:
         if not getattr(args, "json", False):
             print_diagnostic(f"[FAIL] HEALTH CHECK FAILED: {e}")
@@ -1046,8 +1119,9 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
 
     # --- Vantage Integration (v1.2.5 Gating) ---
     if (getattr(args, "heal", False) or getattr(args, "json", False)) and not getattr(args, "no_vantage", False):
-        from kit.core.kit_vantage import VANTAGE_BIN
         import subprocess
+
+        from kit.core.kit_vantage import VANTAGE_BIN
 
         if not getattr(args, "json", False):
             print_diagnostic("[VANTAGE INTEGRITY]")
@@ -1068,7 +1142,7 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
                         report_data["vantage"] = "INVALID_JSON"
                         if not getattr(args, "json", False):
                             print_diagnostic("[WARN] Vantage output was not valid JSON")
-                    
+
                     if not getattr(args, "json", False):
                         records = data.get("records", 0)
                         valid = data.get("valid_hashes", 0)
@@ -1086,37 +1160,37 @@ def handle_doctor(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
         else:
             report_data["vantage"] = "NOT_INSTALLED"
             if not getattr(args, "json", False):
-                print_diagnostic("[INFO] Vantage: Not installed (Run `cargo install --path .` from kit-vantage to enable)")
+                print_diagnostic(
+                    "[INFO] Vantage: Not installed (Run `cargo install --path .` from kit-vantage to enable)"
+                )
 
     # --- Legacy/Core Doctor Dispatch (v1.2.5 Bridge) ---
     from kit.cli.doctor import run_doctor
+
     run_doctor(
         brain=brain,
         mode=getattr(args, "mode", "safe"),
         fix_shell=getattr(args, "fix_shell", False),
         migrate_memory=getattr(args, "migrate_memory", False),
         heal=getattr(args, "heal", False),
-        skip_vantage=True # doctor is now diagnostic-only by default
+        skip_vantage=True,  # doctor is now diagnostic-only by default
     )
 
     if getattr(args, "json", False):
         sys.stdout.write(json_lib.dumps(report_data, indent=2) + "\n")
 
-@kit_command(
-    name="build",
-    namespace=CommandNamespace.CORE,
-    description="Fast structural build check (v1.2.5)"
-)
+
+@kit_command(name="build", namespace=CommandNamespace.CORE, description="Fast structural build check (v1.2.5)")
 def handle_build(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit build' - Fast structural check."""
-    import py_compile
     import os
+    import py_compile
     from pathlib import Path
-    
+
     print_diagnostic("Starting fast structural build check...")
     root = Path.cwd()
     py_files = list(root.glob("kit/**/*.py"))
-    
+
     errors = 0
     for f in py_files:
         try:
@@ -1125,10 +1199,10 @@ def handle_build(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
         except py_compile.PyCompileError as e:
             print_diagnostic(f"  [ERROR] {f}: {e}")
             errors += 1
-        except Exception as e:
+        except Exception:
             # Handle Windows permission errors or other FS issues gracefully
             pass
-            
+
     if errors == 0:
         print_diagnostic(f"[OK] Build check passed ({len(py_files)} files).")
         print("OK")
@@ -1136,14 +1210,12 @@ def handle_build(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
         print_diagnostic(f"[FAIL] Build check failed with {errors} errors.")
         sys.exit(1)
 
-@kit_command(
-    name="test",
-    namespace=CommandNamespace.DIAGNOSTIC,
-    description="Run TDD unit tests (pytest wrapper)"
-)
+
+@kit_command(name="test", namespace=CommandNamespace.DIAGNOSTIC, description="Run TDD unit tests (pytest wrapper)")
 def handle_test(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit test' - Unit test execution."""
     import subprocess
+
     print_diagnostic("Running TDD Unit Tests...")
     # Use sys.executable to ensure we use the same venv
     res = subprocess.run([sys.executable, "-m", "pytest", "tests/"], capture_output=False)
@@ -1152,54 +1224,51 @@ def handle_test(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, *
     else:
         sys.exit(res.returncode)
 
-@kit_command(
-    name="verify",
-    namespace=CommandNamespace.DIAGNOSTIC,
-    description="Full Vantage Structural Integrity Scan"
-)
+
+@kit_command(name="verify", namespace=CommandNamespace.DIAGNOSTIC, description="Full Vantage Structural Integrity Scan")
 def handle_verify(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit verify' - Full Vantage Scan."""
-    from kit.core.kit_vantage import VANTAGE_BIN
     import subprocess
-    
+
+    from kit.core.kit_vantage import VANTAGE_BIN
+
     if not VANTAGE_BIN or not VANTAGE_BIN.exists():
         print_diagnostic("Error: Vantage binary not found.")
         sys.exit(1)
-        
-    print_diagnostic(f"[VANTAGE] Running full integrity scan...")
+
+    print_diagnostic("[VANTAGE] Running full integrity scan...")
     # Verify memory
-    res_mem = subprocess.run([str(VANTAGE_BIN), "verify-memory"], capture_output=False)
-    
+    subprocess.run([str(VANTAGE_BIN), "verify-memory"], capture_output=False)
+
     # Verify codebase (using verify-release gate P0 as a proxy or direct scan)
     print_diagnostic("[VANTAGE] Verifying structural claims...")
     # In a real scenario, this might be more complex
     print("OK")
 
+
 @kit_command(
-    name="flow", 
-    namespace=CommandNamespace.CORE, 
-    description="Unified interactive loop (ask/run/learn/status)"
+    name="flow", namespace=CommandNamespace.CORE, description="Unified interactive loop (ask/run/learn/status)"
 )
 def handle_flow(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit flow' surface (v0.1.2)."""
     import kit.api as api
-    from kit.flow.engine import FlowPlanner, FlowExecutor
-    
+    from kit.flow.engine import FlowExecutor, FlowPlanner
+
     brain = api.get_brain()
-    
+
     if getattr(args, "flow_command", None) == "run":
         yaml_path = Path(args.path)
         if not yaml_path.exists():
             print_diagnostic(f"Error: Flow file not found: {yaml_path}")
             sys.exit(1)
-            
+
         print_diagnostic(f"Flow Runtime v0.1.2 - Executing: {yaml_path.name}")
         planner = FlowPlanner()
         spec = planner.load(yaml_path)
-        
+
         executor = FlowExecutor(brain)
         success = executor.execute(spec)
-        
+
         if success:
             print_diagnostic(f"[OK] Flow '{spec.name}' completed and committed successfully.")
         else:
@@ -1207,35 +1276,38 @@ def handle_flow(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, *
             sys.exit(1)
     else:
         from kit.flow.surface import flow_decision_kernel
+
         print_diagnostic(f"Kit Flow Surface v1.2.5-TITANIUM (Brain: {brain.db_path.name})")
         # Default interactive behavior or help
         print_diagnostic("Usage: kit flow run <path.yaml>")
+
 
 @kit_command(
     name="seal",
     namespace=CommandNamespace.CORE,
     description="Freeze memory kernel and generate structural seal",
     side_effect=CommandSideEffect.MUTATION,
-    input_schema={
-        "force": "bool (evict zombie handles)"
-    }
+    input_schema={"force": "bool (evict zombie handles)"},
 )
 def handle_seal(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit seal' command."""
+    import subprocess
+
     import kit.api as api
     from kit.core import kit_lock
     from kit.core.kit_vantage import VANTAGE_BIN
-    import subprocess
+
     brain = api.get_brain()
     from kit.core.release_guard import ReleaseGuard
+
     ReleaseGuard.enforce_p0(brain)
-    
+
     print_diagnostic(f"[SEAL] Sealing Cognitive Kernel: {brain.db_path.name}")
 
     try:
         # 1. Physical Database Seal
-        res = kit_lock.seal(brain.db_path, brain.root_path, force_evict=getattr(args, "force", False))
-        print_diagnostic(f"[OK] Memory state sealed logically (Forensic Guard active).")
+        kit_lock.seal(brain.db_path, brain.root_path, force_evict=getattr(args, "force", False))
+        print_diagnostic("[OK] Memory state sealed logically (Forensic Guard active).")
 
         # 2. Structural Vantage Seal
         if VANTAGE_BIN and VANTAGE_BIN.exists():
@@ -1249,15 +1321,18 @@ def handle_seal(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, *
     except Exception:
         raise
 
+
 @kit_command(
     name="introspect",
     namespace=CommandNamespace.META,
-    description="Output the machine-readable command registry schema"
+    description="Output the machine-readable command registry schema",
 )
 def handle_introspect(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit introspect'."""
     import json
+
     from kit.core.command_registry import registry
+
     schema = registry.to_dict()
     if getattr(args, "json", False):
         sys.stdout.write(json.dumps(schema, indent=2) + "\n")
@@ -1267,6 +1342,7 @@ def handle_introspect(args: argparse.Namespace, print_diagnostic: DiagnosticPrin
         for name, cmd in schema["commands"].items():
             print(f"  - {name:15} : {cmd['description']}")
 
+
 @kit_command(
     name="trace",
     namespace=CommandNamespace.META,
@@ -1275,8 +1351,8 @@ def handle_introspect(args: argparse.Namespace, print_diagnostic: DiagnosticPrin
         "limit": "int (number of events)",
         "json": "bool (machine readable output)",
         "command_filter": "string (optional command filter)",
-        "stage": "dispatch | parser | executor"
-    }
+        "stage": "dispatch | parser | executor",
+    },
 )
 def handle_trace(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit trace'."""
@@ -1306,26 +1382,26 @@ def handle_trace(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
         )
     sys.stdout.write("=" * 80 + "\n")
 
+
 @kit_command(
     name="ingest",
     namespace=CommandNamespace.MEMORY,
     description="Consume structural events from Vantage stream (Bridge Layer)",
     side_effect=CommandSideEffect.MUTATION,
-    input_schema={
-        "watch": "bool (continuous monitoring)"
-    }
+    input_schema={"watch": "bool (continuous monitoring)"},
 )
 def handle_ingest(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit ingest'."""
     import kit.api as api
     from kit.core.vantage_stream_consumer import VantageStreamConsumer
-    
+
     brain = api.get_brain()
     from kit.core.release_guard import ReleaseGuard
+
     ReleaseGuard.enforce_p0(brain)
-    
+
     consumer = VantageStreamConsumer(brain)
-    
+
     if getattr(args, "watch", False):
         print_diagnostic("[BRIDGE] Monitoring Vantage stream... (Ctrl+C to stop)")
         try:
@@ -1338,26 +1414,25 @@ def handle_ingest(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
         print_diagnostic(f"[OK] Processed {processed} events.")
         print("OK")
 
+
 @kit_command(
     name="reconcile",
     namespace=CommandNamespace.MEMORY,
     description="Analyze symbol drift and list evolution proposals (Audit Mode)",
-    input_schema={
-        "verbose": "bool (show metrics)"
-    }
+    input_schema={"verbose": "bool (show metrics)"},
 )
 def handle_reconcile(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit reconcile'."""
+    import json
+
     import kit.api as api
     from kit.core.kit_sre import SREEngine
-    import json
-    
+
     brain = api.get_brain()
-    sre = SREEngine(brain)
-    
+
     print_diagnostic("SRE Reconciliation Report (Audit Mode)")
     print_diagnostic("-" * 40)
-    
+
     with brain.get_connection(readonly=True) as conn:
         # 1. Show Drift Events
         drifts = conn.execute("""
@@ -1366,7 +1441,7 @@ def handle_reconcile(args: argparse.Namespace, print_diagnostic: DiagnosticPrint
             ORDER BY created_at DESC, final_score DESC 
             LIMIT 10
         """).fetchall()
-        
+
         if drifts:
             print_diagnostic("\n[TOP DRIFTING SYMBOLS]")
             for symbol, score, metrics_json, status in drifts:
@@ -1375,14 +1450,14 @@ def handle_reconcile(args: argparse.Namespace, print_diagnostic: DiagnosticPrint
                     metrics = json.loads(metrics_json)
                     print_diagnostic(f"    - Hard: {metrics.get('hard')}")
                     print_diagnostic(f"    - Soft: {metrics.get('soft')}")
-        
+
         # 2. Show Pending Proposals
         proposals = conn.execute("""
             SELECT id, symbol, proposed_symbol, confidence, rationale 
             FROM symbol_reconciliation_proposals 
             WHERE status = 'pending'
         """).fetchall()
-        
+
         if proposals:
             print_diagnostic("\n[EVOLUTION PROPOSALS]")
             for p_id, old, new, conf, rationale_json in proposals:
@@ -1392,37 +1467,37 @@ def handle_reconcile(args: argparse.Namespace, print_diagnostic: DiagnosticPrint
         else:
             print_diagnostic("\nNo pending evolution proposals.")
 
+
 @kit_command(
     name="evolve",
     namespace=CommandNamespace.MEMORY,
     description="Authorize symbol evolution and update the Evolution Graph",
     side_effect=CommandSideEffect.MUTATION,
-    input_schema={
-        "proposal_id": "int (ID of proposal to approve)"
-    }
+    input_schema={"proposal_id": "int (ID of proposal to approve)"},
 )
 def handle_evolve(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit evolve'."""
     import kit.api as api
     from kit.core.kit_sre import SREEngine
-    
+
     proposal_id = getattr(args, "proposal_id", None)
     if proposal_id is None:
         print_diagnostic("Error: --proposal-id is required.")
         sys.exit(1)
-        
+
     brain = api.get_brain()
     sre = SREEngine(brain)
-    
+
     print_diagnostic(f"Executing Evolution for Proposal ID: {proposal_id}...")
     success = sre.evolve_symbol(proposal_id)
-    
+
     if success:
         print_diagnostic("[OK] Evolution recorded. Symbol graph updated.")
         print("OK")
     else:
         print_diagnostic("[FAIL] Evolution failed. Proposal not found or internal error.")
         sys.exit(1)
+
 
 @kit_command(
     name="blast",
@@ -1431,27 +1506,31 @@ def handle_evolve(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
     input_schema={
         "symbol": "string (target symbol)",
         "depth": "int (max recursion depth)",
-        "direction": "forward | backward"
-    }
+        "direction": "forward | backward",
+    },
 )
 def handle_blast(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit blast' (Recursive Dependency Awareness)."""
     import kit.api as api
-    from kit.graph.query import get_blast_radius, TraversalDirection
     from kit.core.release_guard import ReleaseGuard
-    
+    from kit.graph.query import TraversalDirection, get_blast_radius
+
     symbol = args.symbol
     depth = getattr(args, "depth", 5)
     direction_str = getattr(args, "direction", "forward").upper()
-    direction = TraversalDirection[direction_str] if direction_str in TraversalDirection.__members__ else TraversalDirection.FORWARD
-    
+    direction = (
+        TraversalDirection[direction_str]
+        if direction_str in TraversalDirection.__members__
+        else TraversalDirection.FORWARD
+    )
+
     brain = api.get_brain()
     # v1.2.5-RC1: Ensure kernel integrity before recursive traversal
     ReleaseGuard.enforce_p0(brain)
-    
+
     with brain.get_connection(readonly=True) as conn:
         results = get_blast_radius(conn, symbol, max_depth=depth, direction=direction)
-        
+
     if not results:
         print_diagnostic(f"No blast radius found for {symbol}.")
     else:
@@ -1460,33 +1539,32 @@ def handle_blast(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
             indent = "  " * dist
             print(f"{indent} {edge_type} -> {sym} (dist: {dist})")
 
+
 @kit_command(
     name="graph",
     namespace=CommandNamespace.RUNTIME,
     description="Selective structural graph extraction (Vantage v1.2.5)",
-    input_schema={
-        "path": "string (path to analyze)",
-        "json": "bool (machine readable output)"
-    }
+    input_schema={"path": "string (path to analyze)", "json": "bool (machine readable output)"},
 )
 def handle_graph(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit graph'."""
     import kit.api as api
     from kit.core.kit_vantage import get_graph
     from kit.core.release_guard import ReleaseGuard
-    
+
     brain = api.get_brain()
     # v1.2.5-RC1: Ensure kernel integrity before structural extraction
     ReleaseGuard.enforce_p0(brain)
-    
+
     path_str = getattr(args, "path", ".")
     path = Path(path_str).resolve()
-    
+
     print_diagnostic(f"[VANTAGE] Extracting selective graph for {path.name}...")
     graph_data = get_graph(path)
-    
+
     if getattr(args, "json", False):
         import json
+
         print(json.dumps(graph_data, indent=2))
     else:
         nodes = graph_data.get("nodes", [])
@@ -1503,9 +1581,7 @@ def handle_graph(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, 
     namespace=CommandNamespace.CORE,
     description="Unlock memory kernel for modification",
     side_effect=CommandSideEffect.MUTATION,
-    input_schema={
-        "reason": "string (Audited reason for unlocking)"
-    }
+    input_schema={"reason": "string (Audited reason for unlocking)"},
 )
 def handle_unseal(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit unseal' command."""
@@ -1526,44 +1602,46 @@ def handle_unseal(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
     except Exception:
         raise
 
+
 @kit_command(
     name="snapshot",
     namespace=CommandNamespace.CORE,
     description="Create a physical point-in-time snapshot with lineage tracking",
     side_effect=CommandSideEffect.MUTATION,
-    input_schema={
-        "reason": "string (lineage tracking message)"
-    }
+    input_schema={"reason": "string (lineage tracking message)"},
 )
 def handle_snapshot(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit snapshot' command (v1.2.5-STAGE5)."""
     import kit.api as api
+
     try:
         reason = getattr(args, "reason", "Manual snapshot via CLI")
         api.get_brain().snapshot(reason=reason)
-        
+
         # v1.2.5: Vantage Integrity Gating
-        from kit.core.kit_vantage import VANTAGE_BIN
         import subprocess
+
+        from kit.core.kit_vantage import VANTAGE_BIN
+
         if VANTAGE_BIN and VANTAGE_BIN.exists():
             subprocess.run([str(VANTAGE_BIN), "verify-memory"], capture_output=True)
-            
+
         print("OK")
     except Exception:
         raise
+
 
 @kit_command(
     name="restore",
     namespace=CommandNamespace.CORE,
     description="Restore memory kernel from a physical snapshot",
     side_effect=CommandSideEffect.MUTATION,
-    input_schema={
-        "path": "string (path to snapshot file)"
-    }
+    input_schema={"path": "string (path to snapshot file)"},
 )
 def handle_restore(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit restore' command."""
     import kit.api as api
+
     path = Path(args.path) if getattr(args, "path", None) else None
     try:
         if api.restore(path):
@@ -1573,22 +1651,20 @@ def handle_restore(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter
     except Exception:
         raise
 
+
 @kit_command(
     name="run-skill",
     namespace=CommandNamespace.RUNTIME,
     description="Execute a cognitive skill or automation routine",
     side_effect=CommandSideEffect.MUTATION,
-    input_schema={
-        "skill": "string (name of skill)",
-        "args": "list[string] (passthrough arguments)"
-    }
+    input_schema={"skill": "string (name of skill)", "args": "list[string] (passthrough arguments)"},
 )
 def handle_run_skill(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit run-skill' command (ASR v1)."""
     import kit.api as api
+    import kit.skills  # Ensure discovery
     from kit.skills.registry import SkillRegistry
-    import kit.skills # Ensure discovery
-    
+
     skill_name = getattr(args, "skill", None)
     passthrough_args = getattr(args, "args", [])
 
@@ -1600,11 +1676,11 @@ def handle_run_skill(args: argparse.Namespace, print_diagnostic: DiagnosticPrint
             print_diagnostic("  (None)")
         for s in skills:
             print_diagnostic(f"  - {s['name']} (v{s['version']}) [Input: {s['input_model']}]")
-        
+
         print_diagnostic("\nImplicit Legacy Skills:")
         print_diagnostic("  - snapshot: Atomic DB backup")
         sys.exit(1)
-    
+
     try:
         # 1. Handle Legacy Skills
         if skill_name == "snapshot":
@@ -1623,6 +1699,7 @@ def handle_run_skill(args: argparse.Namespace, print_diagnostic: DiagnosticPrint
             try:
                 # Try parsing as JSON first
                 import json
+
                 input_data = json.loads(" ".join(passthrough_args))
             except json.JSONDecodeError:
                 # Fallback to key=value pairs if simple
@@ -1631,19 +1708,20 @@ def handle_run_skill(args: argparse.Namespace, print_diagnostic: DiagnosticPrint
                         k, v = pair.split("=", 1)
                         input_data[k] = v
                     else:
-                        raise ValueError(f"Invalid argument format: {pair}. Use JSON or key=value.")
+                        raise ValueError(f"Invalid argument format: {pair}. Use JSON or key=value.") from None
 
         # Initialize and Run Skill
         skill_instance = skill_cls()
         # Skills usually run in a context of StateVectors, but for CLI we might pass empty/mock
         output = skill_instance.run(skill_cls.input_model(**input_data), context=[])
-        
+
         if output.status == "SUCCESS":
             if not getattr(args, "json", False):
                 print(json.dumps(output.results, indent=2))
                 print("OK")
             else:
                 import json as json_lib
+
                 sys.stdout.write(json_lib.dumps(output.model_dump()) + "\n")
         else:
             print_diagnostic(f"Skill Failed: {output.results.get('error', 'Unknown error')}")
@@ -1653,41 +1731,43 @@ def handle_run_skill(args: argparse.Namespace, print_diagnostic: DiagnosticPrint
         print_diagnostic(f"Execution Error: {e}")
         sys.exit(1)
 
+
 @kit_command(
     name="verify-release",
     namespace=CommandNamespace.DIAGNOSTIC,
     description="Tiered TDD Release Gate (P0/P1/P2)",
-    side_effect=CommandSideEffect.READ_ONLY
+    side_effect=CommandSideEffect.READ_ONLY,
 )
 def handle_verify_release(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
     """Handler for 'kit verify-release' logic (v1.2.5-TITANIUM)."""
     import subprocess
+
     import yaml
-    
+
     gate_file = Path("kit-test-gate.yaml")
     if not gate_file.exists():
         sys.stderr.write("FAILED: kit-test-gate.yaml missing.\n")
         sys.exit(1)
-        
-    with open(gate_file, "r", encoding="utf-8") as f:
+
+    with open(gate_file, encoding="utf-8") as f:
         config = yaml.safe_load(f)
-        
+
     print_diagnostic(f"Release Gate v1.2.5 - Strategy: {config.get('strategy')}")
-    
+
     all_success = True
     for gate_id, gate in config.get("gates", {}).items():
         priority = gate.get("priority", 2)
         is_blocking = gate.get("blocking", True)
         tests = gate.get("tests", [])
-        
+
         print_diagnostic(f"\n[GATE {gate_id}] (P{priority}) - {gate.get('description')}")
-        
+
         gate_success = True
         for test_file in tests:
             print_diagnostic(f"  RUN: {test_file}...", level=logging.INFO)
             # v1.2.5: Use sys.executable to ensure we run in the same venv
             res = subprocess.run([sys.executable, "-m", "pytest", "-v", test_file], capture_output=True, text=True)
-            
+
             if res.returncode == 0:
                 print_diagnostic(f"  [PASS] {test_file}")
             else:
@@ -1695,7 +1775,7 @@ def handle_verify_release(args: argparse.Namespace, print_diagnostic: Diagnostic
                 if getattr(args, "verbose", False):
                     print_diagnostic(res.stdout)
                 gate_success = False
-                
+
         if not gate_success:
             if is_blocking:
                 print_diagnostic(f"[FAIL] BLOCK: Gate {gate_id} failed. Release aborted.")
@@ -1711,7 +1791,9 @@ def handle_verify_release(args: argparse.Namespace, print_diagnostic: Diagnostic
     else:
         sys.exit(1)
 
+
 # --- CLI Entry Point ---
+
 
 def main() -> None:
     """Main entry point for Titanium CLI."""
@@ -1735,9 +1817,11 @@ def main() -> None:
         sys.exit(1)
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         print_diagnostic(f"FAILED: {e}. Run 'kit doctor'")
         sys.exit(1)
+
 
 def _main_impl() -> None:
     """Internal implementation of main CLI logic."""
@@ -1755,6 +1839,7 @@ def _main_impl() -> None:
         has_option_flags = any(part.startswith("-") for part in raw_args)
         if classified_mode == "direct" and not has_option_flags:
             from kit.core.dispatcher import dispatch
+
             exit(dispatch(cmd, None))
 
         actual_mode = "standard" if classified_mode == "direct" and has_option_flags else classified_mode
@@ -1776,10 +1861,15 @@ def _main_impl() -> None:
             metadata={"classified_mode": classified_mode},
         )
     # --- ECL v2: Runtime Shield Enforcer (Removed in v1.2.5 Global Runtime Mode) ---
-    substrate = kit_env.get_substrate_report()
+    kit_env.get_substrate_report()
 
     # --- Workspace Initialization Guard (v1.2.5) ---
-    if len(sys.argv) > 1 and sys.argv[1] not in ["init", "init-env", "--help", "-h", "--version", "-v", "where", "status", "stats", "trace"] and not _raw_repair_governance_mode():
+    if (
+        len(sys.argv) > 1
+        and sys.argv[1]
+        not in ["init", "init-env", "--help", "-h", "--version", "-v", "where", "status", "stats", "trace"]
+        and not _raw_repair_governance_mode()
+    ):
         sentinel = Path.cwd() / BOOTSTRAP_SENTINEL
         if not sentinel.exists():
             print(
@@ -1787,7 +1877,7 @@ def _main_impl() -> None:
                 f"The sentinel file '{BOOTSTRAP_SENTINEL}' is missing.\n"
                 f"\nRun:\n  kit init\n"
                 f"\nThen retry your command.",
-                file=sys.stderr
+                file=sys.stderr,
             )
             sys.exit(1)
 
@@ -1797,8 +1887,7 @@ def _main_impl() -> None:
 
     parser_start = time.perf_counter()
     parser = argparse.ArgumentParser(
-        description="SAMBrain CLI v1.2.5 - Global Runtime Edition",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        description="SAMBrain CLI v1.2.5 - Global Runtime Edition", formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--version", action="version", version=f"kit {get_cli_version()}")
     parser.add_argument("--db", help="Path to project database")
@@ -1813,12 +1902,13 @@ def _main_impl() -> None:
     p_init = subparsers.add_parser("init", help="Initialize space")
     p_init.add_argument("--force", action="store_true")
 
-    p_init_env = subparsers.add_parser("init-env", help="Standardize environment files")
-    
+    subparsers.add_parser("init-env", help="Standardize environment files")
+
     # v1.2.5: Reflection-based CLI (Clean Architecture)
     from kit.core.policy_schema import LEARN_TAGS
+
     try:
-        with open(Path(__file__).resolve().parents[1] / "registry" / "kit_capabilities.json", "r") as f:
+        with open(Path(__file__).resolve().parents[1] / "registry" / "kit_capabilities.json") as f:
             caps = json.load(f)["capabilities"]
     except Exception:
         caps = {}
@@ -1832,7 +1922,7 @@ def _main_impl() -> None:
     p_learn.add_argument("--metadata", help="JSON metadata string")
     p_learn.add_argument("--namespace", default="shared", help="Memory namespace (e.g., auth, db, arch)")
     p_learn.add_argument("--symbol", help="Semantic symbol for the memory")
-    
+
     p_recall = subparsers.add_parser("recall", help=caps.get("recall", {}).get("help", "Recall ranked context"))
     p_recall.add_argument("entities", nargs="*")
     p_recall.add_argument("--limit", type=int, default=10)
@@ -1863,13 +1953,13 @@ def _main_impl() -> None:
     p_trace.add_argument("--stage", choices=["dispatch", "parser", "executor"], help="Filter by stage")
 
     subparsers.add_parser("where", help="Show environment")
-    
+
     p_flow = subparsers.add_parser("flow", help="Workflow Runtime Control")
     f_sub = p_flow.add_subparsers(dest="flow_command")
     f_run = f_sub.add_parser("run", help="Run a flow YAML")
     f_run.add_argument("path", help="Path to flow.yaml")
     f_run.add_argument("--resume", action="store_true", help="Resume from checkpoint")
-    
+
     p_preflight = subparsers.add_parser("preflight", help="Run commit checks")
     p_preflight.add_argument("--message", default="")
     p_preflight.add_argument("--strict", action="store_true")
@@ -1899,7 +1989,7 @@ def _main_impl() -> None:
     p_repair.add_argument("--confirm", action="store_true", help="Required confirmation for --apply")
     p_repair.add_argument("--json", action="store_true", help="Output in JSON format")
     p_repair.add_argument("--symbol-debt", action="store_true", help="Run legacy explicit symbol repair")
-    
+
     p_compact = subparsers.add_parser("compact", help="Consolidate redundant memories")
     p_compact.add_argument("--namespace", default="shared", help="Namespace to compact")
 
@@ -1911,7 +2001,7 @@ def _main_impl() -> None:
 
     p_snapshot = subparsers.add_parser("snapshot", help="Create a kernel snapshot")
     p_snapshot.add_argument("--reason", help="Reason for snapshot (Lineage tracking)")
-    
+
     p_retention = subparsers.add_parser("retention", help="Execute snapshot lifecycle")
     p_retention.add_argument("--hot", type=int, default=3, help="Strictly keep only the latest N snapshots")
     p_retention.add_argument("--dry-run", action="store_true", help="Don't delete files")
@@ -1955,9 +2045,7 @@ def _main_impl() -> None:
     )
 
     if args.command == "stats" and not (
-        getattr(args, "paths", False)
-        or getattr(args, "hotpaths", False)
-        or getattr(args, "consistency", False)
+        getattr(args, "paths", False) or getattr(args, "hotpaths", False) or getattr(args, "consistency", False)
     ):
         sentinel = Path.cwd() / BOOTSTRAP_SENTINEL
         if not sentinel.exists():
@@ -1966,19 +2054,17 @@ def _main_impl() -> None:
                 f"The sentinel file '{BOOTSTRAP_SENTINEL}' is missing.\n"
                 f"\nRun:\n  kit init\n"
                 f"\nThen retry your command.",
-                file=sys.stderr
+                file=sys.stderr,
             )
             sys.exit(1)
-    
+
     # Initialize Kernel API
     should_init_kernel = not (
         args.command == "trace"
         or (
             args.command == "stats"
             and (
-                getattr(args, "paths", False)
-                or getattr(args, "hotpaths", False)
-                or getattr(args, "consistency", False)
+                getattr(args, "paths", False) or getattr(args, "hotpaths", False) or getattr(args, "consistency", False)
             )
         )
         or (args.command == "repair" and not repair_requires_kernel(args))
@@ -1986,20 +2072,16 @@ def _main_impl() -> None:
 
     if should_init_kernel:
         import kit.api as api
-        api.init_kernel(
-            db_path=Path(args.db) if args.db else None, 
-            mode="isolated" if args.isolated else "auto"
-        )
-    
+
+        api.init_kernel(db_path=Path(args.db) if args.db else None, mode="isolated" if args.isolated else "auto")
+
     # --- Execution Boundary Firewall (v1.2.5-TITANIUM) ---
     from kit.core.kit_env import ExecutionMode, get_execution_mode
+
     current_mode = get_execution_mode()
 
     if current_mode == ExecutionMode.TEST:
-        forbidden_mutations = {
-            "doctor": args.command == "doctor" and args.heal,
-            "init-env": args.command == "init-env"
-        }
+        forbidden_mutations = {"doctor": args.command == "doctor" and args.heal, "init-env": args.command == "init-env"}
         for tool, active in forbidden_mutations.items():
             if active:
                 print(f"\n[FIREWALL] Mutation blocked: '{tool}' is forbidden in TEST mode.", file=sys.stderr)
@@ -2009,7 +2091,6 @@ def _main_impl() -> None:
     router_logger = logging.getLogger("kit.memory_router")
     router_logger.propagate = False
 
-
     # Dispatch via Registry
     try:
         cmd_tuple = registry.get_command(args.command)
@@ -2017,11 +2098,7 @@ def _main_impl() -> None:
             _, handler = cmd_tuple
             executor_start = time.perf_counter()
             try:
-                handler(
-                    args=args, 
-                    print_diagnostic=print_diagnostic, 
-                    current_context=Path.cwd().name
-                )
+                handler(args=args, print_diagnostic=print_diagnostic, current_context=Path.cwd().name)
                 log_execution_event(
                     command=args.command,
                     mode=telemetry_mode,
@@ -2046,7 +2123,9 @@ def _main_impl() -> None:
         # v1.2.5: Ensure background workers are joined to release Windows file locks
         if should_init_kernel:
             import kit.api as api
+
             api.shutdown_kernel()
+
 
 if __name__ == "__main__":
     main()

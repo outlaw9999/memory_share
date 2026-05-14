@@ -37,6 +37,7 @@ class ExecutionIntent:
     Sits between Normalizer and Resolver in the pipeline:
       Normalizer → ExecutionIntent → Resolver → Planner → Policy → Execute → Trace
     """
+
     payload: IntentPayload
     source: ExecutionSource
     goal: str

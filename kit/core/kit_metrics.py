@@ -4,12 +4,14 @@ Calculates Global Quality Index (GQI) and Entropy for cognitive health.
 """
 
 from __future__ import annotations
-import sqlite3
+
 import logging
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 
 logger = logging.getLogger("kit.metrics")
+
 
 @dataclass(frozen=True, slots=True)
 class GlobalQualityIndex:
@@ -28,10 +30,11 @@ class GlobalQualityIndex:
     avg_recall_latency_ms: float
     timestamp: str
 
+
 def calculate_gqi(conn: sqlite3.Connection) -> GlobalQualityIndex:
     """Compute the holistic health of the memory kernel."""
     import re
-    
+
     # 1. Total active memories
     total = conn.execute("SELECT COUNT(*) FROM observations WHERE is_active = 1").fetchone()[0]
     if total == 0:
@@ -49,13 +52,13 @@ def calculate_gqi(conn: sqlite3.Connection) -> GlobalQualityIndex:
         SELECT symbol FROM observations 
         WHERE symbol IS NOT NULL AND symbol != '' AND is_active = 1
     """).fetchall()
-    
+
     uuid_pattern = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     structured_count = 0
     for (sym,) in structured_rows:
         if "." in sym and not re.match(uuid_pattern, sym):
             structured_count += 1
-            
+
     symbol_structured_ratio = structured_count / (total - null_symbols) if (total - null_symbols) > 0 else 0.0
 
     # 3. Duplicate Rate
@@ -92,7 +95,7 @@ def calculate_gqi(conn: sqlite3.Connection) -> GlobalQualityIndex:
             ORDER BY created_at DESC LIMIT 100
         )
     """).fetchone()
-    
+
     recall_hit_rate = pulse[0] if pulse and pulse[0] is not None else 0.0
     avg_latency = pulse[1] if pulse and pulse[1] is not None else 0.0
 
@@ -102,7 +105,7 @@ def calculate_gqi(conn: sqlite3.Connection) -> GlobalQualityIndex:
     # 7. Quality Score (Higher is better)
     # symbol_integrity: (1 - debt_ratio)
     symbol_integrity = 1.0 - symbol_debt_ratio
-    
+
     # Namespace Balance
     ns_stats = get_namespace_stats(conn)
     if ns_stats:
@@ -110,8 +113,10 @@ def calculate_gqi(conn: sqlite3.Connection) -> GlobalQualityIndex:
         ns_balance = 1.0 - (max_ns / total)
     else:
         ns_balance = 0.0
-        
-    quality_score = (symbol_integrity * 0.5) + (symbol_structured_ratio * 0.1) + (recall_hit_rate * 0.3) + (ns_balance * 0.1)
+
+    quality_score = (
+        (symbol_integrity * 0.5) + (symbol_structured_ratio * 0.1) + (recall_hit_rate * 0.3) + (ns_balance * 0.1)
+    )
 
     return GlobalQualityIndex(
         total_memories=total,
@@ -127,8 +132,9 @@ def calculate_gqi(conn: sqlite3.Connection) -> GlobalQualityIndex:
         quality_score=quality_score,
         recall_hit_rate=recall_hit_rate,
         avg_recall_latency_ms=avg_latency,
-        timestamp=datetime.now().isoformat()
+        timestamp=datetime.now().isoformat(),
     )
+
 
 def get_namespace_stats(conn: sqlite3.Connection) -> dict[str, int]:
     """Calculate distribution of memories across namespaces."""

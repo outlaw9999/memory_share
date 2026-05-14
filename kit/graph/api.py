@@ -4,14 +4,13 @@ KIT Graph Query API v1
 High-level API for graph reasoning: blast, impact, dependency_chain, influence_score.
 """
 
-import sqlite3
 import logging
-from typing import Dict, List, Tuple, Optional
+import sqlite3
 from enum import Enum
+from typing import Dict, List, Optional, Tuple
 
-from kit.graph.query import get_blast_radius, TraversalDirection
 from kit.core.memory_topology import MemoryTopology
-
+from kit.graph.query import TraversalDirection, get_blast_radius
 
 logger = logging.getLogger("kit.graph.api")
 
@@ -30,7 +29,7 @@ class GraphQueryAPI:
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
 
-    def blast(self, symbol: str, max_depth: int = 5, direction: str = "bidirectional") -> List[Dict]:
+    def blast(self, symbol: str, max_depth: int = 5, direction: str = "bidirectional") -> list[dict]:
         """Get blast radius - all nodes within N hops."""
         dir_map = {
             "forward": TraversalDirection.FORWARD,
@@ -39,21 +38,18 @@ class GraphQueryAPI:
         }
         direction_enum = dir_map.get(direction.lower(), TraversalDirection.BIDIRECTIONAL)
 
-        results = get_blast_radius(
-            self.conn, symbol,
-            max_depth=max_depth,
-            direction=direction_enum
-        )
+        results = get_blast_radius(self.conn, symbol, max_depth=max_depth, direction=direction_enum)
 
         return [{"symbol": r[0], "distance": r[1], "edge_type": r[2]} for r in results]
 
-    def impact(self, symbol: str, max_depth: int = 3) -> Dict:
+    def impact(self, symbol: str, max_depth: int = 3) -> dict:
         """Calculate impact - who depends on this symbol."""
         forward = get_blast_radius(
-            self.conn, symbol,
+            self.conn,
+            symbol,
             max_depth=max_depth,
             direction=TraversalDirection.FORWARD,
-            edge_types=('IMPORTS', 'CALLS')
+            edge_types=("IMPORTS", "CALLS"),
         )
 
         direct = [r for r in forward if r[1] == 1]
@@ -65,12 +61,13 @@ class GraphQueryAPI:
             "direct": [{"symbol": r[0], "edge_type": r[2]} for r in direct],
             "transitive_count": len(transitive),
             "transitive": [{"symbol": r[0], "distance": r[1], "edge_type": r[2]} for r in transitive],
-            "total": len(forward)
+            "total": len(forward),
         }
 
-    def dependency_chain(self, from_symbol: str, to_symbol: str, max_length: int = 10) -> List[str]:
+    def dependency_chain(self, from_symbol: str, to_symbol: str, max_length: int = 10) -> list[str]:
         """Find shortest dependency path from A to B."""
-        result = self.conn.execute(f"""
+        result = self.conn.execute(
+            """
             WITH RECURSIVE path_finder(source, target, distance, path) AS (
                 SELECT source_symbol, target_symbol, 0, source_symbol || ' -> ' || target_symbol
                 FROM structure_edges
@@ -82,19 +79,18 @@ class GraphQueryAPI:
                 WHERE pf.distance < ? AND se.edge_type IN ('IMPORTS', 'INHERITS')
             )
             SELECT path FROM path_finder WHERE target = ? LIMIT 1
-        """, (from_symbol, max_length, to_symbol)).fetchone()
+        """,
+            (from_symbol, max_length, to_symbol),
+        ).fetchone()
 
         if not result:
             return []
-        return result[0].split(' -> ')
+        return result[0].split(" -> ")
 
-    def influence_score(self, symbol: str, decay: float = 0.5) -> Dict:
+    def influence_score(self, symbol: str, decay: float = 0.5) -> dict:
         """Calculate weighted influence score."""
         results = get_blast_radius(
-            self.conn, symbol,
-            max_depth=10,
-            direction=TraversalDirection.FORWARD,
-            include_confidence=True
+            self.conn, symbol, max_depth=10, direction=TraversalDirection.FORWARD, include_confidence=True
         )
 
         score = 0.0
@@ -102,7 +98,7 @@ class GraphQueryAPI:
 
         for r in results:
             sym, dist, edge_type, conf = r
-            weight = conf / (dist ** decay) if dist > 0 else conf
+            weight = conf / (dist**decay) if dist > 0 else conf
             influence_map[sym] = weight
             score += weight
 
@@ -110,12 +106,13 @@ class GraphQueryAPI:
             "symbol": symbol,
             "influence_score": round(score, 3),
             "nodes_affected": len(results),
-            "top_influences": sorted(influence_map.items(), key=lambda x: x[1], reverse=True)[:10]
+            "top_influences": sorted(influence_map.items(), key=lambda x: x[1], reverse=True)[:10],
         }
 
-    def execution_path(self, from_func: str, to_func: str) -> List[str]:
+    def execution_path(self, from_func: str, to_func: str) -> list[str]:
         """Find execution path from function A to function B."""
-        result = self.conn.execute("""
+        result = self.conn.execute(
+            """
             WITH RECURSIVE exec_path(source, target, distance, path) AS (
                 SELECT call_site, callee_canonical, 0, call_site || ' -> ' || callee_canonical
                 FROM call_resolutions
@@ -127,32 +124,40 @@ class GraphQueryAPI:
                 WHERE ep.distance < 10 AND cr.resolution_method != 'unresolved'
             )
             SELECT path FROM exec_path WHERE target = ? LIMIT 1
-        """, (from_func, to_func)).fetchone()
+        """,
+            (from_func, to_func),
+        ).fetchone()
 
         if not result:
             return []
-        return result[0].split(' -> ')
+        return result[0].split(" -> ")
 
-    def hot_paths(self, top_k: int = 10) -> List[Dict]:
+    def hot_paths(self, top_k: int = 10) -> list[dict]:
         """Find most called functions."""
-        results = self.conn.execute("""
+        results = self.conn.execute(
+            """
             SELECT callee_canonical, COUNT(*) as cnt
             FROM call_resolutions
             WHERE resolution_method != 'unresolved'
             GROUP BY callee_canonical
             ORDER BY cnt DESC
             LIMIT ?
-        """, (top_k,)).fetchall()
+        """,
+            (top_k,),
+        ).fetchall()
 
         return [{"function": r[0], "call_count": r[1]} for r in results]
 
-    def runtime_impact(self, function: str) -> Dict:
+    def runtime_impact(self, function: str) -> dict:
         """Calculate runtime impact - who calls this function."""
-        callers = self.conn.execute("""
+        callers = self.conn.execute(
+            """
             SELECT call_site, resolution_method
             FROM call_resolutions
             WHERE callee_canonical = ? AND resolution_method != 'unresolved'
-        """, (function,)).fetchall()
+        """,
+            (function,),
+        ).fetchall()
 
         direct = [r[0] for r in callers]
 
@@ -160,12 +165,13 @@ class GraphQueryAPI:
             "function": function,
             "direct_callers": direct,
             "direct_count": len(direct),
-            "total_runtime_impact": len(direct)
+            "total_runtime_impact": len(direct),
         }
 
-    def simulate_failure(self, function: str) -> Dict:
+    def simulate_failure(self, function: str) -> dict:
         """Simulate cascade failure if function fails."""
-        affected = self.conn.execute("""
+        affected = self.conn.execute(
+            """
             WITH RECURSIVE cascade(target, distance) AS (
                 SELECT callee_canonical, 0
                 FROM call_resolutions
@@ -177,7 +183,9 @@ class GraphQueryAPI:
                 WHERE cascade.distance < 5
             )
             SELECT DISTINCT target FROM cascade WHERE distance > 0
-        """, (function,)).fetchall()
+        """,
+            (function,),
+        ).fetchall()
 
         affected_list = [r[0] for r in affected]
         criticality = min(len(affected_list) / 10.0, 1.0)
@@ -186,13 +194,14 @@ class GraphQueryAPI:
             "function": function,
             "affected_functions": affected_list[:20],
             "affected_count": len(affected_list),
-            "criticality": round(criticality, 3)
+            "criticality": round(criticality, 3),
         }
 
 
-def quick_blast(db_path: str, symbol: str, max_depth: int = 5) -> List[Dict]:
+def quick_blast(db_path: str, symbol: str, max_depth: int = 5) -> list[dict]:
     """Quick blast query from db path."""
     from pathlib import Path
+
     topo = MemoryTopology()
     conn = topo.connect_path(Path(db_path), readonly=True)
     api = GraphQueryAPI(conn)
@@ -201,9 +210,10 @@ def quick_blast(db_path: str, symbol: str, max_depth: int = 5) -> List[Dict]:
     return results
 
 
-def quick_impact(db_path: str, symbol: str) -> Dict:
+def quick_impact(db_path: str, symbol: str) -> dict:
     """Quick impact query from db path."""
     from pathlib import Path
+
     topo = MemoryTopology()
     conn = topo.connect_path(Path(db_path), readonly=True)
     api = GraphQueryAPI(conn)

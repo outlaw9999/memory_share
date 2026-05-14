@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from kit.core.deterministic import stable_hash, deterministic_json
+from kit.core.deterministic import deterministic_json, stable_hash
 
 SCHEMA_VERSION = "1.0"
 
@@ -29,11 +29,12 @@ IGNORE_EXTS = {
     ".o",
 }
 
+
 def load_ignore_patterns(root_path: Path) -> tuple[set[str], set[str]]:
     """Load ignores from .kitignore and .gitignore, falling back to defaults."""
     dirs = set(IGNORE_DIRS)
     exts = set(IGNORE_EXTS)
-    
+
     # 1. Load .gitignore (Minimalist - skip complex globs to avoid hash drift)
     gitignore = root_path / ".gitignore"
     if gitignore.exists():
@@ -43,7 +44,7 @@ def load_ignore_patterns(root_path: Path) -> tuple[set[str], set[str]]:
             if not line or line.startswith("#") or "!" in line or "**" in line:
                 # Silently skip complex patterns as requested
                 continue
-            
+
             # Simple heuristic mapping
             if line.endswith("/"):
                 dirs.add(line[:-1])
@@ -61,13 +62,14 @@ def load_ignore_patterns(root_path: Path) -> tuple[set[str], set[str]]:
             if not line or line.startswith("#"):
                 continue
             if line.startswith("*."):
-                exts.add(line[1:]) # extract .extension
+                exts.add(line[1:])  # extract .extension
             elif line.endswith("/"):
                 dirs.add(line[:-1])
             else:
                 dirs.add(line)
-    
+
     return dirs, exts
+
 
 def scan_repo(root_path: Path) -> dict[str, Any]:
     """
@@ -76,21 +78,20 @@ def scan_repo(root_path: Path) -> dict[str, Any]:
     No semantic parsing. No AST reading. Zero file reading.
     """
     files: list[str] = []
-    
+
     ignore_dirs, ignore_exts = load_ignore_patterns(root_path)
 
     # 1. Gather all files deterministically
     for parent, dirs_list, filenames in os.walk(root_path):
         # Prune ignored directories immediately
         dirs_list[:] = [d for d in dirs_list if d not in ignore_dirs]
-        
+
         parent_path = Path(parent)
         for name in filenames:
             ext = os.path.splitext(name)[1]
             if ext in ignore_exts or name in {".DS_Store"}:
                 continue
 
-            
             p = parent_path / name
             try:
                 rel = p.relative_to(root_path)
@@ -122,39 +123,40 @@ def scan_repo(root_path: Path) -> dict[str, Any]:
 
     repo_map = {
         "schema_version": SCHEMA_VERSION,
-        "repo_hash": "", # placeholder
+        "repo_hash": "",  # placeholder
         "files": files,
-        "modules": modules_sorted
+        "modules": modules_sorted,
     }
 
     # 3. Hash the dictionary without the temporary empty hash
     # To create a fully stable hash, we compute signature of the content.
     del repo_map["repo_hash"]
     sig = deterministic_json(repo_map)
-    
+
     # Put hash back
     repo_map["repo_hash"] = stable_hash(sig)
-    
+
     # Ensure ordered dict output
     final_repo_map = {
         "schema_version": repo_map["schema_version"],
         "repo_hash": repo_map["repo_hash"],
         "files": repo_map["files"],
-        "modules": repo_map["modules"]
+        "modules": repo_map["modules"],
     }
 
     return final_repo_map
 
+
 def save_repo_map(root_path: Path) -> Path:
     """Scan and save the official repo_map artifact to .kit/repo_map.json."""
     repo_map_content = scan_repo(root_path)
-    
+
     kit_dir = root_path / ".kit"
     kit_dir.mkdir(parents=True, exist_ok=True)
-    
+
     out_path = kit_dir / "repo_map.json"
-    
+
     json_str = deterministic_json(repo_map_content)
-    # Using utf-8 because deterministic_json has ensure_ascii=False 
+    # Using utf-8 because deterministic_json has ensure_ascii=False
     out_path.write_text(json_str, encoding="utf-8")
     return out_path

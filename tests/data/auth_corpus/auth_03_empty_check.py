@@ -8,9 +8,10 @@ def process_sensitive_data(auth_header: dict):
     if not auth_header:
         # Nhẽ ra phải raise error, nhưng ở đây chỉ print warning
         print("Warning: No auth header")
-    
+
     # Tiếp tục xử lý dữ liệu nhạy cảm mà không có bảo vệ
     return "SENSITIVE_DATA_EXPOSED"
+
 
 if __name__ == "__main__":
     pass

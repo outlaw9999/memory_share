@@ -3,8 +3,8 @@ Kit Execution Dispatcher
 Entry point: routes commands based on execution mode without AGENTS.md overhead.
 """
 
-import sys
 import logging
+import sys
 import time
 from typing import Any, Optional
 
@@ -35,12 +35,15 @@ def direct_execute(command: str, args: Any) -> int:
     try:
         if executor == "vantage":
             from kit.core.vantage_dispatch import run_vantage
+
             result = run_vantage(command, args)
         elif executor == "fs":
             from kit.core.fs_dispatch import run_fs
+
             result = run_fs(command, args)
         elif executor == "graph":
             from kit.graph.api import quick_blast
+
             result = 0
         else:
             logger.error(f"Unknown executor: {executor}")
@@ -76,10 +79,12 @@ def light_route(command: str, args: Any) -> int:
     try:
         if executor == "graph":
             from kit.graph.validation import GraphValidationHarness
+
             logger.debug(f"Graph routing for {command}")
             result = 0
         elif executor == "memory":
             from kit.core.memory_router import route_memory
+
             result = route_memory(command, args)
         else:
             result = full_reasoning(command, args)
@@ -112,6 +117,7 @@ def full_reasoning(command: str, args: Any) -> int:
     start = time.perf_counter()
     try:
         from kit.core.kit_cognitive_core import CognitiveCore
+
         core = CognitiveCore()
         result = core.execute_diagnostic(command, args)
         log_execution_event(

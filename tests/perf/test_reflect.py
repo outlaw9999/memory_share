@@ -29,10 +29,10 @@ def test_reflect_gap(tmp_path):
     os.environ["KIT_GLOBAL_HOME"] = str(tmp_path / "global")
     db_path = tmp_path / "test_reflect.db"
     brain = SAMBrain(db_path)
-    
+
     diff = "+ import requests"
     report = run_reflect(brain, diff, scope="test")
-    
+
     assert "requests" in report.gaps
     assert report.score < 1.0
 
@@ -40,29 +40,29 @@ def test_reflect_gap(tmp_path):
 def test_reflect_drift(tmp_path):
     db_path = tmp_path / "test_reflect.db"
     brain = SAMBrain(db_path)
-    
+
     # Learn fact in 'auth' scope
     brain.learn("requests", "Using requests in auth", scope="auth")
-    
+
     # Reflect in 'payment' scope - different scope tree should trigger drift if margin is low
     diff = "+ import requests"
     report = run_reflect(brain, diff, scope="payment")
-    
+
     assert "requests" in report.drifts
 
 
 def test_reflect_violation(tmp_path):
     db_path = tmp_path / "test_reflect.db"
     brain = SAMBrain(db_path)
-    
+
     # Learn global invariant (forbidden)
     brain.learn("forbidden_lib", "DO NOT USE", tag="invariant", scope="global")
     # Learn a local decision that tries to use it
     brain.learn("forbidden_lib", "Use it anyway", tag="decision", scope="auth")
-    
+
     diff = "+ import forbidden_lib"
     report = run_reflect(brain, diff, scope="auth")
-    
+
     assert "forbidden_lib" in report.violations
     assert report.status == "BLOCK"
 
@@ -71,17 +71,17 @@ def test_reflect_performance(tmp_path):
     os.environ["KIT_GLOBAL_HOME"] = str(tmp_path / "global")
     db_path = tmp_path / "test_reflect.db"
     brain = SAMBrain(db_path)
-    
+
     # Populate brain with some noise
     for i in range(100):
         brain.learn(f"node_{i}", f"Content {i}")
-        
+
     diff = "\n".join([f"+ import lib_{i}" for i in range(50)])
-    
+
     start = time.perf_counter()
     run_reflect(brain, diff, scope="test")
     end = time.perf_counter()
-    
+
     duration_ms = (end - start) * 1000
     print(f"\nReflection Performance: {duration_ms:.2f}ms")
     assert duration_ms < 500  # Adjusted for CI overhead, target is < 50ms locally

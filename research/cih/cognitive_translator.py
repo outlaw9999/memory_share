@@ -1,7 +1,9 @@
 # kit/cih/cognitive_translator.py
 
 from __future__ import annotations
-from typing import Dict, Any
+
+from typing import Any, Dict
+
 from kit.core.memory_router import MemoryWriteRequest, WriteSource
 
 
@@ -17,7 +19,7 @@ class CIHCognitiveTranslator:
 
     __slots__ = ()
 
-    def translate(self, signal: Dict[str, Any]) -> MemoryWriteRequest:
+    def translate(self, signal: dict[str, Any]) -> MemoryWriteRequest:
 
         stability = signal["stability"]
         volatility = signal["volatility"]

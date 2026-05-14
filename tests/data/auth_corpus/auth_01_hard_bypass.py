@@ -7,9 +7,10 @@ def verify_access_unsafe(token: str):
     """
     if token == "admin":
         return True
-    
+
     # Bypass logic: Trả về True ngay cả khi không khớp admin
     return True
+
 
 if __name__ == "__main__":
     pass

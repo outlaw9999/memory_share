@@ -1,15 +1,17 @@
 """Phase 12 — Drift Governance self-test."""
-import os, shutil
+
+import os
+import shutil
 from pathlib import Path
 
 os.environ["KIT_HOOK_DEPTH"] = "0"
 
 from tests.phase10.drift_governance import (
-    InvariantRegistry,
+    INVARIANTS,
     BehavioralRegressionDetector,
+    InvariantRegistry,
     ShadowTraceArchive,
     run_governance,
-    INVARIANTS,
 )
 from tests.phase10.shadow_harness import ShadowHarness
 

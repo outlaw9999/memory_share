@@ -31,7 +31,11 @@ def execute_skill(skill: dict[str, Any], dry_run: bool = False) -> bool:
     # 1. Preview & Reification
     commands = []
     venv_bin_dir = os.path.dirname(sys.executable)
-    vantage_path = os.path.join(venv_bin_dir, "kit-vantage.exe") if sys.platform == "win32" else os.path.join(venv_bin_dir, "kit-vantage")
+    vantage_path = (
+        os.path.join(venv_bin_dir, "kit-vantage.exe")
+        if sys.platform == "win32"
+        else os.path.join(venv_bin_dir, "kit-vantage")
+    )
 
     for _i, step in enumerate(workflow, 1):
         raw_cmd = step.get("command", "")
@@ -40,7 +44,7 @@ def execute_skill(skill: dict[str, Any], dry_run: bool = False) -> bool:
 
         # v1.2.5-LOCK: Reification Guard (CRITICAL)
         reified_cmd = raw_cmd.strip()
-        
+
         # If sys.executable (absolute path) is already in the command, we ABORT further reification
         # to prevent the python.exe.exe doubling bug.
         if sys.executable in reified_cmd:
@@ -56,8 +60,11 @@ def execute_skill(skill: dict[str, Any], dry_run: bool = False) -> bool:
         else:
             # 2. Keyword replacement with boundary checks
             import re
+
             # Reify 'python' only if it's NOT already part of a path
-            reified_cmd = re.sub(r"(?<![\w./\\])\bpython\b(?!\.(exe|py))", lambda m: sys.executable, reified_cmd, count=1)
+            reified_cmd = re.sub(
+                r"(?<![\w./\\])\bpython\b(?!\.(exe|py))", lambda m: sys.executable, reified_cmd, count=1
+            )
             reified_cmd = re.sub(r"(?<![\w./\\])\bkit-vantage\b(?!\.exe)", lambda m: vantage_path, reified_cmd, count=1)
 
         commands.append(reified_cmd)
@@ -83,13 +90,13 @@ def execute_skill(skill: dict[str, Any], dry_run: bool = False) -> bool:
         print("\n[kit] No interactive input detected. Skipping execution.")
         return False
 
-    if ans != 'y':
+    if ans != "y":
         print("[kit] Execution cancelled.")
         return False
 
     # 3. Execution Phase (v1.2.5 Deterministic Kernel)
-    from kit.core.kernel_fsm import ExecutionFrame
     from kit.core.kernel_engine import DeterministicKernel
+    from kit.core.kernel_fsm import ExecutionFrame
 
     # Set depth for subprocesses
     os.environ[DEPTH_ENV_VAR] = str(current_depth + 1)
@@ -97,24 +104,23 @@ def execute_skill(skill: dict[str, Any], dry_run: bool = False) -> bool:
     kernel = DeterministicKernel(session_id=f"session-{name}")
 
     # Map reified commands back to frames
-    for i, cmd in enumerate(commands):
+    for _i, cmd in enumerate(commands):
         # We try to get rollback_command if defined in the original step
         # Note: step indices match commands indices if we skip empties correctly
         # But it's safer to just iterate workflow and reify again or store them
-        
+
         # Finding the original step for rollback info
         # (This is a bit naive but works for the current linear structure)
         original_step = {}
-        target_raw = cmd
         for s in workflow:
-             if s.get("command", "").strip() in cmd: # Reification check
-                 original_step = s
-                 break
-        
+            if s.get("command", "").strip() in cmd:  # Reification check
+                original_step = s
+                break
+
         frame = ExecutionFrame(
             command=cmd,
             rollback_command=original_step.get("rollback"),
-            max_retries=int(original_step.get("retries", 3))
+            max_retries=int(original_step.get("retries", 3)),
         )
         kernel.submit(frame)
 
@@ -128,5 +134,5 @@ def execute_skill(skill: dict[str, Any], dry_run: bool = False) -> bool:
         print(f"\n[kit] Skill '{name}' executed successfully.")
     else:
         print(f"\n[kit] Skill '{name}' FAILED or ROLLED BACK.")
-    
+
     return success

@@ -55,6 +55,7 @@ class ReasonCode(StrEnum):
 
 # ── Input: VerificationRequest ─────────────────────────────────────────────────
 
+
 @dataclass
 class EventInfo:
     type: EventClass = EventClass.RUNTIME
@@ -83,6 +84,7 @@ class VerificationRequest:
     The ONLY valid input to the epistemic gate.
     Submitted by RuntimeEngine before any memory mutation.
     """
+
     request_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     intent: IntentClass = IntentClass.READ
@@ -93,10 +95,12 @@ class VerificationRequest:
 
     def to_json(self) -> str:
         import json
+
         return json.dumps(asdict(self), default=str)
 
 
 # ── Output: VerdictResult ─────────────────────────────────────────────────────
+
 
 @dataclass
 class Proof:
@@ -117,6 +121,7 @@ class VerdictResult:
     The ONLY valid output of the epistemic gate.
     Returned to RuntimeEngine — determines whether execution proceeds.
     """
+
     verdict: Verdict
     confidence: float
     reason_code: ReasonCode
@@ -130,4 +135,5 @@ class VerdictResult:
 
     def to_json(self) -> str:
         import json
+
         return json.dumps(asdict(self), default=str)

@@ -6,10 +6,9 @@
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 from typing import Any
-
 
 RUNTIME_VERSION = "1.2.5"
 SCHEMA_VERSION = "1.0"
@@ -35,7 +34,7 @@ def context_hash(context: dict[str, Any]) -> str:
 
 def now_iso() -> str:
     """Current timestamp in ISO 8601 format."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def query_sorted_invariants(conn) -> list[dict[str, Any]]:

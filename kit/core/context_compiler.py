@@ -3,11 +3,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from kit.core.deterministic import stable_hash, deterministic_json
+from kit.core.deterministic import deterministic_json, stable_hash
 
 SCHEMA_VERSION = "1.0"
 RUNTIME_VERSION = "1.2.5"
-
 
 
 def load_friction_log(kit_dir: Path) -> dict[str, list]:
@@ -17,10 +16,11 @@ def load_friction_log(kit_dir: Path) -> dict[str, list]:
     try:
         data = json.loads(friction_file.read_text(encoding="utf-8"))
         if "active" not in data or "resolved" not in data:
-             return {"active": [], "resolved": []}
+            return {"active": [], "resolved": []}
         return data
     except Exception:
         return {"active": [], "resolved": []}
+
 
 def compile_execution_context(brain) -> dict[str, Any]:
     """
@@ -30,7 +30,7 @@ def compile_execution_context(brain) -> dict[str, Any]:
     limit_decisions = 10
 
     from kit.core.memory_policy import MemoryPolicy
-    
+
     # 1. Query invariants safely and deterministically
     with brain.get_connection() as conn:
         invariants = []
@@ -41,13 +41,15 @@ def compile_execution_context(brain) -> dict[str, Any]:
             LIMIT {limit_invariants}
         """
         for r in conn.execute(sql_inv).fetchall():
-            invariants.append({
-                "uid": r["uid"].upper(),
-                "id": r["id"],
-                "importance": r["importance"],
-                "created_at": r["created_at"],
-                "content": r["content"]
-            })
+            invariants.append(
+                {
+                    "uid": r["uid"].upper(),
+                    "id": r["id"],
+                    "importance": r["importance"],
+                    "created_at": r["created_at"],
+                    "content": r["content"],
+                }
+            )
 
         # 2. Query decisions
         decisions = []
@@ -58,37 +60,42 @@ def compile_execution_context(brain) -> dict[str, Any]:
             LIMIT {limit_decisions}
         """
         for r in conn.execute(sql_dec).fetchall():
-            decisions.append({
-                "uid": r["uid"].upper(),
-                "id": r["id"],
-                "importance": r["importance"],
-                "created_at": r["created_at"],
-                "content": r["content"]
-            })
+            decisions.append(
+                {
+                    "uid": r["uid"].upper(),
+                    "id": r["id"],
+                    "importance": r["importance"],
+                    "created_at": r["created_at"],
+                    "content": r["content"],
+                }
+            )
 
     # 3. Load skills (Assuming the procedural skill matcher can return dicts)
     from kit.skills.matcher import list_procedural_skills
+
     raw_skills = list_procedural_skills()
     skills = []
-    
+
     # Deterministic sorting for skills by name
     raw_skills.sort(key=lambda s: s.get("name", "z"))
-    
+
     for s in raw_skills[:20]:  # Limit 20
-        skills.append({
-            "name": s.get("name", "unknown"),
-            "triggers": sorted(s.get("triggers", [])), # ensure sorted
-            "deterministic": bool(s.get("deterministic", True)),
-            "safety_level": s.get("safety_level", "unknown"),
-            "side_effect": s.get("side_effect", "none")
-        })
+        skills.append(
+            {
+                "name": s.get("name", "unknown"),
+                "triggers": sorted(s.get("triggers", [])),  # ensure sorted
+                "deterministic": bool(s.get("deterministic", True)),
+                "safety_level": s.get("safety_level", "unknown"),
+                "side_effect": s.get("side_effect", "none"),
+            }
+        )
 
     # 4. Friction log
     kit_dir = brain.root_path / ".kit"
     friction = load_friction_log(kit_dir)
-    
+
     # Optionally sort the friction lists for determinism
-    friction["active"].sort() 
+    friction["active"].sort()
     friction["resolved"].sort()
 
     # 5. Assemble structure
@@ -98,17 +105,12 @@ def compile_execution_context(brain) -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "runtime_version": RUNTIME_VERSION,
         "timestamp": current_time,
-        "context_hash": "", # placeholder
-        "limits": {
-            "invariants": limit_invariants,
-            "decisions": limit_decisions,
-            "skills": 20,
-            "friction": 10
-        },
+        "context_hash": "",  # placeholder
+        "limits": {"invariants": limit_invariants, "decisions": limit_decisions, "skills": 20, "friction": 10},
         "invariants": invariants,
         "decisions": decisions,
         "skills": skills,
-        "friction": friction
+        "friction": friction,
     }
 
     # Generate Blake2b hash
@@ -118,7 +120,6 @@ def compile_execution_context(brain) -> dict[str, Any]:
     context["context_hash"] = stable_hash(sig)
     context["timestamp"] = current_time
 
-    
     # Return ordered exactly like schema
     final_context = {
         "schema_version": context["schema_version"],
@@ -129,7 +130,7 @@ def compile_execution_context(brain) -> dict[str, Any]:
         "invariants": context["invariants"],
         "decisions": context["decisions"],
         "skills": context["skills"],
-        "friction": context["friction"]
+        "friction": context["friction"],
     }
 
     return final_context
@@ -137,13 +138,13 @@ def compile_execution_context(brain) -> dict[str, Any]:
 
 def save_execution_context(brain) -> Path:
     context_data = compile_execution_context(brain)
-    
+
     kit_dir = brain.root_path / ".kit"
     kit_dir.mkdir(parents=True, exist_ok=True)
-    
+
     out_path = kit_dir / "execution_context.json"
-    
+
     json_str = deterministic_json(context_data)
     out_path.write_text(json_str, encoding="utf-8")
-    
+
     return out_path

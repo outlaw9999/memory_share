@@ -1,6 +1,7 @@
 # kit/scst/metrics.py
 
-from typing import Dict, Any
+from typing import Any, Dict
+
 
 class SCSTMetrics:
     """
@@ -8,7 +9,7 @@ class SCSTMetrics:
     Calculates the final Stability Score (SCST_SCORE).
     """
     @staticmethod
-    def evaluate_stability(metrics: Dict[str, Any]) -> float:
+    def evaluate_stability(metrics: dict[str, Any]) -> float:
         total = metrics.get("total_events", 1)
         
         determinism = 1.0 - (metrics.get("routing_errors", 0) / total)
@@ -27,7 +28,7 @@ class SCSTMetrics:
         return round(score, 4)
 
     @staticmethod
-    def classify_failure(metrics: Dict[str, Any]) -> str:
+    def classify_failure(metrics: dict[str, Any]) -> str:
         if metrics.get("authority_violations", 0) > 0:
             return "Mode A: Authority Collapse"
         if metrics.get("coherence_failures", 0) > 0:

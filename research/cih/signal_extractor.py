@@ -1,6 +1,7 @@
 # kit/cih/signal_extractor.py
 
 from __future__ import annotations
+
 from typing import Any, Dict
 
 
@@ -13,7 +14,7 @@ class CIHSignalExtractor:
 
     __slots__ = ()
 
-    def extract(self, event: Dict[str, Any]) -> Dict[str, Any]:
+    def extract(self, event: dict[str, Any]) -> dict[str, Any]:
         node = event["node"]
         exec_ = event["execution"]
         sig = event["signal"]

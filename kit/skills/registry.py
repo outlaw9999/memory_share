@@ -44,7 +44,7 @@ class SkillRegistry:
             {
                 "name": name,
                 "version": getattr(cls._skills[name], "version", "1.0.0"),
-                "input_model": cls._skills[name].input_model.__name__
+                "input_model": cls._skills[name].input_model.__name__,
             }
             for name in cls._skills
         ]
@@ -57,10 +57,11 @@ class SkillRegistry:
         """
         import importlib
         import pkgutil
+
         import kit.skills as skills_pkg
-        
+
         logger.info("Initializing Auto-Skill Discovery...")
-        for loader, module_name, is_pkg in pkgutil.walk_packages(skills_pkg.__path__, skills_pkg.__name__ + "."):
+        for _loader, module_name, _is_pkg in pkgutil.walk_packages(skills_pkg.__path__, skills_pkg.__name__ + "."):
             try:
                 # Import the module; decorators (@register_skill) will handle registration
                 importlib.import_module(module_name)

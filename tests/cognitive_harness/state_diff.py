@@ -7,12 +7,14 @@ v1.2.5: Computes diffs between brain states and verifies invariants.
 import json
 import sqlite3
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Optional
 
 
 @dataclass
 class StateChange:
     """A change in state."""
+
     table: str
     record_id: Any
     change_type: str  # "added", "removed", "modified"
@@ -44,14 +46,8 @@ class StateDiff:
         all_tables = set(before_state.keys()) | set(after_state.keys())
 
         for table in all_tables:
-            before_rows = {
-                json.dumps(r, sort_keys=True): r
-                for r in before_state.get(table, [])
-            }
-            after_rows = {
-                json.dumps(r, sort_keys=True): r
-                for r in after_state.get(table, [])
-            }
+            before_rows = {json.dumps(r, sort_keys=True): r for r in before_state.get(table, [])}
+            after_rows = {json.dumps(r, sort_keys=True): r for r in after_state.get(table, [])}
 
             added = set(after_rows.keys()) - set(before_rows.keys())
             removed = set(before_rows.keys()) - set(after_rows.keys())
@@ -60,10 +56,12 @@ class StateDiff:
             modified = []
             for key in common:
                 if before_rows[key] != after_rows[key]:
-                    modified.append({
-                        "before": before_rows[key],
-                        "after": after_rows[key],
-                    })
+                    modified.append(
+                        {
+                            "before": before_rows[key],
+                            "after": after_rows[key],
+                        }
+                    )
 
             if added:
                 diff["added"][table] = [json.loads(k) for k in added]

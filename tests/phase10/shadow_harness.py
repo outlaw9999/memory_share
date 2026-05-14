@@ -37,39 +37,49 @@ def compare_traces(expected_trace: RuntimeTrace, actual_trace: RuntimeTrace) -> 
     diffs: list[TraceDiff] = []
 
     if expected_trace.metadata.status != actual_trace.metadata.status:
-        diffs.append(TraceDiff(
-            field="metadata.status",
-            expected=expected_trace.metadata.status.value,
-            actual=actual_trace.metadata.status.value,
-        ))
+        diffs.append(
+            TraceDiff(
+                field="metadata.status",
+                expected=expected_trace.metadata.status.value,
+                actual=actual_trace.metadata.status.value,
+            )
+        )
 
     if expected_trace.lineage.intent_chain != actual_trace.lineage.intent_chain:
-        diffs.append(TraceDiff(
-            field="lineage.intent_chain",
-            expected=[str(i) for i in expected_trace.lineage.intent_chain],
-            actual=[str(i) for i in actual_trace.lineage.intent_chain],
-        ))
+        diffs.append(
+            TraceDiff(
+                field="lineage.intent_chain",
+                expected=[str(i) for i in expected_trace.lineage.intent_chain],
+                actual=[str(i) for i in actual_trace.lineage.intent_chain],
+            )
+        )
 
     if len(expected_trace.verdicts.entries) != len(actual_trace.verdicts.entries):
-        diffs.append(TraceDiff(
-            field="verdicts.count",
-            expected=len(expected_trace.verdicts.entries),
-            actual=len(actual_trace.verdicts.entries),
-        ))
+        diffs.append(
+            TraceDiff(
+                field="verdicts.count",
+                expected=len(expected_trace.verdicts.entries),
+                actual=len(actual_trace.verdicts.entries),
+            )
+        )
     else:
         for i, (ev, av) in enumerate(zip(expected_trace.verdicts.entries, actual_trace.verdicts.entries, strict=False)):
             if ev.validator != av.validator:
-                diffs.append(TraceDiff(
-                    field=f"verdicts[{i}].validator",
-                    expected=ev.validator,
-                    actual=av.validator,
-                ))
+                diffs.append(
+                    TraceDiff(
+                        field=f"verdicts[{i}].validator",
+                        expected=ev.validator,
+                        actual=av.validator,
+                    )
+                )
             if ev.status != av.status:
-                diffs.append(TraceDiff(
-                    field=f"verdicts[{i}].status",
-                    expected=ev.status,
-                    actual=av.status,
-                ))
+                diffs.append(
+                    TraceDiff(
+                        field=f"verdicts[{i}].status",
+                        expected=ev.status,
+                        actual=av.status,
+                    )
+                )
 
     if not expected_trace.lineage.intent_chain and not actual_trace.lineage.intent_chain:
         diffs.append(TraceDiff(field="lineage.intent_chain", detail="both empty"))
@@ -78,6 +88,7 @@ def compare_traces(expected_trace: RuntimeTrace, actual_trace: RuntimeTrace) -> 
 
 
 # ── Shadow Harness ─────────────────────────────────────────────────────────────
+
 
 @dataclass
 class ShadowRunResult:
@@ -94,8 +105,7 @@ class ShadowHarness:
     def __init__(self):
         self.registry = _build_registry()
 
-    def run_event(self, event: str, commit_hash: str = "shadow-test",
-                  branch: str = "main") -> ShadowRunResult:
+    def run_event(self, event: str, commit_hash: str = "shadow-test", branch: str = "main") -> ShadowRunResult:
         """Execute a git event in shadow mode. Captures full trace without side effects."""
         try:
             payload = normalize_git_event(
@@ -129,6 +139,7 @@ class ShadowHarness:
 
 
 # ── Harness Report ─────────────────────────────────────────────────────────────
+
 
 @dataclass
 class ShadowReport:

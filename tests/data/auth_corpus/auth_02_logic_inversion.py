@@ -8,8 +8,9 @@ def check_permission_flawed(user_role: str):
     if not user_role == "guest":
         # Logic sai: nếu không phải guest thì cho phép (Lẽ ra phải kiểm tra admin)
         return "ALLOWED_ADMIN"
-    
+
     return "DENIED"
+
 
 if __name__ == "__main__":
     pass

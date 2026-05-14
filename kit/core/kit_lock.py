@@ -35,6 +35,7 @@ def truncate_wal(db_path: Path) -> bool:
         return False
 
     import sqlite3
+
     from kit.core.memory_topology import MemoryTopologyFactory
 
     try:
@@ -53,8 +54,9 @@ def truncate_wal(db_path: Path) -> bool:
 
 
 def scan_zombie_handles(db_path: Path, timeout_seconds: float = 5.0) -> list[dict[str, Any]]:
-    import psutil
     import time
+
+    import psutil
 
     logger.info(f"scan_zombie_handles: Starting with {timeout_seconds}s timeout")
     zombies: list[dict[str, Any]] = []
@@ -89,11 +91,9 @@ def scan_zombie_handles(db_path: Path, timeout_seconds: float = 5.0) -> list[dic
                                 "path": str(fpath),
                             }
                         )
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            except psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess:
                 continue
-        logger.info(
-            f"scan_zombie_handles: Done. Checked {count} processes, found {len(zombies)} zombies"
-        )
+        logger.info(f"scan_zombie_handles: Done. Checked {count} processes, found {len(zombies)} zombies")
     except Exception as e:
         logger.warning(f"Handle scan failed: {e}")
 
@@ -118,14 +118,15 @@ def save_lock_state(root_path: Path, state: dict[str, Any]) -> None:
 
 def log_unseal_audit(root_path: Path, reason: str) -> None:
     from kit.core.memory_topology import MemoryTopologyFactory
-    
+
     # v1.2.5-TITANIUM: Route audit traces to Global Trace Layer (L4)
     topo = MemoryTopologyFactory.for_project(root_path)
     audit_file = topo.resolve("global", "audit")
-    
+
     audit_file.parent.mkdir(parents=True, exist_ok=True)
 
     import uuid
+
     entry = {
         "timestamp": datetime.now(UTC).isoformat(),
         "session_id": str(uuid.uuid4()),
@@ -157,7 +158,7 @@ def seal(
     # Step 2: Handle Safety (Warn/Block if other processes are using it)
     logger.info("Scanning zombie handles...")
     zombies = scan_zombie_handles(db_path)
-    
+
     if zombies and not force_evict:
         # v1.2.5: In a logical seal, we might still allow sealing if we only care about the state,
         # but to maintain 'forensic-grade' stability, we warn about concurrent handles.
@@ -165,6 +166,7 @@ def seal(
 
     if zombies and force_evict:
         import psutil
+
         for z in zombies:
             try:
                 proc = psutil.Process(z["pid"])
@@ -197,11 +199,7 @@ def unseal(db_path: Path, root_path: Path, reason: str) -> dict[str, Any]:
     log_unseal_audit(root_path, reason)
 
     # Step 2: Clear State
-    new_state = {
-        "sealed": False, 
-        "unseal_reason": reason,
-        "timestamp": datetime.now(UTC).isoformat()
-    }
+    new_state = {"sealed": False, "unseal_reason": reason, "timestamp": datetime.now(UTC).isoformat()}
     save_lock_state(root_path, new_state)
 
     logger.info(f"Logical seal removed: {reason}")

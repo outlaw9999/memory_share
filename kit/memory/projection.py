@@ -31,6 +31,7 @@ class ProjectionRequest:
     Pre-validated by kit-vantage (epistemic gate) and PolicyGuard (safety gate).
     No decision needed — only projection.
     """
+
     intent: CanonicalIntent
     content: str
     tag: str = "observation"
@@ -42,6 +43,7 @@ class ProjectionRequest:
 @dataclass
 class ProjectionReceipt:
     """Receipt of a successful projection. No decisions — only confirmation."""
+
     target_tier: str
     observation_id: int
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
@@ -56,6 +58,7 @@ def _get_router():
     if _MEMORY_ROUTER is None:
         from kit.core.memory_router import MemoryRouter, MemoryWriteRequest, WriteSource
         from kit.core.memory_topology import MemoryTopologyFactory
+
         topology = MemoryTopologyFactory.detect()
         _MEMORY_ROUTER = MemoryRouter(topology=topology)
     return _MEMORY_ROUTER

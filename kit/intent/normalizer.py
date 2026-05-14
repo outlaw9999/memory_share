@@ -150,5 +150,5 @@ def _detect_depth() -> int:
     raw = os.environ.get("KIT_EXECUTION_DEPTH", "0")
     try:
         return max(0, int(raw))
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return 0

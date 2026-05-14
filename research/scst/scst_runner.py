@@ -1,5 +1,7 @@
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
 from kit.core.memory_policy import MemoryPolicy
+
 
 class SCSTRunner:
     """
@@ -10,7 +12,7 @@ class SCSTRunner:
         self.router = router
         self.injector = injector
 
-    def run_fuzz_cycle(self, candidates: List[Any]) -> Dict[str, Any]:
+    def run_fuzz_cycle(self, candidates: list[Any]) -> dict[str, Any]:
         """
         Executes a single arbitration fuzzing cycle.
         """

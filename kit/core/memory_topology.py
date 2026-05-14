@@ -14,7 +14,7 @@ import logging
 import os
 import sqlite3
 from pathlib import Path
-from typing import Optional, Literal
+from typing import Literal, Optional
 from urllib.parse import unquote
 
 logger = logging.getLogger("kit.memory_topology")
@@ -22,6 +22,7 @@ logger = logging.getLogger("kit.memory_topology")
 
 class MemoryScope:
     """Memory scope identifier."""
+
     GLOBAL = "global"
     LOCAL = "local"
 
@@ -29,19 +30,19 @@ class MemoryScope:
 class MemoryTopology:
     """
     Single source of truth for memory physical topology.
-    
+
     Defines where each tier's database files live.
-    
+
     INVARIANT:
     - GLOBAL memory: ~/.kit/ (shared system state)
     - LOCAL memory: <project_root>/.kit/ (per-project state)
     """
-    
+
     @property
     def GLOBAL_KIT_HOME(self) -> Path:
         """Resolve the system-level shared directory (home) dynamically (Cached)."""
         return self._global_home
-    
+
     # Database filenames (consistent across all scopes)
     DB_LOCAL = "local_brain.db"
     DB_GLOBAL = "global_brain.db"
@@ -49,26 +50,26 @@ class MemoryTopology:
     DB_SNAPSHOT = "memory_snapshot.db"
     DB_ROUTING_AUDIT = "router_decisions.jsonl"
     DB_TELEMETRY = "routing_telemetry.jsonl"
-    
-    def __init__(self, project_root: Optional[Path] = None):
+
+    def __init__(self, project_root: Path | None = None):
         """
         Initialize topology for a given project.
-        
+
         Args:
             project_root: Path to the project root directory.
                          If None, only GLOBAL scope is available.
         """
         self.project_root = project_root
         self.local_kit_home = (project_root / ".kit") if project_root else None
-        
+
         # v1.2.5-TITANIUM: Cache home resolution to avoid repeated OS overhead
         self._global_home = Path(os.environ.get("KIT_GLOBAL_HOME", Path.home() / ".kit"))
-        
-        logger.info(f"MemoryTopology initialized")
+
+        logger.info("MemoryTopology initialized")
         logger.info(f"  GLOBAL: {self._global_home}")
         if self.local_kit_home:
             logger.info(f"  LOCAL: {self.local_kit_home}")
-    
+
     def resolve(
         self,
         scope: Literal["global", "local"],
@@ -76,31 +77,30 @@ class MemoryTopology:
     ) -> Path:
         """
         Resolve the path to a memory database.
-        
+
         Args:
             scope: "global" or "local"
             db_type: "local", "global", "frozen", "snapshot", or other valid DB name
-        
+
         Returns:
             Absolute path to the database file
-        
+
         Raises:
             ValueError: If scope is invalid or LOCAL requested without project_root
         """
-        
+
         if scope not in [MemoryScope.GLOBAL, MemoryScope.LOCAL]:
             raise ValueError(f"Invalid scope: {scope}. Must be 'global' or 'local'.")
-        
+
         if scope == MemoryScope.LOCAL:
             if not self.local_kit_home:
                 raise ValueError(
-                    "Cannot resolve LOCAL path: project_root not set. "
-                    "Initialize MemoryTopology with project_root."
+                    "Cannot resolve LOCAL path: project_root not set. Initialize MemoryTopology with project_root."
                 )
             base_dir = self.local_kit_home
         else:  # GLOBAL
             base_dir = self.GLOBAL_KIT_HOME
-        
+
         if scope == MemoryScope.GLOBAL and db_type in ["local", "snapshot"]:
             raise ValueError(
                 f"Security Boundary Violation: Cannot resolve {db_type} in GLOBAL scope. "
@@ -123,17 +123,19 @@ class MemoryTopology:
         else:
             # Allow custom filenames (apply canonicalization to fix %5C encoding bugs)
             filename = unquote(db_type).replace("/", os.sep).replace("\\", os.sep)
-        
+
         path = base_dir / filename
-        
+
         logger.debug(f"Resolved {scope}/{db_type} -> {path}")
-        
+
         return path
-    
+
     def describe_topology(self) -> dict:
         """Return a portable, self-describing map of the memory stack."""
+
         def _portable_path(p: Path | None) -> str:
-            if not p: return "none"
+            if not p:
+                return "none"
             try:
                 # v1.2.5-TITANIUM: Prefer relative or home-based paths for portability
                 if p.is_relative_to(self.GLOBAL_KIT_HOME):
@@ -143,31 +145,19 @@ class MemoryTopology:
                 # Fallback to home-relative if possible
                 if p.is_relative_to(Path.home()):
                     return f"~/{p.relative_to(Path.home()).as_posix()}"
-            except (ValueError, AttributeError):
+            except ValueError, AttributeError:
                 pass
             return p.as_posix()
 
         return {
-            "L1_local": {
-                "path": _portable_path(self.resolve("local", "local")),
-                "mode": "RW",
-                "scope": "project"
-            },
-            "L2_global": {
-                "path": _portable_path(self.resolve("global", "global")),
-                "mode": "RW",
-                "scope": "shared"
-            },
-            "L3_law": {
-                "path": _portable_path(self.resolve("global", "frozen")),
-                "mode": "RO",
-                "scope": "invariant"
-            },
+            "L1_local": {"path": _portable_path(self.resolve("local", "local")), "mode": "RW", "scope": "project"},
+            "L2_global": {"path": _portable_path(self.resolve("global", "global")), "mode": "RW", "scope": "shared"},
+            "L3_law": {"path": _portable_path(self.resolve("global", "frozen")), "mode": "RO", "scope": "invariant"},
             "L4_trace": {
                 "path": _portable_path(self.resolve("global", "audit")),
                 "mode": "append_only",
-                "scope": "audit"
-            }
+                "scope": "audit",
+            },
         }
 
     def get_all_paths(
@@ -176,55 +166,50 @@ class MemoryTopology:
     ) -> dict[str, Path]:
         """
         Get all standard database paths for a scope.
-        
+
         Returns:
             Dictionary mapping db_type -> absolute path
         """
         db_types = ["local", "global", "frozen", "snapshot", "telemetry", "audit"]
-        
-        return {
-            db_type: self.resolve(scope, db_type)
-            for db_type in db_types
-        }
-    
+
+        return {db_type: self.resolve(scope, db_type) for db_type in db_types}
+
     def verify_scope_isolation(self) -> dict[str, bool]:
         """
         Verify that GLOBAL and LOCAL scopes don't overlap.
-        
+
         Returns:
             Dictionary of checks and their results
         """
         checks = {}
-        
+
         # Check 1: LOCAL kit home should not be inside GLOBAL kit home
         if self.local_kit_home:
             # Use resolve() to handle symlinks and relative segments correctly
             global_abs = self.GLOBAL_KIT_HOME.resolve()
             local_abs = self.local_kit_home.resolve()
-            
+
             is_subpath = str(local_abs).startswith(str(global_abs) + os.sep) or local_abs == global_abs
             checks["local_not_inside_global"] = not is_subpath
-            
+
             if is_subpath:
                 logger.error(
                     f"TOPOLOGY VIOLATION: LOCAL kit ({self.local_kit_home}) "
                     f"is inside GLOBAL kit ({self.GLOBAL_KIT_HOME})"
                 )
-        
+
         # Check 2: Different paths (already covered by Check 1, but kept for clarity)
         if self.local_kit_home:
-            checks["different_paths"] = (
-                self.local_kit_home.resolve() != self.GLOBAL_KIT_HOME.resolve()
-            )
-        
+            checks["different_paths"] = self.local_kit_home.resolve() != self.GLOBAL_KIT_HOME.resolve()
+
         return checks
-    
+
     def initialize_scope(self, scope: Literal["global", "local"]) -> Path:
         """
         Initialize directory structure for a scope.
-        
+
         Creates .kit directory if it doesn't exist.
-        
+
         Returns:
             Path to the initialized kit directory
         """
@@ -236,10 +221,10 @@ class MemoryTopology:
             kit_dir = self.local_kit_home
         else:
             raise ValueError(f"Invalid scope: {scope}")
-        
+
         kit_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Initialized {scope} kit directory: {kit_dir}")
-        
+
         return kit_dir
 
     def connect(
@@ -247,7 +232,7 @@ class MemoryTopology:
         scope: Literal["global", "local"],
         db_type: str = "local",
         timeout: float = 10.0,
-        readonly: Optional[bool] = None,
+        readonly: bool | None = None,
     ) -> sqlite3.Connection:
         """
         Authority Pattern: Single point of entry for SQLite connections.
@@ -266,18 +251,17 @@ class MemoryTopology:
 
         is_frozen = db_type == "frozen"
         is_snapshot = db_type == "snapshot"
-        
+
         # v1.2.5-ARCHITECTURE-LOCK: Default to RO for Frozen/Snapshot, but allow override
         if readonly is None:
             is_readonly = is_frozen or is_snapshot
         else:
             is_readonly = readonly
-        
+
         # v1.2.5-TITANIUM: Unified URI construction for Windows compatibility
         mode = "ro" if is_readonly else "rwc"
         uri = f"file:{path.as_posix()}?mode={mode}"
         effective_readonly = is_readonly
-        
 
         try:
             conn = sqlite3.connect(
@@ -298,9 +282,9 @@ class MemoryTopology:
                 try:
                     conn.execute("PRAGMA journal_mode=WAL")
                 except sqlite3.Error:
-                    pass # Some readonly mounts might not support WAL toggle
+                    pass  # Some readonly mounts might not support WAL toggle
                 conn.execute("PRAGMA query_only=ON")
-            
+
             conn.execute("PRAGMA foreign_keys=ON")
             conn.execute(f"PRAGMA busy_timeout={int(timeout * 1000)}")
 
@@ -317,14 +301,8 @@ class MemoryTopology:
         path.parent.mkdir(parents=True, exist_ok=True)
         mode = "ro" if readonly else "rwc"
         uri = f"file:{path.as_posix()}?mode={mode}"
-        
-        conn = sqlite3.connect(
-            uri,
-            uri=True,
-            timeout=timeout,
-            check_same_thread=False,
-            isolation_level=None
-        )
+
+        conn = sqlite3.connect(uri, uri=True, timeout=timeout, check_same_thread=False, isolation_level=None)
         conn.row_factory = sqlite3.Row
         if not readonly:
             conn.execute("PRAGMA journal_mode=WAL")
@@ -333,16 +311,16 @@ class MemoryTopology:
 
 class MemoryTopologyFactory:
     """Factory for creating properly-configured MemoryTopology instances."""
-    
+
     @staticmethod
     def for_project(project_root: Path) -> MemoryTopology:
         """Create topology for a project (with both GLOBAL and LOCAL scopes)."""
         topology = MemoryTopology(project_root=project_root)
-        
+
         # Initialize both scopes
         topology.initialize_scope("global")
         topology.initialize_scope("local")
-        
+
         # Verify separation
         checks = topology.verify_scope_isolation()
         for check_name, result in checks.items():
@@ -353,9 +331,9 @@ class MemoryTopologyFactory:
                     f"{msg} Local kit home ({topology.local_kit_home}) "
                     f"collides with Global kit home ({topology.GLOBAL_KIT_HOME})."
                 )
-        
+
         return topology
-    
+
     @staticmethod
     def global_only() -> MemoryTopology:
         """Create topology for GLOBAL scope only (no project context)."""
@@ -370,46 +348,46 @@ class MemoryTopologyFactory:
 
 if __name__ == "__main__":
     import tempfile
-    
-    print("\n" + "="*70)
+
+    print("\n" + "=" * 70)
     print("[*] Memory Topology - Validation")
-    print("="*70 + "\n")
-    
+    print("=" * 70 + "\n")
+
     # Test 1: GLOBAL only
     print("[1] GLOBAL-only scope:")
     global_topo = MemoryTopologyFactory.global_only()
     print(f"  Global kit home: {global_topo.GLOBAL_KIT_HOME}")
     print(f"  Global db path: {global_topo.resolve('global', 'global')}")
     print(f"  Global frozen path: {global_topo.resolve('global', 'frozen')}")
-    
+
     # Test 2: Project with LOCAL scope
     print("\n[2] Project with LOCAL scope:")
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
         proj_topo = MemoryTopologyFactory.for_project(project_root)
-        
+
         print(f"  Project root: {project_root}")
         print(f"  Global kit home: {proj_topo.GLOBAL_KIT_HOME}")
         print(f"  Local kit home: {proj_topo.local_kit_home}")
-        
+
         # Verify isolation
         checks = proj_topo.verify_scope_isolation()
-        print(f"  Isolation checks:")
+        print("  Isolation checks:")
         for check, result in checks.items():
             status = "[OK]" if result else "[FAIL]"
             print(f"    {status} {check}")
-        
+
         # Get all paths
-        print(f"\n  LOCAL paths:")
+        print("\n  LOCAL paths:")
         local_paths = proj_topo.get_all_paths("local")
         for db_type, path in local_paths.items():
             print(f"    {db_type}: {path}")
-        
-        print(f"\n  GLOBAL paths:")
+
+        print("\n  GLOBAL paths:")
         global_paths = proj_topo.get_all_paths("global")
         for db_type, path in global_paths.items():
             print(f"    {db_type}: {path}")
-    
+
     # Test 3: Error handling
     print("\n[3] Error handling:")
     try:
@@ -418,7 +396,7 @@ if __name__ == "__main__":
         print("  [FAIL] Should have raised ValueError")
     except ValueError as e:
         print(f"  [OK] Correctly rejected LOCAL without project_root: {str(e)[:50]}...")
-    
-    print("\n" + "="*70)
+
+    print("\n" + "=" * 70)
     print("[OK] Topology validation complete")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")

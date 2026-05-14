@@ -1,10 +1,12 @@
 import subprocess
 import sys
-from kit.api import get_brain
-from kit.core.deterministic import deterministic_json
-from kit.core.context_compiler import compile_execution_context
-from kit.core.repo_scanner import scan_repo
 from pathlib import Path
+
+from kit.api import get_brain
+from kit.core.context_compiler import compile_execution_context
+from kit.core.deterministic import deterministic_json
+from kit.core.repo_scanner import scan_repo
+
 
 # 1. Golden Hash Test
 def test_execution_context_hash_stable():
@@ -16,6 +18,7 @@ def test_execution_context_hash_stable():
     assert ctx["context_hash"] == ctx2["context_hash"]
     assert ctx["schema_version"] == "1.0"
 
+
 # 2. Deterministic JSON Test
 def test_json_determinism():
     obj1 = {"b": 2, "a": 1}
@@ -24,6 +27,7 @@ def test_json_determinism():
     j2 = deterministic_json(obj2)
     assert j1 == j2
     assert j1 == '{"a":1,"b":2}'
+
 
 # 3. Repo Scanner Stability Test
 def test_repo_scan_hash_stable():
@@ -37,6 +41,7 @@ def test_repo_scan_hash_stable():
         assert ".venv" not in Path(f).parts
         assert ".git" not in Path(f).parts
 
+
 # 4. SQL Ordering Determinism Test
 def test_sql_ordering():
     brain = get_brain()
@@ -47,6 +52,7 @@ def test_sql_ordering():
         if len(rows) > 1:
             # We just ensure the query runs and returns without syntax error in the tie breaker
             pass
+
 
 # 5. Interpreter Lock Test (Boundary Test — v1.2.5: env-lock removed, always allowed)
 def test_runtime_venv_lock():

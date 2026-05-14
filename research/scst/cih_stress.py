@@ -1,13 +1,14 @@
 # kit/scst/cih_stress.py
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
 
 class CIHStressGenerator:
     """
     SCST CIH Stress Generator:
     Tests CIHRuntimeInjector ring buffer overflow and drop-safe semantics.
     """
-    def generate_burst(self, n: int = 1000) -> List[Dict[str, Any]]:
+    def generate_burst(self, n: int = 1000) -> list[dict[str, Any]]:
         return [
             {
                 "node": {

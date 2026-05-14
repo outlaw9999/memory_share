@@ -7,17 +7,18 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 logger = logging.getLogger("kit.release_guard")
 
+
 class ReleaseGuard:
     """Authority for enforcing v1.2.5-RC1 release invariants."""
-    
+
     EXPECTED_PINS = {
         "version": "1.2.5-final",
         "kit_schema_version": "1.2.5-final",
-        "vantage_contract_version": "1.2.5-rust"
+        "vantage_contract_version": "1.2.5-rust",
     }
 
     @classmethod
@@ -29,7 +30,7 @@ class ReleaseGuard:
                     "SELECT key, value FROM kernel_metadata WHERE key IN ('version', 'kit_schema_version', 'vantage_contract_version')"
                 ).fetchall()
                 metadata = {r[0]: r[1] for r in rows}
-                
+
                 for key, expected in cls.EXPECTED_PINS.items():
                     actual = metadata.get(key)
                     if actual != expected:

@@ -14,6 +14,7 @@ logger = logging.getLogger("kit.intent.registry")
 @runtime_checkable
 class IntentHandler(Protocol):
     """Protocol for any callable that handles a canonical intent."""
+
     def __call__(self, payload: IntentPayload) -> IntentResult: ...
 
 
@@ -23,6 +24,7 @@ class HandlerDescriptor:
     Execution capability descriptor — richer than a bare callable.
     Enables the runtime to make decisions about retries, verification, async dispatch, etc.
     """
+
     handler: Callable[[IntentPayload], IntentResult]
     side_effects: bool = True
     retryable: bool = False
@@ -41,9 +43,12 @@ class IntentRegistry:
     def __init__(self):
         self._descriptors: dict[CanonicalIntent, HandlerDescriptor] = {}
 
-    def register(self, intent: CanonicalIntent,
-                 handler: Callable[[IntentPayload], IntentResult],
-                 descriptor: HandlerDescriptor | None = None) -> None:
+    def register(
+        self,
+        intent: CanonicalIntent,
+        handler: Callable[[IntentPayload], IntentResult],
+        descriptor: HandlerDescriptor | None = None,
+    ) -> None:
         if not isinstance(intent, CanonicalIntent):
             raise TypeError(f"Expected CanonicalIntent, got {type(intent).__name__}")
         if not callable(handler):

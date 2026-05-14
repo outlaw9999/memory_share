@@ -13,6 +13,7 @@ from kit.intent.schema import CanonicalIntent
 @dataclass(frozen=True)
 class ResolverResult:
     """Pure metadata — output of Resolver, input to Planner."""
+
     intent: CanonicalIntent
     handler_descriptor: HandlerDescriptor
     mutability: Mutability

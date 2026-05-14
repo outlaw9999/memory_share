@@ -80,7 +80,7 @@ def read_execution_events(
         return []
 
     matches: list[dict[str, Any]] = []
-    with open(path, "r", encoding="utf-8", errors="ignore") as handle:
+    with open(path, encoding="utf-8", errors="ignore") as handle:
         for raw_line in handle:
             line = raw_line.strip()
             if not line:

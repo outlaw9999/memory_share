@@ -1,7 +1,8 @@
 """Vantage executor for dispatcher."""
+
+import logging
 import subprocess
 import sys
-import logging
 
 logger = logging.getLogger("kit.vantage_dispatch")
 
@@ -15,20 +16,15 @@ def run_vantage(command: str, args) -> int:
         "blast": "blast",
         "impact": "impact",
     }
-    
+
     subcmd = subcommands.get(command, command)
     target = getattr(args, "target", None) or getattr(args, "module", None)
     if target is None:
         positionals = [part for part in sys.argv[2:] if not part.startswith("-")]
         target = positionals[0] if positionals else "."
-    
+
     try:
-        result = subprocess.run(
-            [VANTAGE_BINARY, subcmd, str(target)],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
+        result = subprocess.run([VANTAGE_BINARY, subcmd, str(target)], capture_output=True, text=True, timeout=30)
         print(result.stdout, end="")
         if result.stderr:
             print(result.stderr, file=sys.stderr)

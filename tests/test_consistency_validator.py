@@ -29,7 +29,7 @@ def _run_kit(cwd: Path, *args: str) -> tuple[int, str, str]:
 def test_consistency_summary_passes_for_current_layers():
     report = summarize_consistency(
         vantage_capabilities={"binary": "test", "commands": ["graph", "verify-memory"], "ok": True},
-        policy_text="", # Isolate from AGENTS.md drift
+        policy_text="",  # Isolate from AGENTS.md drift
     )
 
     assert report["ok"] is True

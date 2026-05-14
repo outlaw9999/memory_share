@@ -69,6 +69,7 @@ class CanonicalIntent:
     The atomic semantic unit of the system.
     Format: DOMAIN:ACTION (e.g. MEMORY:LEARN, LIFECYCLE:PRE_COMMIT)
     """
+
     domain: IntentDomain
     action: IntentAction
 
@@ -85,6 +86,7 @@ class CanonicalIntent:
 
 # ── Intent Context (runtime metadata) ─────────────────────────────────────────
 
+
 class IntentOrigin(StrEnum):
     HOOK = "hook"
     AGENT = "agent"
@@ -96,6 +98,7 @@ class IntentOrigin(StrEnum):
 @dataclass
 class IntentContext:
     """Runtime metadata — separated from event-specific payload to prevent concern pollution."""
+
     caller_id: str
     origin: IntentOrigin
     correlation_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
@@ -109,9 +112,11 @@ class IntentContext:
 
 # ── Intent Payload (event-specific data) ───────────────────────────────────────
 
+
 @dataclass
 class IntentPayload:
     """Event-specific data carried by the intent. Never contains orchestration metadata."""
+
     intent: CanonicalIntent
     context: IntentContext
     data: dict[str, Any] = field(default_factory=dict)
@@ -129,6 +134,7 @@ class IntentPayload:
 #   MutationLog        → state changes
 #   ObservationLog     → logs/events
 #   VerdictLog         → policy decisions
+
 
 class TraceStatus(StrEnum):
     PENDING = "pending"
@@ -162,9 +168,11 @@ class TimestampRecord:
 
 # ── Trace Layers ───────────────────────────────────────────────────────────────
 
+
 @dataclass
 class TraceMetadata:
     """Layer 1: Identity — fixed once created."""
+
     trace_id: str
     status: TraceStatus = TraceStatus.PENDING
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -174,6 +182,7 @@ class TraceMetadata:
 @dataclass
 class ExecutionLineage:
     """Layer 2: Parent/children relationships for replay and loop detection."""
+
     intent_chain: list[CanonicalIntent]
     parent_trace_id: str | None = None
     execution_plan_id: str | None = None
@@ -183,18 +192,21 @@ class ExecutionLineage:
 @dataclass
 class MutationLog:
     """Layer 3: All state mutations performed during intent execution."""
+
     entries: list[MutationRecord] = field(default_factory=list)
 
 
 @dataclass
 class ObservationLog:
     """Layer 4: Timestamped events for debugging and audit."""
+
     entries: list[TimestampRecord] = field(default_factory=list)
 
 
 @dataclass
 class VerdictLog:
     """Layer 5: All policy decisions (Vantage, PolicyGuard, etc.)."""
+
     entries: list[VerdictRecord] = field(default_factory=list)
 
 
@@ -202,6 +214,7 @@ class VerdictLog:
 class RuntimeTrace:
     """Full trace of an intent's lifecycle — foundation for replay, debugging, and observability.
     Invariant: RuntimeTrace is assembled AFTER planning, never mutated during execution."""
+
     metadata: TraceMetadata
     lineage: ExecutionLineage
     mutations: MutationLog = field(default_factory=MutationLog)
@@ -209,8 +222,9 @@ class RuntimeTrace:
     verdicts: VerdictLog = field(default_factory=VerdictLog)
 
     @classmethod
-    def create(cls, trace_id: str, intent_chain: list[CanonicalIntent],
-               parent_trace_id: str | None = None) -> RuntimeTrace:
+    def create(
+        cls, trace_id: str, intent_chain: list[CanonicalIntent], parent_trace_id: str | None = None
+    ) -> RuntimeTrace:
         return cls(
             metadata=TraceMetadata(trace_id=trace_id),
             lineage=ExecutionLineage(
@@ -226,6 +240,7 @@ class RuntimeTrace:
 
 # ── Runtime Result ─────────────────────────────────────────────────────────────
 
+
 @dataclass
 class IntentResult:
     """Outcome of processing an intent through the runtime.
@@ -235,6 +250,7 @@ class IntentResult:
     - error:       human-readable error if failed
     - retryable:   whether failure can be safely retried
     - diagnostic:  key-value diagnostics for automation"""
+
     intent: CanonicalIntent
     trace: RuntimeTrace
     status: TraceStatus

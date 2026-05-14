@@ -25,6 +25,7 @@ class EventContractError(Exception):
 @dataclass
 class RawGitEventPayload:
     """Event-specific data carried across the boundary."""
+
     commit_hash: str | None = None
     branch: str | None = None
     diff: str | None = None
@@ -33,6 +34,7 @@ class RawGitEventPayload:
 @dataclass
 class RawGitEventOrigin:
     """Provenance of the event — never trusted by Plane 2 for business logic."""
+
     type: str = "git_hook"
     repo: str | None = None
     hook_depth: int = 0
@@ -44,6 +46,7 @@ class RawGitEvent:
     The ONLY valid input to Plane 2 (Cognitive Substrate).
     Emitted by Plane 1 (Git hooks) as JSON via stdout.
     """
+
     version: str = CONTRACT_VERSION
     event: str = ""
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
@@ -98,6 +101,7 @@ class RawGitEvent:
     def from_env(cls, event: str) -> RawGitEvent:
         """Construct a RawGitEvent from environment variables (legacy adapter)."""
         import os
+
         return cls(
             event=event,
             payload=RawGitEventPayload(
@@ -113,6 +117,7 @@ class RawGitEvent:
 
 # ── Idempotency key ────────────────────────────────────────────────────────────
 # Same (event, commit_hash) = same cognitive outcome. Used by PolicyGuard.
+
 
 def idempotency_key(event: RawGitEvent) -> tuple:
     """Unique key for deduplication. Same key = same cognitive result expected."""

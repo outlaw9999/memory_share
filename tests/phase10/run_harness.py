@@ -1,4 +1,5 @@
 """Run full Phase 10 containment harness and print report."""
+
 from tests.phase10.containment_harness import run_full_harness
 
 report = run_full_harness()

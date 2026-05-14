@@ -7,6 +7,7 @@ class StateVector:
     v1.2.5 Minimum Epistemic Substrate.
     This is the GROUND TRUTH for all cognitive transitions.
     """
+
     symbol: str
     structural_hash: str | None
     access_count: int

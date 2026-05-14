@@ -7,10 +7,12 @@ from pathlib import Path
 
 # --- Runtime Shield Invariants (v1.2.5-LOCK) ---
 
+
 class ExecutionMode(StrEnum):
     DEVELOPMENT = "development"
     TEST = "test"
     PRODUCTION = "production"
+
 
 def get_execution_mode() -> ExecutionMode:
     """Detect the current execution mode (v1.2.5-TITANIUM)."""
@@ -18,13 +20,14 @@ def get_execution_mode() -> ExecutionMode:
     mode_env = os.getenv("KIT_RUNTIME_MODE", "").lower()
     if mode_env in [m.value for m in ExecutionMode]:
         return ExecutionMode(mode_env)
-    
+
     # 2. Pytest detection
     if "pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST"):
         return ExecutionMode.TEST
-    
+
     # 3. Default to development (or production if packaged)
     return ExecutionMode.DEVELOPMENT
+
 
 def get_venv_path() -> Path | None:
     """Detect the project-local virtual environment (Root-only)."""
@@ -36,16 +39,18 @@ def get_venv_path() -> Path | None:
         if (parent / ".git").exists() or (parent / ".kit-root").exists():
             root = parent
             break
-            
+
     if root:
         venv = root / ".venv"
         if venv.is_dir():
             return venv
     return None
 
+
 def is_env_locked() -> bool:
     """[deprecated] Previously checked project .venv lock. Always True in v1.2.5+ (de-friction)."""
     return True
+
 
 def get_vantage_bin() -> Path | None:
     """Discover the Vantage binary with multi-anchor fallback (v1.2.5-TITANIUM)."""
@@ -68,7 +73,7 @@ def get_vantage_bin() -> Path | None:
             return local_bin
 
     # 3. Virtual Environment Check (.venv/Scripts)
-    # NOTE: This might be the shim. We check if it's the real binary (size > 1MB) 
+    # NOTE: This might be the shim. We check if it's the real binary (size > 1MB)
     # or if we should keep looking for a "real" one.
     venv = get_venv_path()
     if venv:
@@ -91,16 +96,16 @@ def get_vantage_bin() -> Path | None:
             if (parent / ".git").exists():
                 repo_root = parent
                 break
-        
+
         if repo_root:
             sibling_vantage = repo_root.parent / "Vantage"
             if sibling_vantage.is_dir():
                 for name in ("kit-vantage.exe", "kit-vantage"):
                     # Check root and target/release
                     paths = [
-                        sibling_vantage / name, 
+                        sibling_vantage / name,
                         sibling_vantage / "target" / "release" / name,
-                        sibling_vantage / "target" / "release" / "vantage.exe"
+                        sibling_vantage / "target" / "release" / "vantage.exe",
                     ]
                     for p in paths:
                         if p.exists():
@@ -115,7 +120,7 @@ def get_vantage_bin() -> Path | None:
             res_path = Path(resolved)
             # Avoid returning the shim if we are already in the venv
             if venv and scripts_dir in res_path.parents:
-                if res_path.stat().st_size < 100_000: # Likely shim
+                if res_path.stat().st_size < 100_000:  # Likely shim
                     continue
             return res_path
 
@@ -127,6 +132,7 @@ def get_vantage_bin() -> Path | None:
                 return bin_path
 
     return None
+
 
 def get_substrate_report() -> dict:
     """Generate a forensic report of the current execution environment."""

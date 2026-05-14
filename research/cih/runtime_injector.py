@@ -1,12 +1,14 @@
 # kit/cih/runtime_injector.py
 
 from __future__ import annotations
+
 from collections import deque
 from threading import Lock
-from typing import Any, Optional, Dict
+from typing import Any, Dict, Optional
 
-from kit.cih.signal_extractor import CIHSignalExtractor
 from kit.cih.cognitive_translator import CIHCognitiveTranslator
+from kit.cih.signal_extractor import CIHSignalExtractor
+
 from kit.core.memory_router import MemoryRouter
 
 
@@ -57,7 +59,7 @@ class CIHRuntimeInjector:
     # -----------------------------
     # CORE ENTRYPOINT
     # -----------------------------
-    def post(self, event: Dict[str, Any]) -> None:
+    def post(self, event: dict[str, Any]) -> None:
         """
         Fire-and-forget ingestion.
         Guaranteed non-blocking.
@@ -72,7 +74,7 @@ class CIHRuntimeInjector:
     # -----------------------------
     # BUFFER LAYER
     # -----------------------------
-    def _enqueue(self, event: Dict[str, Any]) -> None:
+    def _enqueue(self, event: dict[str, Any]) -> None:
         with self.lock:
             # deque(maxlen) auto-drops oldest -> backpressure safety
             self.buffer.append(event)

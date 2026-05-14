@@ -4,25 +4,26 @@ Tests for cognitive_harness modules.
 v1.2.5: Validates Flow Regression, Vantage Consistency, and Memory Isolation.
 """
 
-import pytest
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from tests.cognitive_harness import (
+    CIGate,
+    ConsistencyReport,
     DeterministicSimulator,
     FlowSnapshot,
-    StateDiff,
-    RegressionCorpus,
-    GivenWhenThen,
-    RegressionScenario,
-    VantageConsistencyChecker,
-    SignalDrift,
-    ConsistencyReport,
-    MemoryIsolationGuard,
-    IsolationTestResult,
-    CIGate,
     GateReport,
+    GivenWhenThen,
+    IsolationTestResult,
+    MemoryIsolationGuard,
+    RegressionCorpus,
+    RegressionScenario,
+    SignalDrift,
+    StateDiff,
     TestResult,
+    VantageConsistencyChecker,
 )
 from tests.cognitive_harness.simulator import SimulatorConfig
 

@@ -20,15 +20,15 @@ from kit.core.memory_scoring import (
 
 class TestMemoryFitnessEngine:
     """Core fitness scoring logic tests."""
-    
+
     @pytest.fixture
     def engine(self):
         return MemoryFitnessEngine()
-    
+
     # ============================================================================
     # TEST: UTILITY SCORING (frequency + success rate)
     # ============================================================================
-    
+
     def test_utility_high_frequency_high_success(self, engine):
         """Pattern used many times with high success → high utility."""
         signal = MemoryEventSignal(
@@ -43,10 +43,10 @@ class TestMemoryFitnessEngine:
             metadata={},
         )
         score = engine.score_event(signal)
-        
+
         # High frequency + high success should dominate
         assert score.utility >= 0.75, f"Expected high utility, got {score.utility}"
-    
+
     def test_utility_low_frequency(self, engine):
         """Pattern seen once, even with success → low utility."""
         signal = MemoryEventSignal(
@@ -61,10 +61,10 @@ class TestMemoryFitnessEngine:
             metadata={},
         )
         score = engine.score_event(signal)
-        
+
         # v1.2.5: Even low frequency with 100% success has decent utility (~0.7)
         assert score.utility > 0.6, f"Low frequency with high success should have moderate utility, got {score.utility}"
-    
+
     def test_utility_high_frequency_low_success(self, engine):
         """Pattern used often but fails → reduced utility."""
         signal = MemoryEventSignal(
@@ -79,14 +79,14 @@ class TestMemoryFitnessEngine:
             metadata={},
         )
         score = engine.score_event(signal)
-        
+
         # v1.2.5: High frequency + success matters.
         assert score.utility >= 0.6, f"High frequency + moderate success should be >= 0.6, got {score.utility}"
-    
+
     # ============================================================================
     # TEST: REUSABILITY SCORING (cross-project count)
     # ============================================================================
-    
+
     def test_reusability_single_project(self, engine):
         """Pattern only seen in your project → low reusability."""
         signal = MemoryEventSignal(
@@ -101,9 +101,9 @@ class TestMemoryFitnessEngine:
             metadata={},
         )
         score = engine.score_event(signal)
-        
+
         assert score.reusability == 0.3, f"Single project should have reusability=0.3, got {score.reusability}"
-    
+
     def test_reusability_two_projects(self, engine):
         """Pattern in 2 projects → emerging pattern."""
         signal = MemoryEventSignal(
@@ -118,9 +118,9 @@ class TestMemoryFitnessEngine:
             metadata={},
         )
         score = engine.score_event(signal)
-        
+
         assert score.reusability == 0.6, f"Two projects should have reusability=0.6, got {score.reusability}"
-    
+
     def test_reusability_five_plus_projects(self, engine):
         """Pattern in 5+ projects → universal pattern."""
         for cross_count in [5, 10, 100]:
@@ -136,13 +136,13 @@ class TestMemoryFitnessEngine:
                 metadata={},
             )
             score = engine.score_event(signal)
-            
+
             assert score.reusability == 0.9, f"5+ projects should have reusability=0.9, got {score.reusability}"
-    
+
     # ============================================================================
     # TEST: FRESHNESS SCORING (exponential decay)
     # ============================================================================
-    
+
     def test_freshness_recent_pattern(self, engine):
         """Pattern from today → full freshness."""
         signal = MemoryEventSignal(
@@ -157,9 +157,9 @@ class TestMemoryFitnessEngine:
             metadata={},
         )
         score = engine.score_event(signal)
-        
+
         assert score.freshness >= 0.99, f"Recent pattern should have freshness ~1.0, got {score.freshness}"
-    
+
     def test_freshness_30_days_old(self, engine):
         """Pattern 30 days old → half freshness (exponential half-life)."""
         signal = MemoryEventSignal(
@@ -174,10 +174,10 @@ class TestMemoryFitnessEngine:
             metadata={},
         )
         score = engine.score_event(signal)
-        
+
         # Half-life is 30 days, so e^-0.693 ≈ 0.5
         assert 0.48 < score.freshness < 0.52, f"30 days should be ~0.5 freshness, got {score.freshness}"
-    
+
     def test_freshness_90_days_old(self, engine):
         """Pattern 90 days old → very stale."""
         signal = MemoryEventSignal(
@@ -192,14 +192,14 @@ class TestMemoryFitnessEngine:
             metadata={},
         )
         score = engine.score_event(signal)
-        
+
         # Should be much lower than recent pattern
         assert score.freshness < 0.15, f"90 days should be very stale, got {score.freshness}"
-    
+
     # ============================================================================
     # TEST: FITNESS LAYER ASSIGNMENT
     # ============================================================================
-    
+
     def test_layer_assignment_working(self, engine):
         """Low quality pattern → stays in WORKING (not stored)."""
         signal = MemoryEventSignal(
@@ -214,10 +214,10 @@ class TestMemoryFitnessEngine:
             metadata={"variants": [1, 2, 3, 4, 5]},  # High entropy
         )
         score = engine.score_event(signal)
-        
+
         assert score.layer == MemoryLayer.WORKING, f"Weak pattern should be WORKING, got {score.layer}"
         assert score.fitness < 0.30
-    
+
     def test_layer_assignment_local(self, engine):
         """Medium quality, single-project → LOCAL brain."""
         signal = MemoryEventSignal(
@@ -232,10 +232,10 @@ class TestMemoryFitnessEngine:
             metadata={},
         )
         score = engine.score_event(signal)
-        
+
         assert score.layer == MemoryLayer.LOCAL, f"Single-project pattern should be LOCAL, got {score.layer}"
         assert 0.30 <= score.fitness < 0.60
-    
+
     def test_layer_assignment_global(self, engine):
         """Good quality, multi-project → GLOBAL brain."""
         signal = MemoryEventSignal(
@@ -250,10 +250,10 @@ class TestMemoryFitnessEngine:
             metadata={},
         )
         score = engine.score_event(signal)
-        
+
         assert score.layer == MemoryLayer.GLOBAL, f"Multi-project pattern should be GLOBAL, got {score.layer}"
         assert 0.60 <= score.fitness < 0.85
-    
+
     def test_layer_assignment_frozen(self, engine):
         """Excellent quality, stable, cross-project → FROZEN (immutable)."""
         signal = MemoryEventSignal(
@@ -268,14 +268,14 @@ class TestMemoryFitnessEngine:
             metadata={},
         )
         score = engine.score_event(signal)
-        
+
         assert score.layer == MemoryLayer.FROZEN, f"Excel pattern should be FROZEN, got {score.layer}"
         assert score.fitness >= 0.85
-    
+
     # ============================================================================
     # TEST: BOUNDARY CONDITIONS
     # ============================================================================
-    
+
     def test_fitness_bounded_0_to_1(self, engine):
         """Fitness is always [0.0, 1.0]."""
         extreme_signals = [
@@ -302,15 +302,15 @@ class TestMemoryFitnessEngine:
                 metadata={},
             ),
         ]
-        
+
         for signal in extreme_signals:
             score = engine.score_event(signal)
             assert 0.0 <= score.fitness <= 1.0, f"Fitness out of bounds: {score.fitness}"
-    
+
     # ============================================================================
     # TEST: ENTROPY SCORING (complexity penalty)
     # ============================================================================
-    
+
     def test_entropy_high_variants(self, engine):
         """Pattern with many variants → high entropy → lower fitness."""
         signal_few_variants = MemoryEventSignal(
@@ -324,7 +324,7 @@ class TestMemoryFitnessEngine:
             error_type=None,
             metadata={"variants": [1]},  # Few variants
         )
-        
+
         signal_many_variants = MemoryEventSignal(
             event_type="recall",
             symbol="Pattern2",
@@ -336,17 +336,17 @@ class TestMemoryFitnessEngine:
             error_type=None,
             metadata={"variants": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]},  # Many variants
         )
-        
+
         engine = MemoryFitnessEngine()
         score1 = engine.score_event(signal_few_variants)
         score2 = engine.score_event(signal_many_variants)
-        
+
         assert score1.fitness > score2.fitness, "High entropy should reduce fitness"
 
 
 class TestMemoryPromotionPolicy:
     """Promotion rules between layers."""
-    
+
     def test_should_promote_local_to_global(self):
         """Pattern meets all criteria → gets promoted."""
         score = MemoryScore(
@@ -359,7 +359,7 @@ class TestMemoryPromotionPolicy:
             confidence=0.85,
             layer=MemoryLayer.GLOBAL,
         )
-        
+
         signal = MemoryEventSignal(
             event_type="recall",
             symbol="PromoteMe",
@@ -371,10 +371,10 @@ class TestMemoryPromotionPolicy:
             error_type=None,
             metadata={},
         )
-        
+
         result = MemoryPromotionPolicy.should_promote_to_global(score, signal)
         assert result is True, "Pattern should be promoted"
-    
+
     def test_should_not_promote_low_fitness(self):
         """Low fitness → no promotion."""
         score = MemoryScore(
@@ -387,7 +387,7 @@ class TestMemoryPromotionPolicy:
             confidence=0.75,
             layer=MemoryLayer.LOCAL,
         )
-        
+
         signal = MemoryEventSignal(
             event_type="recall",
             symbol="TooWeak",
@@ -399,10 +399,10 @@ class TestMemoryPromotionPolicy:
             error_type=None,
             metadata={},
         )
-        
+
         result = MemoryPromotionPolicy.should_promote_to_global(score, signal)
         assert result is False, "Low quality should not promote"
-    
+
     def test_should_not_promote_high_error_rate(self):
         """High error rate blocks promotion (safety critical)."""
         score = MemoryScore(
@@ -415,7 +415,7 @@ class TestMemoryPromotionPolicy:
             confidence=0.85,
             layer=MemoryLayer.LOCAL,
         )
-        
+
         signal = MemoryEventSignal(
             event_type="recall",
             symbol="UnreliablePattern",
@@ -427,10 +427,10 @@ class TestMemoryPromotionPolicy:
             error_type="timeout",
             metadata={},
         )
-        
+
         result = MemoryPromotionPolicy.should_promote_to_global(score, signal)
         assert result is False, "High error rate blocks promotion"
-    
+
     def test_should_promote_to_frozen_requires_stability(self):
         """Only old, stable patterns get FROZEN status."""
         score = MemoryScore(
@@ -443,7 +443,7 @@ class TestMemoryPromotionPolicy:
             confidence=0.98,
             layer=MemoryLayer.GLOBAL,
         )
-        
+
         signal = MemoryEventSignal(
             event_type="recall",
             symbol="MasterPattern",
@@ -455,11 +455,11 @@ class TestMemoryPromotionPolicy:
             error_type=None,
             metadata={},
         )
-        
+
         # Should promote if in GLOBAL for 90+ days
         result = MemoryPromotionPolicy.should_promote_to_frozen(score, signal, days_in_global=91.0)
         assert result is True, "Stable pattern should promote to FROZEN"
-        
+
         # Should NOT promote if only recently in GLOBAL
         result = MemoryPromotionPolicy.should_promote_to_frozen(score, signal, days_in_global=30.0)
         assert result is False, "Unstable pattern should not promote to FROZEN"
@@ -467,11 +467,11 @@ class TestMemoryPromotionPolicy:
 
 class TestLearningLoopIntegration:
     """End-to-end: event → scoring → promotion decision."""
-    
+
     def test_full_pipeline_new_pattern(self):
         """New pattern: appears, gets scored, assigned to LOCAL."""
         engine = MemoryFitnessEngine()
-        
+
         # First observation of pattern
         signal = MemoryEventSignal(
             event_type="recall",
@@ -484,16 +484,16 @@ class TestLearningLoopIntegration:
             error_type=None,
             metadata={},
         )
-        
+
         score = engine.score_event(signal)
-        
+
         # Should be LOCAL tier (not working, but not global)
         assert score.layer == MemoryLayer.LOCAL or score.layer == MemoryLayer.WORKING
-    
+
     def test_full_pipeline_maturing_pattern(self):
         """Pattern matures: LOCAL → GLOBAL after enough evidence."""
         engine = MemoryFitnessEngine()
-        
+
         # Matured observation
         signal = MemoryEventSignal(
             event_type="recall",
@@ -506,18 +506,18 @@ class TestLearningLoopIntegration:
             error_type=None,
             metadata={},
         )
-        
+
         score = engine.score_event(signal)
         promotion = MemoryPromotionPolicy.should_promote_to_global(score, signal)
-        
+
         # v1.2.5: High richness + frequency can push into FROZEN/READ_ONLY
         assert score.layer in [MemoryLayer.GLOBAL, MemoryLayer.FROZEN]
         assert promotion is True
-    
+
     def test_full_pipeline_universal_pattern(self):
         """Pattern becomes universal: GLOBAL → FROZEN after stability."""
         engine = MemoryFitnessEngine()
-        
+
         signal = MemoryEventSignal(
             event_type="recall",
             symbol="JSONSerialization",
@@ -529,12 +529,10 @@ class TestLearningLoopIntegration:
             error_type=None,
             metadata={},
         )
-        
+
         score = engine.score_event(signal)
-        is_frozen = MemoryPromotionPolicy.should_promote_to_frozen(
-            score, signal, days_in_global=100.0
-        )
-        
+        is_frozen = MemoryPromotionPolicy.should_promote_to_frozen(score, signal, days_in_global=100.0)
+
         assert score.fitness >= 0.85
         assert is_frozen is True
 
@@ -546,10 +544,10 @@ class TestLearningLoopIntegration:
 if __name__ == "__main__":
     # Quick validation run (without pytest)
     engine = MemoryFitnessEngine()
-    
+
     print("🧠 KIT v1.2.5 Memory Fitness Engine - Validation")
     print("=" * 60)
-    
+
     # Test case 1: Weak pattern
     weak = MemoryEventSignal(
         event_type="recall",
@@ -565,7 +563,7 @@ if __name__ == "__main__":
     score1 = engine.score_event(weak)
     print(f"\n1. Weak pattern → {score1.layer.value}")
     print(f"   Fitness: {score1.fitness:.3f}")
-    
+
     # Test case 2: Strong pattern
     strong = MemoryEventSignal(
         event_type="recall",
@@ -581,9 +579,9 @@ if __name__ == "__main__":
     score2 = engine.score_event(strong)
     print(f"\n2. Strong pattern → {score2.layer.value}")
     print(f"   Fitness: {score2.fitness:.3f}")
-    
+
     # Test case 3: Promotion check
     can_promote = MemoryPromotionPolicy.should_promote_to_global(score2, strong)
     print(f"\n3. Can promote to GLOBAL? {can_promote}")
-    
+
     print("\n✅ Validation complete")
