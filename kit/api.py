@@ -7,7 +7,7 @@ from kit.core.kit_cognitive_core import RankingAssessment, SAMBrain, SAMBrainErr
 from kit.core.rmil import warmup_memory # RMIL v1.0
 from kit.core.memory_topology import MemoryTopologyFactory
 
-# v1.2.4-LOCK: Vantage is external-binary-only; called from kit_baking, NOT from learn().
+# v1.2.5-LOCK: Vantage is external-binary-only; called from kit_baking, NOT from learn().
 
 # --- Stable API Boundary Definitions ---
 # This file is the primary entry point for community forks and IDE integrations.
@@ -19,13 +19,13 @@ from kit.core.kit_replay_tracer import traced
 
 def resolve_paths(force_local: bool = False, mode: str = "auto") -> tuple[Path, Path, Path]:
     """
-    Standard Path Resolver for .kit Kernel. (v1.2.4-COLLAPSE)
+    Standard Path Resolver for .kit Kernel. (v1.2.5-COLLAPSE)
     """
     cwd = Path.cwd().resolve()
     
     if force_local or mode == "isolated":
         root_path = cwd
-        # v1.2.4 Debug
+        # v1.2.5 Debug
         if os.getenv("KIT_LOG_LEVEL") == "DEBUG":
             import logging
             logging.getLogger("kit.api").debug(f"resolve_paths(force_local=True) -> root_path={root_path} (cwd={cwd})")
@@ -47,7 +47,7 @@ def resolve_paths(force_local: bool = False, mode: str = "auto") -> tuple[Path, 
                 root_path = parent
                 break
 
-    # v1.2.4-COLLAPSE: Authority resolution via MemoryTopology
+    # v1.2.5-COLLAPSE: Authority resolution via MemoryTopology
     topology = MemoryTopologyFactory.for_project(root_path)
     global_db = topology.resolve("global", "global")
     project_db = topology.resolve("local", "local")
@@ -105,7 +105,7 @@ def learn(
     skip_render: bool = False,
 ) -> int:
     """
-    Learn a fact. v1.2.4-LOCK: Pure O(1) write. No Vantage. No structural analysis.
+    Learn a fact. v1.2.5-LOCK: Pure O(1) write. No Vantage. No structural analysis.
     Structural graduation happens via `kit bake` (explicit baking pass) or `kit reflect`.
     """
     brain = get_brain()
@@ -267,7 +267,7 @@ def stream_events(poll_interval: float = 0.2):
 
 
 def snapshot() -> Path:
-    """Manual trigger for database snapshot (v1.2.4)."""
+    """Manual trigger for database snapshot (v1.2.5)."""
     return get_brain().snapshot()
 
 
@@ -296,7 +296,7 @@ def reflect_check(
     file_path: Path | None = None,
     deep: bool = False
 ) -> dict[str, Any]:
-    """Run cognitive reflection check (v1.2.4 TITANIUM)."""
+    """Run cognitive reflection check (v1.2.5 TITANIUM)."""
     from kit.core.kit_platform import GIT_TIMEOUT, run_safe
     from kit.core.kit_reflect import run_reflect
 

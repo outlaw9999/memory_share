@@ -9,14 +9,14 @@ from kit.models.signal import Signal
 
 logger = logging.getLogger("kit.vantage")
 
-# v1.2.4-TITANIUM: Unified Binary Discovery
+# v1.2.5-TITANIUM: Unified Binary Discovery
 VANTAGE_BIN = kit_env.get_vantage_bin()
 
 
 def invoke_vantage(path: Path, timeout: int = 10, strict: bool = False) -> list[Signal]:
     """
     Invoke the Vantage AST Sensor (Rust) and map its output to standardized Signals.
-    Implementation of Phase B 'Neural Wiring' (v1.2.4-TITANIUM).
+    Implementation of Phase B 'Neural Wiring' (v1.2.5-TITANIUM).
     """
     if not VANTAGE_BIN or not VANTAGE_BIN.exists():
         msg = f"Vantage binary missing. Please set VANTAGE_HOME or install to project root."
@@ -32,7 +32,7 @@ def invoke_vantage(path: Path, timeout: int = 10, strict: bool = False) -> list[
     cmd = [str(VANTAGE_BIN), "verify", str(path), "--json"]
 
     try:
-        # v1.2.4: Fast-failure with strict timeout to prevent IDE/CLI hang
+        # v1.2.5: Fast-failure with strict timeout to prevent IDE/CLI hang
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -107,13 +107,13 @@ def invoke_vantage_on_text(code: str, suffix: str = ".py", timeout: int = 5, str
 
 def get_graph(path: Path, timeout: int = 15) -> dict:
     """
-    Invoke Vantage graph command (v1.2.4).
+    Invoke Vantage graph command (v1.2.5).
     Returns JSON graph data: {"nodes": [...], "edges": [...]}
     """
     if not VANTAGE_BIN or not VANTAGE_BIN.exists():
         raise RuntimeError("Vantage binary missing.")
 
-    # Vantage v1.2.4 graph command requires a file target
+    # Vantage v1.2.5 graph command requires a file target
     if path.is_dir():
         logger.warning(f"get_graph: target is a directory {path}. Vantage graph requires a file. Scanning entry point...")
         # Fallback: look for __init__.py or main.py

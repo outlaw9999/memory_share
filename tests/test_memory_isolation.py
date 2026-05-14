@@ -5,7 +5,7 @@ from kit.core.memory_router import MemoryRouterFactory, MemoryWriteRequest, Writ
 
 def test_local_global_isolation():
     """
-    STABILIZATION TEST: Multi-repo Independence (v1.2.4)
+    STABILIZATION TEST: Multi-repo Independence (v1.2.5)
     Ensures that writing to Repo A doesn't pollute Repo B's local brain,
     while both successfully target the shared Global brain.
     """
@@ -36,13 +36,13 @@ def test_local_global_isolation():
         # Check if repo2 db exists (it should be created on init/connect, but should be empty)
         import sqlite3
         conn = sqlite3.connect(str(local2_db))
-        # v1.2.4-TITANIUM: Check 'nodes' table for the UID
+        # v1.2.5-TITANIUM: Check 'nodes' table for the UID
         count = conn.execute("SELECT COUNT(*) FROM nodes WHERE uid='iso:local:a'").fetchone()[0]
         conn.close()
         
         assert count == 0, "Isolation failure! Repo 2 local brain contains Repo 1 data."
         
-        # v1.2.4-TITANIUM: Resource Release
+        # v1.2.5-TITANIUM: Resource Release
         r1.close()
         r2.close()
         

@@ -1,4 +1,4 @@
-"""Release Kernel Guard (v1.2.4-RC1).
+"""Release Kernel Guard (v1.2.5-RC1).
 
 Enforces P0/P1/P2 gates as runtime invariants to ensure Global Release Safety.
 """
@@ -12,12 +12,12 @@ from typing import Dict, Any
 logger = logging.getLogger("kit.release_guard")
 
 class ReleaseGuard:
-    """Authority for enforcing v1.2.4-RC1 release invariants."""
+    """Authority for enforcing v1.2.5-RC1 release invariants."""
     
     EXPECTED_PINS = {
-        "version": "1.2.4-final",
-        "kit_schema_version": "1.2.4-final",
-        "vantage_contract_version": "1.2.4-rust"
+        "version": "1.2.5-final",
+        "kit_schema_version": "1.2.5-final",
+        "vantage_contract_version": "1.2.5-rust"
     }
 
     @classmethod
@@ -49,7 +49,7 @@ class ReleaseGuard:
         if not seal_path.exists():
             msg = "WARN: Missing VANTAGE.SEAL. Structural baseline not established."
             logger.warning(msg)
-            # v1.2.4: In RC1 we only warn, but in FINAL this could become a P1 block
+            # v1.2.5: In RC1 we only warn, but in FINAL this could become a P1 block
             return False
         return True
 

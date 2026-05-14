@@ -119,7 +119,7 @@ def save_lock_state(root_path: Path, state: dict[str, Any]) -> None:
 def log_unseal_audit(root_path: Path, reason: str) -> None:
     from kit.core.memory_topology import MemoryTopologyFactory
     
-    # v1.2.4-TITANIUM: Route audit traces to Global Trace Layer (L4)
+    # v1.2.5-TITANIUM: Route audit traces to Global Trace Layer (L4)
     topo = MemoryTopologyFactory.for_project(root_path)
     audit_file = topo.resolve("global", "audit")
     
@@ -159,7 +159,7 @@ def seal(
     zombies = scan_zombie_handles(db_path)
     
     if zombies and not force_evict:
-        # v1.2.4: In a logical seal, we might still allow sealing if we only care about the state,
+        # v1.2.5: In a logical seal, we might still allow sealing if we only care about the state,
         # but to maintain 'forensic-grade' stability, we warn about concurrent handles.
         logger.warning(f"Concurrent handles detected during seal: {zombies}")
 
@@ -179,7 +179,7 @@ def seal(
         "sealed": True,
         "db_path": str(db_path.resolve()),
         "timestamp": datetime.now(UTC).isoformat(),
-        "seal_version": "1.2.4-LOGICAL",
+        "seal_version": "1.2.5-LOGICAL",
     }
     save_lock_state(root_path, new_state)
 

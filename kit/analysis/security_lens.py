@@ -30,7 +30,7 @@ def apply_security_lens(file_path: Path, structural_signals: list[Signal]) -> li
         for struct in structural_signals:
             # Note: Structural signals (Vantage) currently might not have line numbers
             # for all nodes, but they have Symbol IDs (UUIDs).
-            # v1.2.4: We use the context provided by Vantage to find the parent symbol.
+            # v1.2.5: We use the context provided by Vantage to find the parent symbol.
 
             # Simple heuristic for v0.1: match to the file-level or nearest structural hit
             # if line number information is available.

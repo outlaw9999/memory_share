@@ -1,4 +1,4 @@
-"""Titanium Metrics Engine (v1.2.4-STAGE5).
+"""Titanium Metrics Engine (v1.2.5-STAGE5).
 
 Calculates Global Quality Index (GQI) and Entropy for cognitive health.
 """

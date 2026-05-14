@@ -1,4 +1,4 @@
-"""Elite Cognitive Quad‑Store AI Kernel (.kit) – Titanium v1.2.4.
+"""Elite Cognitive Quad‑Store AI Kernel (.kit) – Titanium v1.2.5.
 
 Hybrid Brain support (Local + Global + Frozen + Snapshot) with Temporal Graph logic.
 Conforms to code‑py‑314: nogil‑ready, strict typing, immutable models, explicit errors.
@@ -58,7 +58,7 @@ def get_tag_schema() -> dict[str, Union[list[str], str]]:
         "choices": [t.value for t in FactTag],
         "default": FactTag.DECISION.value,
         "source": "kit.core.kit_cognitive_core.FactTag",
-        "version": "1.2.4-TITANIUM",
+        "version": "1.2.5-TITANIUM",
     }
 
 
@@ -67,7 +67,7 @@ class SAMBrainError(Exception):
 
 
 def sha256_file(path: Path) -> str:
-    """Calculate SHA256 hash of a file for integrity verification (v1.2.4-TITANIUM)."""
+    """Calculate SHA256 hash of a file for integrity verification (v1.2.5-TITANIUM)."""
     import hashlib
     h = hashlib.sha256()
     try:
@@ -106,9 +106,9 @@ class Memory:
     _runtime_hash: int | None = None
 
     def __post_init__(self) -> None:
-        """Strict Deterministic identity lock for v1.2.4-TITANIUM-FROZEN."""
+        """Strict Deterministic identity lock for v1.2.5-TITANIUM-FROZEN."""
         import hashlib
-        # v1.2.4-TITANIUM++: Use BLAKE2b(16) for 128-bit collision-free runtime arbitration
+        # v1.2.5-TITANIUM++: Use BLAKE2b(16) for 128-bit collision-free runtime arbitration
         h_bytes = hashlib.blake2b(self.content.encode("utf-8"), digest_size=16).digest()
         h = int.from_bytes(h_bytes, "big")
         # Ensure _runtime_hash is always set as an immutable attribute
@@ -138,7 +138,7 @@ class RankingAssessment:
 
 
 class ConnectionWrapper:
-    """Safely wraps a sqlite3.Connection to track its lifecycle (v1.2.4-TITANIUM)."""
+    """Safely wraps a sqlite3.Connection to track its lifecycle (v1.2.5-TITANIUM)."""
     def __init__(self, conn: sqlite3.Connection, conn_id: int, brain: SAMBrain, readonly: bool = False):
         self._conn = conn
         self._conn_id = conn_id
@@ -160,7 +160,7 @@ class ConnectionWrapper:
             if self._brain and self._brain._active_connections:
                 self._brain._active_connections.pop(self._conn_id, None)
             
-            # v1.2.4-TITANIUM: Connection closure is now lightweight.
+            # v1.2.5-TITANIUM: Connection closure is now lightweight.
             # WAL Checkpoints are handled at the kernel-level during shutdown or maintenance.
             self._conn.close()
             self._brain = None # Break circular reference
@@ -198,7 +198,7 @@ class SAMBrain:
         if self.root_path:
             self.topology = topology or MemoryTopologyFactory.for_project(self.root_path)
         else:
-            # v1.2.4-TITANIUM: Fallback to global-only topology if no project root found
+            # v1.2.5-TITANIUM: Fallback to global-only topology if no project root found
             self.topology = topology or MemoryTopologyFactory.global_only()
             logger.warning("No project root found. Running in GLOBAL-ONLY mode.")
         self.global_db_path: Path | None = None
@@ -225,10 +225,10 @@ class SAMBrain:
         self._refresh_version()
         self._load_last_snapshot_state()
         
-        # v1.2.4-STAGE5.5.3: Memory Dual-Path Router (L0 Cache)
+        # v1.2.5-STAGE5.5.3: Memory Dual-Path Router (L0 Cache)
         self._l0_cache = L0Cache()
         
-        # v1.2.4-STAGE5.5.2: Memory Commit Layer (The Clock)
+        # v1.2.5-STAGE5.5.2: Memory Commit Layer (The Clock)
         self._commit_layer = CommitQueue(self, on_flush=self._on_commit_graduation)
         
         from kit.core.kit_env import ExecutionMode, get_execution_mode
@@ -245,11 +245,11 @@ class SAMBrain:
             if (parent / ".git").exists() or (parent / "pyproject.toml").exists():
                 return parent
             
-            # v1.2.4-TITANIUM: Safety Barrier - Do NOT search above user home or IDE internal dirs
+            # v1.2.5-TITANIUM: Safety Barrier - Do NOT search above user home or IDE internal dirs
             if parent.resolve() == Path.home().resolve() or parent.name == ".gemini":
                 break
         
-        # v1.2.4-TITANIUM: If we are exactly at HOME and no boundary was found, 
+        # v1.2.5-TITANIUM: If we are exactly at HOME and no boundary was found, 
         # we return None to prevent local_brain.db from appearing in ~/.kit/
         if start_path.resolve() == Path.home().resolve():
             return None
@@ -264,7 +264,7 @@ class SAMBrain:
             conn.commit()
 
     def _create_connection(self, db_path: Path, readonly: bool = False) -> ConnectionWrapper:
-        """Central authority for opening ANY SQLite connection (v1.2.4-TITANIUM)."""
+        """Central authority for opening ANY SQLite connection (v1.2.5-TITANIUM)."""
         if self._is_shutting_down:
             raise RuntimeError("Cognitive kernel is shutting down.")
             
@@ -279,7 +279,7 @@ class SAMBrain:
 
     @contextmanager
     def get_connection(self, db_path: Path | None = None, readonly: bool = False):
-        """Unified connection authority with automatic closure (v1.2.4)."""
+        """Unified connection authority with automatic closure (v1.2.5)."""
         target = db_path or self.db_path
         conn = self._create_connection(target, readonly=readonly)
         try:
@@ -296,10 +296,10 @@ class SAMBrain:
         return self._create_connection(target, readonly=readonly)
 
     def attach_global(self, global_db_path: Path | None) -> None:
-        """Attach global brain and ensure it is initialized (v1.2.4-TITANIUM)."""
+        """Attach global brain and ensure it is initialized (v1.2.5-TITANIUM)."""
         self.global_db_path = global_db_path
         if global_db_path:
-            # v1.2.4: Ensure global brain has current schema
+            # v1.2.5: Ensure global brain has current schema
             try:
                 with self.get_connection(global_db_path) as conn:
                     init_db(conn)
@@ -319,7 +319,7 @@ class SAMBrain:
             self.cognition_version = 0
 
     def _load_last_snapshot_state(self) -> None:
-        """Load the most recent snapshot ID and Hash to maintain lineage (v1.2.4-STAGE5)."""
+        """Load the most recent snapshot ID and Hash to maintain lineage (v1.2.5-STAGE5)."""
         try:
             with self.get_connection(readonly=True) as conn:
                 row = conn.execute(
@@ -346,7 +346,7 @@ class SAMBrain:
         self._snapshot_sync_thread.start()
 
     def _stop_snapshot_syncer(self) -> None:
-        """Signal and wait for the background worker to stop (v1.2.4)."""
+        """Signal and wait for the background worker to stop (v1.2.5)."""
         # 1. Trigger STOP signals
         try:
             if hasattr(self, "_snapshot_sync_stop_event"):
@@ -359,7 +359,7 @@ class SAMBrain:
 
         # 2. Join background thread with deterministic timeout
         if self._snapshot_sync_thread and self._snapshot_sync_thread.is_alive():
-            # v1.2.4-TITANIUM: Enforce thread join to prevent WinError 32 during file cleanup
+            # v1.2.5-TITANIUM: Enforce thread join to prevent WinError 32 during file cleanup
             self._snapshot_sync_thread.join(timeout=2.0)
             if self._snapshot_sync_thread.is_alive():
                 logger.warning("Titanium-Snapshot-Worker did not exit gracefully. Force closing.")
@@ -371,7 +371,7 @@ class SAMBrain:
             self._l0_cache.clear_by_hashes(hashes)
 
     def shutdown(self) -> None:
-        """Deterministic shutdown barrier (v1.2.4-TITANIUM)."""
+        """Deterministic shutdown barrier (v1.2.5-TITANIUM)."""
         # 0. Flush and close commit layer before blocking connections
         if hasattr(self, "_commit_layer"):
             self._commit_layer.shutdown()
@@ -395,7 +395,7 @@ class SAMBrain:
                 except Exception as e:
                     logger.warning(f"Shutdown: Error closing connection {conn_id}: {e}")
         
-        # 3. Final WAL Checkpoint for durability (v1.2.4-TITANIUM-STABILIZE)
+        # 3. Final WAL Checkpoint for durability (v1.2.5-TITANIUM-STABILIZE)
         try:
             with self.get_connection(self.db_path) as conn:
                 conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -408,7 +408,7 @@ class SAMBrain:
     def _snapshot_worker_loop(self) -> None:
         while not self._snapshot_sync_stop_event.is_set():
             try:
-                # v1.2.4: Deterministic wake-up via "STOP" signal, no timeout needed
+                # v1.2.5: Deterministic wake-up via "STOP" signal, no timeout needed
                 request = self._snapshot_queue.get(block=True)
                 if request == "STOP" or request is None:
                     break
@@ -434,13 +434,13 @@ class SAMBrain:
         with self.get_connection() as conn:
             from kit.core.memory_policy import MemoryPolicy
             
-            # v1.2.4-TITANIUM-FROZEN: Single Authority Alignment
+            # v1.2.5-TITANIUM-FROZEN: Single Authority Alignment
             # We approximate the decay logic in SQL for performance, but the router 
             # will always re-calculate the EXACT canonical score at recall time.
             conn.execute(MemoryPolicy.SQL_MATERIALIZE_SCORE)
             conn.commit()
 
-            # v1.2.4-TITANIUM++: Atomic Snapshot Write Strategy
+            # v1.2.5-TITANIUM++: Atomic Snapshot Write Strategy
             snapshot_path = self.topology.resolve("local", "snapshot")
             temp_snapshot_path = snapshot_path.with_suffix(".tmp")
             
@@ -463,19 +463,19 @@ class SAMBrain:
 
         self._last_snapshot_refresh = now
         
-        # v1.2.4-STAGE5: Record snapshot lineage with Titanium++ Manifest Hash-Chain
+        # v1.2.5-STAGE5: Record snapshot lineage with Titanium++ Manifest Hash-Chain
         try:
             import hashlib
             file_hash = sha256_file(temp_snapshot_path)
             parent_hash = self._last_snapshot_hash or "GENESIS"
-            schema_version = "v1.2.4"
+            schema_version = "v1.2.5"
             snapshot_id = f"snap_{int(now)}_{uuid.uuid4().hex[:4]}"
             
             # Titanium++ Manifest: H(n) = SHA256(parent | file | time | id | version)
             manifest = f"{parent_hash}|{file_hash}|{int(now)}|{snapshot_id}|{schema_version}"
             current_snapshot_hash = hashlib.sha256(manifest.encode()).hexdigest()
             
-            # v1.2.4-TITANIUM++: Atomic Commit with Durability Barrier
+            # v1.2.5-TITANIUM++: Atomic Commit with Durability Barrier
             if snapshot_path.exists():
                 try:
                     snapshot_path.unlink()
@@ -511,13 +511,13 @@ class SAMBrain:
                 except OSError:
                     pass
 
-        # v1.2.4-STAGE5.2: Automatic Retention Shield
+        # v1.2.5-STAGE5.2: Automatic Retention Shield
         try:
             execute_retention(self, RetentionPolicy(dry_run=False))
         except Exception as e:
             logger.warning(f"Retention: Automatic purge failed: {e}")
 
-        # v1.2.4-STAGE5.5: Symbol Reconciliation Engine (SRE) Monitor
+        # v1.2.5-STAGE5.5: Symbol Reconciliation Engine (SRE) Monitor
         try:
             sre = SREEngine(self)
             sre.run_drift_monitor()
@@ -528,7 +528,7 @@ class SAMBrain:
         self._snapshot_queue.put("refresh")
 
     def snapshot(self, reason: str = "Manual snapshot") -> Path:
-        """Manual trigger for database snapshot (v1.2.4-STAGE5)."""
+        """Manual trigger for database snapshot (v1.2.5-STAGE5)."""
         self._refresh_materialized_scores(force=True, reason=reason)
         return self.topology.resolve("local", "snapshot")
 
@@ -541,7 +541,7 @@ class SAMBrain:
         if not target_snapshot.exists():
             raise FileNotFoundError(f"Snapshot not found: {target_snapshot}")
 
-        # 0. Integrity Check (v1.2.4-TITANIUM)
+        # 0. Integrity Check (v1.2.5-TITANIUM)
         if not self.verify_snapshot_integrity(target_snapshot):
             logger.error(f"Integrity Error: Snapshot {target_snapshot} is tampered or unrecorded. Restore rejected.")
             return False
@@ -553,14 +553,14 @@ class SAMBrain:
         self._is_shutting_down = False
         self._active_connections.clear()
 
-        # v1.2.4-TITANIUM: Force GC to release any lingering Python-level handles
+        # v1.2.5-TITANIUM: Force GC to release any lingering Python-level handles
         import gc
         gc.collect()
 
         # 2. Replace physical file
         import shutil
         try:
-            # v1.2.4-TITANIUM: Clean up WAL/SHM before restore to prevent replay corruption
+            # v1.2.5-TITANIUM: Clean up WAL/SHM before restore to prevent replay corruption
             for suffix in ["-wal", "-shm"]:
                 sidecar = self.db_path.with_name(self.db_path.name + suffix)
                 if sidecar.exists():
@@ -588,7 +588,7 @@ class SAMBrain:
     def verify_snapshot_integrity(self, snapshot_path: Path) -> bool:
         """
         Verify that a physical snapshot file matches the recorded cryptographic chain.
-        (v1.2.4-TITANIUM Integrity Enforcement)
+        (v1.2.5-TITANIUM Integrity Enforcement)
         """
         file_hash = sha256_file(snapshot_path)
         if not file_hash:
@@ -598,7 +598,7 @@ class SAMBrain:
             with self.get_connection(readonly=True) as conn:
                 # Find any record that matches this file hash and parent chain
                 # Since H(n) = SHA256(parent_hash + file_hash), we can't search by file_hash alone if parent_hash changed.
-                # However, for simplicity in v1.2.4, we store the file_hash in metadata or just check if any record matches.
+                # However, for simplicity in v1.2.5, we store the file_hash in metadata or just check if any record matches.
                 # Actually, our schema now has parent_hash and snapshot_hash.
                 # We need to re-verify: snapshot_hash == SHA256(parent_hash + file_hash)
                 
@@ -614,10 +614,10 @@ class SAMBrain:
                     meta = json.loads(row[3] or "{}")
                     
                     ts_bucket = meta.get("ts_bucket")
-                    schema_ver = meta.get("schema", "v1.2.4")
+                    schema_ver = meta.get("schema", "v1.2.5")
                     
                     if ts_bucket is None:
-                         # Legacy v1.2.4-TITANIUM (non-plus)
+                         # Legacy v1.2.5-TITANIUM (non-plus)
                          import hashlib
                          expected_hash = hashlib.sha256(((p_hash if p_hash != "GENESIS" else "") + file_hash).encode()).hexdigest()
                     else:
@@ -673,8 +673,8 @@ class SAMBrain:
                     conn.rollback()
                     last_error = exc
                     if self._is_retryable_sqlite_error(exc) and attempt < (self.SQLITE_MAX_RETRIES - 1):
-                        # v1.2.4: Exponential backoff with local JITTER to prevent thundering herd
-                        # v1.2.4-TITANIUM++: Use stable run-to-run RNG seed based on normalized DB identity
+                        # v1.2.5: Exponential backoff with local JITTER to prevent thundering herd
+                        # v1.2.5-TITANIUM++: Use stable run-to-run RNG seed based on normalized DB identity
                         import random
                         # Canonicalize path for cross-OS seed stability
                         seed_str = str(self.db_path.resolve()).replace("\\", "/").lower()
@@ -746,7 +746,7 @@ class SAMBrain:
         if to_global:
             enforce_no_global_contamination(test_entry)
 
-        # v1.2.4-patch-hygiene: Prevent semantic spam in GLOBAL tier
+        # v1.2.5-patch-hygiene: Prevent semantic spam in GLOBAL tier
         if to_global:
             # Check for existing identical content in global brain
             try:
@@ -763,7 +763,7 @@ class SAMBrain:
             except Exception as e:
                 logger.warning(f"Hygiene: Global duplicate check failed: {e}")
 
-        # v1.2.4-patch: Ensure symbol is never NULL if uid exists
+        # v1.2.5-patch: Ensure symbol is never NULL if uid exists
         effective_symbol = symbol or uid
 
         from kit.core.memory_policy import MemoryPolicy
@@ -800,7 +800,7 @@ class SAMBrain:
         from kit.core.memory_policy import MemoryPolicy
         now_ts = time.time()
         
-        # v1.2.4-TITANIUM-FROZEN: Unified Scoring entry
+        # v1.2.5-TITANIUM-FROZEN: Unified Scoring entry
         m_proto = Memory(
             id=decision.observation_id or 0,
             node_uid=uid,
@@ -816,11 +816,11 @@ class SAMBrain:
         )
         canonical_score = MemoryPolicy.calculate_score(m_proto, now_ts)
 
-        # v1.2.4-STAGE5.5.3: Push to L0 for Immediate Recall
+        # v1.2.5-STAGE5.5.3: Push to L0 for Immediate Recall
         if decision.observation_id:
              self._l0_cache.push(replace(m_proto, id=decision.observation_id, materialized_score=canonical_score))
 
-        # v1.2.4-STAGE5.5: SRE Write-time sampling
+        # v1.2.5-STAGE5.5: SRE Write-time sampling
         import random
         from kit.core.kit_sre import SAMPLING_RATE, SREEngine
         if effective_symbol and random.random() < SAMPLING_RATE:
@@ -856,7 +856,7 @@ class SAMBrain:
         )
         self._commit_layer.add(event)
         
-        # v1.2.4-STAGE5.5.3: Push to L0 for Immediate Recall
+        # v1.2.5-STAGE5.5.3: Push to L0 for Immediate Recall
         from kit.core.memory_policy import MemoryPolicy
         placeholder_confidence = MemoryPolicy.calculate_confidence(0.1)
         self._l0_cache.push(Memory(
@@ -881,7 +881,7 @@ class SAMBrain:
             return ""
 
     def get_normalized_scope(self, path: Path | str | None = None) -> str:
-        """Public alias for scope normalization (v1.2.4)."""
+        """Public alias for scope normalization (v1.2.5)."""
         return self._get_normalized_scope(path)
 
     def touch_fact(self, fact_id: int) -> None:
@@ -913,12 +913,12 @@ class SAMBrain:
 
         current_scope = self._get_normalized_scope() if here else None
 
-        # v1.2.4-STAGE5.5.3: Fast Path - L0 In-Memory Recall
+        # v1.2.5-STAGE5.5.3: Fast Path - L0 In-Memory Recall
         l0_results = []
         if not (since or until): # Immediacy focus
              l0_results = self._l0_cache.search(query=query, limit=limit)
 
-        # v1.2.4: Slow Path - SQLite Search
+        # v1.2.5: Slow Path - SQLite Search
         request = MemoryReadRequest(
             query=query or "",
             limit=limit,
@@ -936,7 +936,7 @@ class SAMBrain:
         # Merge Results: Collect all candidates for arbitration
         merged_memories = list(l0_results) + list(sqlite_memories)
 
-        # v1.2.4-TITANIUM: Collapse Arbitration Authority to MemoryPolicy
+        # v1.2.5-TITANIUM: Collapse Arbitration Authority to MemoryPolicy
         from kit.core.memory_policy import MemoryPolicy
         
         context = {
@@ -953,16 +953,16 @@ class SAMBrain:
             deduplicate=deduplicate
         )
         
-        # Authority Trace (v1.2.4-TITANIUM)
+        # Authority Trace (v1.2.5-TITANIUM)
         import hashlib
         input_hash = hashlib.md5(str([m.id for m in merged_memories]).encode()).hexdigest()
         output_hash = hashlib.md5(str([m.id for m in final_memories]).encode()).hexdigest()
         logger.debug(f"Authority: MemoryPolicy.arbitrate | In: {input_hash} | Out: {output_hash}")
         
-        # v1.2.4-TITANIUM: Final Verification Oracle (Vantage Gate)
+        # v1.2.5-TITANIUM: Final Verification Oracle (Vantage Gate)
         final_memories = self._verify_with_vantage(final_memories)
 
-        # v1.2.4-patch-infrastructure: Update usage telemetry (The "Usage Boost" foundation)
+        # v1.2.5-patch-infrastructure: Update usage telemetry (The "Usage Boost" foundation)
         # Skip synchronous telemetry in TEST mode to maintain performance invariants
         from kit.core.kit_env import ExecutionMode, get_execution_mode
         if get_execution_mode() == ExecutionMode.TEST:
@@ -971,7 +971,7 @@ class SAMBrain:
                 return final_memories, profile
             return final_memories
 
-        # v1.2.4-STAGE5.1: Log performance pulse
+        # v1.2.5-STAGE5.1: Log performance pulse
         latency_ms = (time.perf_counter() - start_time) * 1000
         hit = 1 if final_memories else 0
         try:
@@ -997,17 +997,17 @@ class SAMBrain:
             return final_memories, profile
         return final_memories
 
-    # v1.2.4-TITANIUM: Authority Collapse
+    # v1.2.5-TITANIUM: Authority Collapse
     # Logic delegated to MemoryPolicy kernel.
     
     def __getattr__(self, name):
         # HARD GUARD: Catch accidental reintroduction of deleted scoring logic
         if name in ("_calculate_runtime_score", "_recall_sort_key"):
-             raise AttributeError(f"CRITICAL: {name} is deleted in v1.2.4. Use MemoryPolicy.")
+             raise AttributeError(f"CRITICAL: {name} is deleted in v1.2.5. Use MemoryPolicy.")
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
     def add_symbol_edge(self, source: str, relation: str, target: str, confidence: float = 1.0) -> None:
-        """Add a relationship between symbols with safety limits (v1.2.4-STAGE5.2)."""
+        """Add a relationship between symbols with safety limits (v1.2.5-STAGE5.2)."""
         MAX_EDGES_PER_SYMBOL = 64
         
         def _add(conn: sqlite3.Connection):
@@ -1043,7 +1043,7 @@ class SAMBrain:
 
     @staticmethod
     def _calculate_confidence(memories: list[Memory]) -> float:
-        """Deterministic Confidence via single-surface results (v1.2.4)."""
+        """Deterministic Confidence via single-surface results (v1.2.5)."""
         if not memories:
             return 0.0
         if len(memories) == 1:
@@ -1065,7 +1065,7 @@ class SAMBrain:
         at_timestamp: str | None = None,
         fast: bool = False,
     ) -> list[Memory]:
-        """Hybrid FTS Search with Compatibility Shims (v1.2.4-TITANIUM)."""
+        """Hybrid FTS Search with Compatibility Shims (v1.2.5-TITANIUM)."""
         # RESERVED for future time-travel and index-only search
         _ = at_timestamp
         _ = fast
@@ -1139,7 +1139,7 @@ class SAMBrain:
         return "\n".join(lines)
 
     def get_stats(self) -> dict[str, Any]:
-        """Retrieve kernel statistics (v1.2.4-STAGE5)."""
+        """Retrieve kernel statistics (v1.2.5-STAGE5)."""
         stats = {}
         with self.get_connection() as conn:
             # Legacy basic stats
@@ -1180,7 +1180,7 @@ class SAMBrain:
         """
         Verification Gate (Supreme Court): Verifies cognitive decisions via structural oracle.
         Invariant: Vantage MUST NOT influence ranking. It MAY ONLY validate structural correctness.
-        Architecture: v1.2.4-TITANIUM Final Loop (Zero-Lag Batch Pass).
+        Architecture: v1.2.5-TITANIUM Final Loop (Zero-Lag Batch Pass).
         """
         from kit.core.kit_env import ExecutionMode, get_execution_mode
         if get_execution_mode() == ExecutionMode.TEST:
@@ -1212,11 +1212,11 @@ class SAMBrain:
                     is_valid = False
                     break
             
-            # v1.2.4 Law: Vantage DOES NOT touch the score or metadata.
+            # v1.2.5 Law: Vantage DOES NOT touch the score or metadata.
             # It only validates structural correctness.
             if not is_valid:
                 logger.error(f"INTEGRITY FAILURE: Symbol '{m.symbol}' failed structural gate.")
-                # v1.2.4-TITANIUM: We log the failure but DO NOT mutate the frozen DTO.
+                # v1.2.5-TITANIUM: We log the failure but DO NOT mutate the frozen DTO.
                 # The user/IDE should rely on the logs or an explicit repair command.
 
         return memories

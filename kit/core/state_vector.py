@@ -4,7 +4,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True, slots=True)
 class StateVector:
     """
-    v1.2.4 Minimum Epistemic Substrate.
+    v1.2.5 Minimum Epistemic Substrate.
     This is the GROUND TRUTH for all cognitive transitions.
     """
     symbol: str

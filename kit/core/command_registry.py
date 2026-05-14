@@ -1,4 +1,4 @@
-# .kit v1.2.4 - Command Registry Spec v1
+# .kit v1.2.5 - Command Registry Spec v1
 # Hierarchical Command Architecture with Explicit Contracts
 
 from dataclasses import dataclass, field
@@ -30,7 +30,7 @@ class CommandContract:
     io_safe: bool = True
 
 class CommandRegistry:
-    """Centralized Registry for kit commands (v1.2.4-TITANIUM)."""
+    """Centralized Registry for kit commands (v1.2.5-TITANIUM)."""
     
     _instance: Optional['CommandRegistry'] = None
     
@@ -63,10 +63,10 @@ class CommandRegistry:
         return tree
 
     def to_dict(self) -> Dict[str, Any]:
-        """Export the entire registry as a machine-readable dictionary (v1.2.4)."""
+        """Export the entire registry as a machine-readable dictionary (v1.2.5)."""
         import dataclasses
         return {
-            "version": "v1.2.4",
+            "version": "v1.2.5",
             "commands": {
                 name: dataclasses.asdict(contract) 
                 for name, (contract, _) in self._commands.items()

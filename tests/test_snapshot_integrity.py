@@ -28,7 +28,7 @@ def test_snapshot_integrity_titanium_plus(tmp_path):
         file_hash = sha256_file(snap1_path)
         
         # Verify Manifest
-        manifest = f"{p_hash}|{file_hash}|{meta['ts_bucket']}|{snap_id}|v1.2.4"
+        manifest = f"{p_hash}|{file_hash}|{meta['ts_bucket']}|{snap_id}|v1.2.5"
         expected = hashlib.sha256(manifest.encode()).hexdigest()
         assert s_hash == expected
         

@@ -4,7 +4,7 @@ from kit.core.memory_policy import MemoryPolicy
 
 class MemoryCoherenceEngine:
     """
-    Simplified MCE (v1.2.4-COLLAPSE).
+    Simplified MCE (v1.2.5-COLLAPSE).
     Delegates all logic to the unified MemoryPolicy.
     """
 

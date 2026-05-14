@@ -1,4 +1,4 @@
-# kit/__main__.py — v1.2.4-LOCK: CANONICAL ENTRYPOINT
+# kit/__main__.py — v1.2.5-LOCK: CANONICAL ENTRYPOINT
 #
 # INVARIANT: This is the ONLY valid execution path for all kit operations.
 # All tests, scripts, and user invocations MUST use `python -m kit` or `kit CLI`.

@@ -22,10 +22,10 @@ class BrainMigrationInput(SkillInput):
 class BrainMigrationSkill(BaseSkill[BrainMigrationInput]):
     """
     Cognitive Migration Skill (CMS).
-    Bridges legacy memory schemas into Titanium (v1.2.4) deterministic structure.
+    Bridges legacy memory schemas into Titanium (v1.2.5) deterministic structure.
     """
     name = "migrate_brain"
-    version = "1.2.4"
+    version = "1.2.5"
     input_model = BrainMigrationInput
 
     def run(self, input_data: BrainMigrationInput, context: list = None) -> SkillOutput:

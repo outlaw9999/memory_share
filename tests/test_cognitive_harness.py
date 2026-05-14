@@ -1,7 +1,7 @@
 """
 Tests for cognitive_harness modules.
 
-v1.2.4: Validates Flow Regression, Vantage Consistency, and Memory Isolation.
+v1.2.5: Validates Flow Regression, Vantage Consistency, and Memory Isolation.
 """
 
 import pytest

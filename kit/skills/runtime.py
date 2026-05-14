@@ -42,7 +42,7 @@ class ASRRuntime:
 
         try:
             # 2. Preparation (No side-effects enforced via contract)
-            # v1.2.4: Deterministic input hydration
+            # v1.2.5: Deterministic input hydration
             validated_input = skill_cls.input_model(**input_data)
             skill_instance = skill_cls()
 
@@ -77,7 +77,7 @@ class ASRRuntime:
         }
         self.trace_buffer.append(trace)
 
-        # v1.2.4-LOCK: Circular buffer enforcement (Max 50 traces)
+        # v1.2.5-LOCK: Circular buffer enforcement (Max 50 traces)
         if len(self.trace_buffer) > 50:
             self.trace_buffer.pop(0)
 

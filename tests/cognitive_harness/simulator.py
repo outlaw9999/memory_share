@@ -1,7 +1,7 @@
 """
 DeterministicSimulator - Mock time/uuid/vantage for reproducible cognitive flow tests.
 
-v1.2.4: Replaces real datetime/uuid/vantage with deterministic mocks
+v1.2.5: Replaces real datetime/uuid/vantage with deterministic mocks
 to ensure "same input + same initial brain = same final brain state + same decision tier".
 """
 

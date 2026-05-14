@@ -25,7 +25,7 @@ class L0Cache:
     def push(self, memory: Memory):
         """Push a new hot memory into the cache."""
         with self._lock:
-            # v1.2.4: L0 graduation (LRU-like eviction)
+            # v1.2.5: L0 graduation (LRU-like eviction)
             if len(self._memories) >= self.max_size:
                 self._memories.pop(0)
             self._memories.append(memory)

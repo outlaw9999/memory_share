@@ -87,7 +87,7 @@ def test_router_single_write_authority(mock_db):
 # --- Level 3: Sealing & Policy Enforcement ---
 
 def test_kernel_seal_verification(mock_db):
-    """Verify that the Sealing layer correctly identifies a v1.2.4-sealed DB."""
+    """Verify that the Sealing layer correctly identifies a v1.2.5-sealed DB."""
     info = verify_kernel_seal(mock_db)
     assert info["status"] == "sealed"
     assert info["version"] == SEALED_VERSION

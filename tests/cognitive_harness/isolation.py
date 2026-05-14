@@ -1,7 +1,7 @@
 """
 MemoryIsolationGuard - Test local vs global isolation and sealing invariance.
 
-v1.2.4: Validates that:
+v1.2.5: Validates that:
 - Local memory doesn't leak to global without permission
 - seal() blocks all writes
 - purge() clears state completely

@@ -1,5 +1,5 @@
 """
-Cognitive TDD Harness v1.2.4
+Cognitive TDD Harness v1.2.5
 
 A test framework for validating KIT's cognitive runtime through:
 - Flow Regression Gate

@@ -25,7 +25,7 @@ class HygieneReport:
     suggestions: list[str] = field(default_factory=list)
 
 def classify_file(path: Path, root_path: Path) -> FileCategory:
-    """Classifies a file based on its path and naming convention (v1.2.4)."""
+    """Classifies a file based on its path and naming convention (v1.2.5)."""
     rel_path = path.relative_to(root_path)
     parts = rel_path.parts
     name = path.name
@@ -90,14 +90,14 @@ def generate_hygiene_report(root_path: Path) -> HygieneReport:
     if len(report.categories[FileCategory.TEMP]) > 5:
         report.suggestions.append("Excessive temp/debug files detected. Archive required.")
 
-    # v1.2.4-TITANIUM: Check for Scope Bleed (Stray local brains in global home)
+    # v1.2.5-TITANIUM: Check for Scope Bleed (Stray local brains in global home)
     from kit.core.memory_topology import MemoryTopology
     global_kit = MemoryTopology().GLOBAL_KIT_HOME
     stray_local = global_kit / "local_brain.db"
     if stray_local.exists():
         report.suggestions.append(f"SCOPE BLEED DETECTED: Stray local brain at {stray_local}. Run 'kit doctor --heal' to merge and purge.")
 
-    # v1.2.4-TITANIUM: System Temp Pressure
+    # v1.2.5-TITANIUM: System Temp Pressure
     import tempfile
     temp_dir = Path(tempfile.gettempdir())
     kit_temp_count = len(list(temp_dir.glob("kit_*")))
@@ -107,7 +107,7 @@ def generate_hygiene_report(root_path: Path) -> HygieneReport:
     return report
 
 def perform_hygiene_cleanup(root_path: Path, dry_run: bool = True) -> list[str]:
-    """Executes the cleanup DAG (v1.2.4-TITANIUM). Returns list of removed files."""
+    """Executes the cleanup DAG (v1.2.5-TITANIUM). Returns list of removed files."""
     report = generate_hygiene_report(root_path)
     removed = []
     
@@ -128,7 +128,7 @@ def perform_hygiene_cleanup(root_path: Path, dry_run: bool = True) -> list[str]:
                     removed.append(rel_path)
     
     
-    # 3. System Temp Hygiene (v1.2.4-TITANIUM Restriction: Max 3 files)
+    # 3. System Temp Hygiene (v1.2.5-TITANIUM Restriction: Max 3 files)
     removed_temp = perform_system_temp_cleanup(dry_run=dry_run)
     removed.extend(removed_temp)
     
@@ -177,7 +177,7 @@ def handle_hygiene(args, print_diagnostic, **kwargs):
     root_path = Path.cwd()
     report = generate_hygiene_report(root_path)
     
-    print_diagnostic(f"Workspace Hygiene Report (v1.2.4-TITANIUM)")
+    print_diagnostic(f"Workspace Hygiene Report (v1.2.5-TITANIUM)")
     print_diagnostic(f"Total Files tracked: {report.total_files}")
     print_diagnostic(f"Entropy Score: {report.noise_score:.2f} ({'STABLE' if report.noise_score < 0.1 else 'DRIFTING'})")
     

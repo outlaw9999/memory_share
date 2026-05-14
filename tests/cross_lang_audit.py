@@ -11,7 +11,7 @@ repo_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(repo_root))
 
 def run_cross_lang_audit():
-    print("Starting Cross-Language Graph Audit (v1.2.4-RC1)")
+    print("Starting Cross-Language Graph Audit (v1.2.5-RC1)")
     
     # 1. Prepare temp environment
     tmp_dir_obj = tempfile.TemporaryDirectory()
@@ -58,7 +58,7 @@ def run_cross_lang_audit():
         subprocess.run([str(VANTAGE_BIN), "extract-edges", "."], stdout=f, check=True, env=test_env)
         
     print("  Ingesting into Kit...")
-    # v1.2.4: In RC1, we need to ensure the DB exists before ingestion
+    # v1.2.5: In RC1, we need to ensure the DB exists before ingestion
     # We'll use the CLI to trigger ingestion in the test env
     brain_root = tmp_path / ".kit"
     stream_path = brain_root / "local" / ".vantage" / "vantage_stream.jsonl"

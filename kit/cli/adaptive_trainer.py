@@ -1,5 +1,5 @@
 # kit/cli/adaptive_trainer.py
-# v1.2.4 - Statistical Weight Correction Engine
+# v1.2.5 - Statistical Weight Correction Engine
 
 import json
 from collections import defaultdict
@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from kit.core.memory_topology import MemoryTopologyFactory
-# v1.2.4-TITANIUM: Resolve telemetry path via authoritative topology
+# v1.2.5-TITANIUM: Resolve telemetry path via authoritative topology
 _topo = MemoryTopologyFactory.for_project(Path.cwd())
 TELEMETRY_PATH = _topo.resolve("global", "audit")
 
@@ -17,7 +17,7 @@ def run_trainer():
         print("No telemetry found. Start dogfooding first.")
         return
 
-    print("[TRAINER] v1.2.4 Adaptive Scorer Trainer Initialized")
+    print("[TRAINER] v1.2.5 Adaptive Scorer Trainer Initialized")
 
     stats: defaultdict[str, int] = defaultdict(int)
     feedback_count = 0
@@ -44,8 +44,8 @@ def run_trainer():
         return
 
     # Logic for weight delta calculation based on correction patterns
-    # (In v1.2.4 this will propose changes to GLOBAL_KW/LOCAL_KW weights)
-    print("\n[v1.2.4 PROPOSAL]")
+    # (In v1.2.5 this will propose changes to GLOBAL_KW/LOCAL_KW weights)
+    print("\n[v1.2.5 PROPOSAL]")
     for c in corrections:
         correction: dict[str, Any] = c
         print(f"  - Correction: Obs {correction['obs_id']} should be {correction['correct_label']}")

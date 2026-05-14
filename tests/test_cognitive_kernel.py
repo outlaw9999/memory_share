@@ -49,7 +49,7 @@ def test_preflight_snapshot_avoids_live_brain(tmp_path):
     assert len(obs) == 1
     assert obs[0].tag == "decision"
 
-    # v1.2.4: Ensure snapshot is created
+    # v1.2.5: Ensure snapshot is created
     brain.snapshot()
     snapshot_path = brain.topology.resolve("local", "snapshot")
     assert snapshot_path.exists()
@@ -71,7 +71,7 @@ def test_snapshot_syncer_refreshes_after_local_write(tmp_path):
     db_path = tmp_path / ".kit" / "local_brain.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
     brain = SAMBrain(db_path, root_path=tmp_path)
-    # v1.2.4-TITANIUM: Force start syncer for background sync verification
+    # v1.2.5-TITANIUM: Force start syncer for background sync verification
     brain._start_snapshot_syncer()
     
     brain.learn("sync", "Local change triggers snapshot refresh", tag="decision", importance=0.8)
@@ -121,7 +121,7 @@ def test_compute_at_write_materialized_score(brain):
     with brain.get_connection() as conn:
         row = conn.execute("SELECT materialized_score FROM observations WHERE id = ?", (fact_id,)).fetchone()
         assert row["materialized_score"] > 0
-        # Formula v1.2.4: 0.8 * (0+2)/(0+6.0) = 0.8 * 0.3333 = 0.2666
+        # Formula v1.2.5: 0.8 * (0+2)/(0+6.0) = 0.8 * 0.3333 = 0.2666
         assert pytest.approx(row["materialized_score"], 0.01) == 0.2666
 
 

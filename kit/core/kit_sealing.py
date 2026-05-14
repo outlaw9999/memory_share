@@ -5,20 +5,20 @@ from typing import Dict, Optional
 
 logger = logging.getLogger("kit.sealing")
 
-# v1.2.4-TITANIUM: Canonical Kernel Constitution
-SEALED_VERSION = "1.2.4-final"
+# v1.2.5-TITANIUM: Canonical Kernel Constitution
+SEALED_VERSION = "1.2.5-final"
 REQUIRED_POLICIES = {
     "integrity_policy": "strict",
     "write_authority": "MemoryRouter"
 }
 
 class KernelSealError(Exception):
-    """Raised when the kernel constitution is violated (v1.2.4-TITANIUM)."""
+    """Raised when the kernel constitution is violated (v1.2.5-TITANIUM)."""
     pass
 
 def verify_kernel_seal(db_path: Path) -> Dict[str, str]:
     """
-    Verify that the database adheres to the v1.2.4-sealed contract.
+    Verify that the database adheres to the v1.2.5-sealed contract.
     """
     if not db_path.exists():
         return {"status": "missing", "reason": f"Database not found at {db_path}"}
@@ -53,14 +53,14 @@ def verify_kernel_seal(db_path: Path) -> Dict[str, str]:
         
     except sqlite3.OperationalError as e:
         if "no such table: kernel_metadata" in str(e):
-             return {"status": "unsealed", "reason": "Legacy schema (pre-v1.2.4-sealed)"}
+             return {"status": "unsealed", "reason": "Legacy schema (pre-v1.2.5-sealed)"}
         return {"status": "error", "reason": str(e)}
     except Exception as e:
         return {"status": "violated", "reason": str(e)}
 
 def seal_kernel(db_path: Path):
     """
-    Hard-seal the kernel by injecting the v1.2.4 constitution.
+    Hard-seal the kernel by injecting the v1.2.5 constitution.
     """
     logger.info(f"Sealing kernel at {db_path} (SPEC {SEALED_VERSION})...")
     
@@ -68,7 +68,7 @@ def seal_kernel(db_path: Path):
     topo = MemoryTopology()
     conn = topo.connect_path(db_path)
     try:
-        # Ensure schema is up to date (v1.2.4-TITANIUM)
+        # Ensure schema is up to date (v1.2.5-TITANIUM)
         from kit.core.schema_factory import init_db
         init_db(conn)
         

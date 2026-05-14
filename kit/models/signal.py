@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 class Signal(BaseModel):
     """
     Minimal Enforcement Contract (MEC) v1 - Signal Anchor.
-    Standardized interface for v1.2.4 "Decision Discipline".
+    Standardized interface for v1.2.5 "Decision Discipline".
     """
     uid: str = Field(..., description="Unique ID for the violation type (e.g., SQL_04)")
     confidence: Literal["low", "medium", "high"]
@@ -14,7 +14,7 @@ class Signal(BaseModel):
     source: str = Field(..., description="The code snippet or tool causing the smell")
     evidence: str | None = None
 
-    # v1.2.4: Structural Integration Fields
+    # v1.2.5: Structural Integration Fields
     symbol: str | None = Field(None, description="Universal ID for the symbol identity (UUID)")
     structural_hash: str | None = Field(None, description="AST-stable structural fingerprint (Normalized Hash)")
 

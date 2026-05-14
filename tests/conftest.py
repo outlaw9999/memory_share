@@ -1,5 +1,5 @@
 """
-Test Isolation Layer v1.2.4
+Test Isolation Layer v1.2.5
 
 Eliminates IDE lag by:
 1. Direct API calls (no subprocess)

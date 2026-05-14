@@ -3,7 +3,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Literal, List, Optional, Dict
 
-# v1.2.4-TITANIUM Execution State Machine
+# v1.2.5-TITANIUM Execution State Machine
 ExecutionState = Literal["queued", "running", "success", "failed", "rolled_back"]
 
 @dataclass(frozen=True)
@@ -78,7 +78,7 @@ class StateMutationContract:
     @staticmethod
     def authorize_mutation(frame: Optional[ExecutionFrame]):
         if frame is None:
-            # v1.2.4 Mode: Allow but Logan telemetry as 'UNGOVERNED'
+            # v1.2.5 Mode: Allow but Logan telemetry as 'UNGOVERNED'
             # (In v2.0 TITANIUM, this will raise an error)
             return "UNGOVERNED"
         

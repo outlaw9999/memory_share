@@ -15,7 +15,7 @@ from typing import Any
 
 from kit.core.memory_topology import MemoryTopologyFactory
 
-# v1.2.4-COLLAPSE: Authority resolution
+# v1.2.5-COLLAPSE: Authority resolution
 _topo = MemoryTopologyFactory.global_only()
 GLOBAL_DB_PATH = _topo.resolve("global", "global")
 TELEMETRY_PATH = _topo.resolve("global", "telemetry")

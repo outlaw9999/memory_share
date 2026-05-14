@@ -1,5 +1,5 @@
 # tests/test_memory_router.py
-# v1.2.4 — TDD for Memory Router (Gatekeeper)
+# v1.2.5 — TDD for Memory Router (Gatekeeper)
 
 import os
 import sys
@@ -109,7 +109,7 @@ def test_accept_valid_memory():
         assert decision.decision == WriteDecision.ACCEPTED
         assert decision.assigned_tier == MemoryTier.GLOBAL
         
-        # v1.2.4: Release handles
+        # v1.2.5: Release handles
         router.close()
         
         print("✓ Accept valid memory (0.75 confidence)")
@@ -133,7 +133,7 @@ def test_reject_low_confidence():
         
         assert decision.decision == WriteDecision.REJECTED
         
-        # v1.2.4: Release handles
+        # v1.2.5: Release handles
         router.close()
         
         print("✓ Reject low confidence (0.15)")
@@ -172,7 +172,7 @@ def test_statistics():
         assert stats["accepted"] == 1
         assert stats["rejected"] == 1
         
-        # v1.2.4: Release handles
+        # v1.2.5: Release handles
         router.close()
         
         print("✓ Statistics: 2 requests, 1 accepted, 1 rejected")
@@ -198,7 +198,7 @@ def test_deterministic_routing():
             decision = router.route_write(req)
             assert decision.assigned_tier == MemoryTier.GLOBAL
         
-        # v1.2.4: Release handles
+        # v1.2.5: Release handles
         router.close()
         
         print("✓ INVARIANT: Deterministic routing (0.72 → GLOBAL always)")
@@ -206,7 +206,7 @@ def test_deterministic_routing():
 
 if __name__ == "__main__":
     print("\n" + "="*70)
-    print("🧠 KIT v1.2.4 Memory Router - TDD Validation")
+    print("🧠 KIT v1.2.5 Memory Router - TDD Validation")
     print("="*70 + "\n")
     
     tests = [

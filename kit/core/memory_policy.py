@@ -7,11 +7,11 @@ from typing import List, Any, Optional
 
 class MemoryPolicy:
     """
-    The Single Authority for Memory Truth (v1.2.4-TITANIUM-FROZEN).
+    The Single Authority for Memory Truth (v1.2.5-TITANIUM-FROZEN).
     Consolidates Arbitration, Scoring, and Temporal Decay into one deterministic path.
     """
     
-    POLICY_VERSION = "1.2.4-TITANIUM-FROZEN"
+    POLICY_VERSION = "1.2.5-TITANIUM-FROZEN"
     
     TIER_WEIGHTS = {
         "frozen": 1.0,
@@ -20,7 +20,7 @@ class MemoryPolicy:
         "local": 0.5
     }
 
-    # --- SQL Authority Constants (v1.2.4-TITANIUM) ---
+    # --- SQL Authority Constants (v1.2.5-TITANIUM) ---
     # These ensure that even SQL-level ranking follows the unified kernel logic.
     
     SQL_RANKING_FORMULA = """
@@ -68,14 +68,14 @@ class MemoryPolicy:
     @staticmethod
     def calculate_confidence(importance: float) -> float:
         """
-        [FROZEN v1.2.4] Authority Rule for Importance-to-Confidence mapping.
+        [FROZEN v1.2.5] Authority Rule for Importance-to-Confidence mapping.
         """
         return min(0.94, (importance / 10.0) + 0.5)
 
     @staticmethod
     def calculate_score(memory: Any, now: Optional[float] = None) -> float:
         """
-        [FROZEN v1.2.4] Deterministic Unified Scoring Function.
+        [FROZEN v1.2.5] Deterministic Unified Scoring Function.
         score = confidence * e^(-decay_rate * age) * tier_weight
         """
         now = now if now is not None else time.time()
@@ -120,7 +120,7 @@ class MemoryPolicy:
     @staticmethod
     def canonical_sort_key(memory: Any, score: float, now: float, boost: float = 0.0) -> tuple:
         """
-        [FROZEN v1.2.4] The Five-Layer Deterministic Tie-Break Contract.
+        [FROZEN v1.2.5] The Five-Layer Deterministic Tie-Break Contract.
         1. score + boost (desc)
         2. tier_weight (desc)
         3. tag_priority (desc)
@@ -163,7 +163,7 @@ class MemoryPolicy:
     @staticmethod
     def resolve(candidates: List[Any], now: Optional[float] = None, context: Optional[dict] = None) -> Optional[Any]:
         """
-        [FROZEN v1.2.4] Deterministic Arbitration via Canonical Contract.
+        [FROZEN v1.2.5] Deterministic Arbitration via Canonical Contract.
         Entry point for single-winner resolution.
         """
         results = MemoryPolicy.arbitrate(candidates, context=context, limit=1, now=now)
@@ -206,7 +206,7 @@ class MemoryPolicy:
         deduplicate: bool = True
     ) -> List[Any]:
         """
-        [FROZEN v1.2.4] Deterministic Ranking & Arbitration Kernel.
+        [FROZEN v1.2.5] Deterministic Ranking & Arbitration Kernel.
         The Single Decision Surface for all memory recall.
         """
         if not candidates:
@@ -222,7 +222,7 @@ class MemoryPolicy:
         
         scored = []
         for m in candidates:
-            # v1.2.4-TITANIUM: Collapse Arbitration Authority to get_boosted_score
+            # v1.2.5-TITANIUM: Collapse Arbitration Authority to get_boosted_score
             final_score = MemoryPolicy.get_boosted_score(m, context, now)
             
             # Canonical Sort Key (Determinism Plane)

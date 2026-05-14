@@ -6,7 +6,7 @@ from typing import Any
 from kit.core.deterministic import stable_hash, deterministic_json
 
 SCHEMA_VERSION = "1.0"
-RUNTIME_VERSION = "1.2.4"
+RUNTIME_VERSION = "1.2.5"
 
 
 

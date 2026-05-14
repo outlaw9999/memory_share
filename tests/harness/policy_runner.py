@@ -6,7 +6,7 @@ from kit.core.memory_policy import MemoryPolicy
 
 class PolicyTestHarness:
     """
-    Deterministic Contract Executor for Kit v1.2.4.
+    Deterministic Contract Executor for Kit v1.2.5.
     Validates MemoryPolicy against the Golden Truth Dataset.
     """
     

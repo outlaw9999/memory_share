@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-RUNTIME_VERSION = "1.2.4"
+RUNTIME_VERSION = "1.2.5"
 SCHEMA_VERSION = "1.0"
 
 

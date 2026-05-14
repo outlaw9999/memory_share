@@ -6,7 +6,7 @@ from kit.core.memory_policy import MemoryPolicy
 
 def test_arbitration_scale_10k():
     """
-    STRESS TEST: Production-grade Arbitration (v1.2.4-TITANIUM)
+    STRESS TEST: Production-grade Arbitration (v1.2.5-TITANIUM)
     Verifies that arbitration remains deterministic and fast at 10,000 memories.
     """
     with tempfile.TemporaryDirectory() as tmpdir:

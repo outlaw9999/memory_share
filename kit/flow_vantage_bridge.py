@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Flow-Vantage Feedback Bridge v1.2.4
+Flow-Vantage Feedback Bridge v1.2.5
 
 Implements the learning loop: Flow → Execute → Observe → Vantage → Adjust Flow
 
@@ -51,7 +51,7 @@ class FlowVantageBridge:
         self._init_db()
 
     def _get_conn(self, readonly: bool = False):
-        """Unified connection authority (v1.2.4-TITANIUM)."""
+        """Unified connection authority (v1.2.5-TITANIUM)."""
         return get_brain().get_connection(self.db_path, readonly=readonly)
 
     def _init_db(self):

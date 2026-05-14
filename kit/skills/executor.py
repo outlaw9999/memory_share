@@ -6,7 +6,7 @@ from typing import Any
 
 logger = logging.getLogger("kit.skills.executor")
 
-# v1.2.4-TITANIUM: Execution Depth Guard
+# v1.2.5-TITANIUM: Execution Depth Guard
 MAX_DEPTH = 3
 DEPTH_ENV_VAR = "KIT_SKILL_DEPTH"
 
@@ -38,7 +38,7 @@ def execute_skill(skill: dict[str, Any], dry_run: bool = False) -> bool:
         if not raw_cmd or not raw_cmd.strip():
             continue
 
-        # v1.2.4-LOCK: Reification Guard (CRITICAL)
+        # v1.2.5-LOCK: Reification Guard (CRITICAL)
         reified_cmd = raw_cmd.strip()
         
         # If sys.executable (absolute path) is already in the command, we ABORT further reification
@@ -87,7 +87,7 @@ def execute_skill(skill: dict[str, Any], dry_run: bool = False) -> bool:
         print("[kit] Execution cancelled.")
         return False
 
-    # 3. Execution Phase (v1.2.4 Deterministic Kernel)
+    # 3. Execution Phase (v1.2.5 Deterministic Kernel)
     from kit.core.kernel_fsm import ExecutionFrame
     from kit.core.kernel_engine import DeterministicKernel
 

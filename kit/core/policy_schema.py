@@ -2,7 +2,7 @@
 
 from typing import List
 
-# The "Cognitive Vocabulary" of Kit v1.2.4.
+# The "Cognitive Vocabulary" of Kit v1.2.5.
 # Driven by runtime truth, shared with CLI for introspection.
 LEARN_TAGS = [
     "invariant",   # Unchanging system laws

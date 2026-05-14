@@ -1,4 +1,4 @@
-"""Titanium Snapshot Retention Engine (v1.2.4-STAGE5.1).
+"""Titanium Snapshot Retention Engine (v1.2.5-STAGE5.1).
 
 Enforces a tiered lifecycle for memory snapshots to prevent infrastructure bloat.
 Tier 1: Hot (Latest N snapshots)
@@ -82,7 +82,7 @@ def execute_retention(brain: SAMBrain, policy: RetentionPolicy = RetentionPolicy
     return report
 
 def _squash_lineage(conn: sqlite3.Connection, snapshot_id: str, max_depth: int) -> None:
-    """Check lineage depth and truncate parent_id if it exceeds max_depth (v1.2.4-STAGE5.2)."""
+    """Check lineage depth and truncate parent_id if it exceeds max_depth (v1.2.5-STAGE5.2)."""
     current_id = snapshot_id
     depth = 0
     

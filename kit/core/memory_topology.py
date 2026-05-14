@@ -61,7 +61,7 @@ class MemoryTopology:
         self.project_root = project_root
         self.local_kit_home = (project_root / ".kit") if project_root else None
         
-        # v1.2.4-TITANIUM: Cache home resolution to avoid repeated OS overhead
+        # v1.2.5-TITANIUM: Cache home resolution to avoid repeated OS overhead
         self._global_home = Path(os.environ.get("KIT_GLOBAL_HOME", Path.home() / ".kit"))
         
         logger.info(f"MemoryTopology initialized")
@@ -135,7 +135,7 @@ class MemoryTopology:
         def _portable_path(p: Path | None) -> str:
             if not p: return "none"
             try:
-                # v1.2.4-TITANIUM: Prefer relative or home-based paths for portability
+                # v1.2.5-TITANIUM: Prefer relative or home-based paths for portability
                 if p.is_relative_to(self.GLOBAL_KIT_HOME):
                     return f"~/.kit/{p.relative_to(self.GLOBAL_KIT_HOME).as_posix()}"
                 if self.project_root and p.is_relative_to(self.project_root):
@@ -267,13 +267,13 @@ class MemoryTopology:
         is_frozen = db_type == "frozen"
         is_snapshot = db_type == "snapshot"
         
-        # v1.2.4-ARCHITECTURE-LOCK: Default to RO for Frozen/Snapshot, but allow override
+        # v1.2.5-ARCHITECTURE-LOCK: Default to RO for Frozen/Snapshot, but allow override
         if readonly is None:
             is_readonly = is_frozen or is_snapshot
         else:
             is_readonly = readonly
         
-        # v1.2.4-TITANIUM: Unified URI construction for Windows compatibility
+        # v1.2.5-TITANIUM: Unified URI construction for Windows compatibility
         mode = "ro" if is_readonly else "rwc"
         uri = f"file:{path.as_posix()}?mode={mode}"
         effective_readonly = is_readonly
@@ -311,7 +311,7 @@ class MemoryTopology:
 
     def connect_path(self, path: Path, readonly: bool = False, timeout: float = 10.0) -> sqlite3.Connection:
         """
-        v1.2.4-ARCHITECTURE-LOCK: Authorized method to connect to arbitrary paths.
+        v1.2.5-ARCHITECTURE-LOCK: Authorized method to connect to arbitrary paths.
         Used by MemoryRouter for isolated test paths.
         """
         path.parent.mkdir(parents=True, exist_ok=True)

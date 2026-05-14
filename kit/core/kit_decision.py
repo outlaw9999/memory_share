@@ -9,7 +9,7 @@ class Action(StrEnum):
 
 def decide(signals: list) -> dict:
     """
-    v1.2.4 Decision Engine (Thẩm phán L3).
+    v1.2.5 Decision Engine (Thẩm phán L3).
     Deterministic judgment based on Signal confidence and MEC v1 Contract.
     Handles both Signal objects and serialized dictionaries.
     """

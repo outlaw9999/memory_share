@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Flow-Correctness Test Suite v1.2.4
+Flow-Correctness Test Suite v1.2.5
 
 Tests the core flow state machine: PRECHECK → REFLECT → SIGNAL_MERGE → ROUTE → EXECUTE → POST_OBSERVE → FEEDBACK
 
-This suite validates that the v1.2.4 architecture operates deterministically and correctly under various conditions.
+This suite validates that the v1.2.5 architecture operates deterministically and correctly under various conditions.
 """
 
 import pytest
@@ -17,7 +17,7 @@ from kit.core.kit_cognitive_core import SAMBrain, SAMBrainError
 
 
 class TestFlowV124Core:
-    """Core flow correctness tests for v1.2.4 Titanium architecture."""
+    """Core flow correctness tests for v1.2.5 Titanium architecture."""
 
     def setup_method(self):
         """Set up test environment with isolated memory."""

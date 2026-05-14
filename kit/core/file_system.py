@@ -62,7 +62,7 @@ def safe_walk(
     allowed_extensions: set[str] = ALLOWED_EXTENSIONS,
 ) -> Generator[Path]:
     """
-    Standardized filesystem discovery layer (v1.2.4-TITANIUM).
+    Standardized filesystem discovery layer (v1.2.5-TITANIUM).
     Protects against infinite recursion, symlink loops, and hardlink loops.
     """
     visited_inodes: set[tuple[int, int]] = set()
@@ -117,7 +117,7 @@ def safe_walk(
 
 def read_text_safe(path: Path) -> FileContent:
     """
-    Truth Acquisition Layer (v1.2.4-TITANIUM).
+    Truth Acquisition Layer (v1.2.5-TITANIUM).
     Deterministic file reading pipeline: UTF-8 -> UTF-8-SIG -> UTF-16.
     Enforces a strict fail-loudly policy on binary data and encoding corruption.
     """
@@ -157,7 +157,7 @@ def read_text_safe(path: Path) -> FileContent:
         return FileContent(path, text, 'utf-8', EncodingStatus.OK)
     except UnicodeDecodeError as e:
         # If UTF-8 fails and we reached here (no NULL bytes), it's either high-bit ANSI or Corrupted.
-        # Kit V1.2.4 policy: We DO NOT guess. We FAIL.
+        # Kit V1.2.5 policy: We DO NOT guess. We FAIL.
         raise EncodingError(
             path,
             "UTF-8 decoding failed and no valid fallback was found. Kit avoids silent corruption.",

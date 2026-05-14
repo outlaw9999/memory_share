@@ -111,11 +111,11 @@ class Materializer:
         return total
 
     def _batch_insert(self, edges: List[dict]) -> int:
-        """Batch insert edges with deduplication (v1.2.4)."""
+        """Batch insert edges with deduplication (v1.2.5)."""
         batch = []
 
         for edge in edges:
-            # v1.2.4 maps 'source' -> 'source_symbol', 'target' -> 'target_symbol'
+            # v1.2.5 maps 'source' -> 'source_symbol', 'target' -> 'target_symbol'
             if not all(k in edge for k in ('source', 'target', 'edge_type')):
                 continue
 

@@ -44,9 +44,9 @@ class VantageStreamConsumer:
                         event = json.loads(line)
                         
                         # --- [CONTRACT GUARD] Version Validation ---
-                        # Standard v1.2.4 stream events should include a version field 'v'
-                        if "v" in event and event["v"] != "1.2.4":
-                            logger.warning(f"Consumer: Version mismatch in stream event. Expected 1.2.4, got {event['v']}")
+                        # Standard v1.2.5 stream events should include a version field 'v'
+                        if "v" in event and event["v"] != "1.2.5":
+                            logger.warning(f"Consumer: Version mismatch in stream event. Expected 1.2.5, got {event['v']}")
                             if os.getenv("KIT_STRICT_CONTRACT") == "1":
                                 continue
                         
@@ -79,7 +79,7 @@ class VantageStreamConsumer:
     def _ingest_events(self, events: List[Dict]):
         """Normalize and push events into the Kit Canonical Layer."""
         
-        # v1.2.4-TITANIUM: Use authoritative connection via brain
+        # v1.2.5-TITANIUM: Use authoritative connection via brain
         with self.brain.get_connection() as conn:
             for event in events:
                 event_type = event.get("type", "unknown")

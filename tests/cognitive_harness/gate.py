@@ -1,7 +1,7 @@
 """
 CIGate - CI/CD integration for cognitive TDD.
 
-v1.2.4: Provides command-line interface for running:
+v1.2.5: Provides command-line interface for running:
 - Flow Regression Gate
 - Vantage Consistency Loop
 - Memory Isolation & Sealing Tests

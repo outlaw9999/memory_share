@@ -66,7 +66,7 @@ def compute_state_vector(
     history: list[dict[str, Any]] | None = None
 ) -> StateVector:
     """
-    Hydrate a StateVector with Full Epistemic Enforcement (Titanium v1.2.4).
+    Hydrate a StateVector with Full Epistemic Enforcement (Titanium v1.2.5).
     1. Sanitization (Hygiene)
     2. Authority check (Security)
     3. Hijack detection (Integrity)

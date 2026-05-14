@@ -18,10 +18,10 @@ def test_single_connect_authority():
         "kit_lock.py",  # Uses connect for WAL checkpoint (administrative)
         "kit_cognitive_core.py",  # Uses connect for read-only URI mode when sealed
         "kit_sealing.py",  # Administrative kernel verification
-        "migrate_brain.py", # Administrative migration utility (v1.2.4)
+        "migrate_brain.py", # Administrative migration utility (v1.2.5)
     }
 
-    # Match ANY connect(...) pattern (v1.2.4-STABILIZE-HARD)
+    # Match ANY connect(...) pattern (v1.2.5-STABILIZE-HARD)
     CONNECT_PATTERN = re.compile(
         r"""
         (?:
@@ -39,7 +39,7 @@ def test_single_connect_authority():
 
         content = py_file.read_text(encoding="utf-8", errors="ignore")
         
-        # v1.2.4-TITANIUM: Strip comments to prevent false positives in documentation
+        # v1.2.5-TITANIUM: Strip comments to prevent false positives in documentation
         stripped_lines = []
         for line in content.splitlines():
             code_part = line.split("#")[0]

@@ -5,14 +5,14 @@ from kit.core.memory_policy import MemoryPolicy
 from kit.core.kit_cognitive_core import Memory
 
 def load_golden_data():
-    path = Path(__file__).parent / "golden_arbitration_v1_2_4.json"
+    path = Path(__file__).parent / "golden_arbitration_v1_2_5.json"
     with open(path, "r") as f:
         return json.load(f)
 
 @pytest.mark.parametrize("case", load_golden_data()["cases"])
-def test_freeze_guard_v1_2_4(case):
+def test_freeze_guard_v1_2_5(case):
     """
-    ARCHITECTURAL FREEZE GUARD: Enforces that Kit v1.2.4 arbitration logic
+    ARCHITECTURAL FREEZE GUARD: Enforces that Kit v1.2.5 arbitration logic
     never drifts from the certified Golden Truth.
     """
     pool_data = case["pool"]
@@ -34,7 +34,7 @@ def test_freeze_guard_v1_2_4(case):
     
     winner = MemoryPolicy.resolve(pool, now=now)
     
-    # [v1.2.4-IMMUTABLE] Binary Verification: Winner must be bit-identical
+    # [v1.2.5-IMMUTABLE] Binary Verification: Winner must be bit-identical
     assert winner.id == case["expected_id"], (
         f"FREEZE VIOLATION in '{case['name']}': "
         f"Expected ID {case['expected_id']}, but got {winner.id}. "
@@ -63,7 +63,7 @@ def test_policy_integrity_lock():
 def test_policy_version_lock():
     """Ensures the policy is explicitly marked as FROZEN."""
     assert hasattr(MemoryPolicy, "POLICY_VERSION"), "MemoryPolicy must have a POLICY_VERSION."
-    assert MemoryPolicy.POLICY_VERSION == "1.2.4-TITANIUM-FROZEN", "Policy version drift detected!"
+    assert MemoryPolicy.POLICY_VERSION == "1.2.5-TITANIUM-FROZEN", "Policy version drift detected!"
 
 if __name__ == "__main__":
     pytest.main([__file__])

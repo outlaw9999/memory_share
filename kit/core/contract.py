@@ -1,4 +1,4 @@
-# .kit v1.2.4 - Titanium Contract Layer
+# .kit v1.2.5 - Titanium Contract Layer
 # PURE SPECIFICATION: Normalized Mapping between Vantage (Physics) and SAMBrain (Cognition)
 
 from dataclasses import dataclass
@@ -59,6 +59,6 @@ def normalize_vantage_signal(raw_vantage_json: dict[str, Any]) -> dict[str, Any]
         "metadata": {
             "vantage_uuid": raw_vantage_json.get("uuid"),
             "ast_depth": raw_vantage_json.get("depth", 0),
-            "engine": "vantage-verify-v1.2.4"
+            "engine": "vantage-verify-v1.2.5"
         }
     }

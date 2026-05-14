@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Failure Injection Suite v1.2.4
+Failure Injection Suite v1.2.5
 
 Tests system resilience under failure conditions:
 - Windows I/O Lock scenarios
@@ -22,7 +22,7 @@ from kit.api import resolve_paths
 
 
 class TestV124Resilience:
-    """Resilience tests for v1.2.4 under failure conditions."""
+    """Resilience tests for v1.2.5 under failure conditions."""
 
     def setup_method(self):
         """Set up isolated test environment."""

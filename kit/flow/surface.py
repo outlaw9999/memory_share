@@ -132,7 +132,7 @@ def runtime_signal_from_substrate(substrate: dict[str, Any], error: Exception | 
     elif not substrate.get("is_locked", True):
         uid = "RUNTIME:INTERPRETER_MISMATCH"
         evidence = (
-            "[RUNTIME LOCK] Interpreter mismatch (v1.2.4)\n"
+            "[RUNTIME LOCK] Interpreter mismatch (v1.2.5)\n"
             f"Expected: {substrate.get('venv_discovered', 'missing')}\n"
             f"Actual:   {substrate.get('interpreter', 'unknown')}"
         )
@@ -152,7 +152,7 @@ def runtime_signal_from_substrate(substrate: dict[str, Any], error: Exception | 
 
 def flow_decision_kernel(input_text: str, brain=None) -> dict[str, Any]:
     """
-    Flow Decision Micro-Kernel (v1.2.4 FINAL)
+    Flow Decision Micro-Kernel (v1.2.5 FINAL)
     
     7 States:
     1. PRECHECK: preflight (seal, env, venv)

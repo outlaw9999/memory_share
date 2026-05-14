@@ -6,7 +6,7 @@ from tests.harness.policy_runner import PolicyTestHarness
 def test_golden_truth_contracts():
     """
     ENFORCEMENT: All golden truth cases must pass.
-    This locks the behavioral contract of Kit v1.2.4.
+    This locks the behavioral contract of Kit v1.2.5.
     """
     dataset_path = "e:/DEV/opensource_contrib/memory_share_kit/tests/golden/golden_memory_cases.jsonl"
     results = PolicyTestHarness.run_golden_suite(dataset_path)

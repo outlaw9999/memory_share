@@ -1,5 +1,5 @@
 # kit/core/memory_router.py
-# v1.2.4 — Memory Router (Gatekeeper Layer)
+# v1.2.5 — Memory Router (Gatekeeper Layer)
 #
 # Philosophy:
 #   SINGLE GATE for all memory writes.
@@ -30,7 +30,7 @@ logger = logging.getLogger("kit.memory_router")
 
 
 class MemoryTier(StrEnum):
-    """Three-tier architecture (v1.2.4 FINAL)."""
+    """Three-tier architecture (v1.2.5 FINAL)."""
     LOCAL = "local"           # Project-specific (local_brain.db)
     GLOBAL = "global"         # Cross-project (global_brain.db)
     FROZEN = "read_only"      # Immutable (global_read_only.db)
@@ -68,7 +68,7 @@ class MemoryReadRequest:
 
 @dataclass
 class RecallTrace:
-    """Telemetry and explainability for a recall request (v1.2.4-TITANIUM)."""
+    """Telemetry and explainability for a recall request (v1.2.5-TITANIUM)."""
     cache_hit: bool = False
     satiety_reached: bool = False
     tiers_queried: list[str] = field(default_factory=list)
@@ -81,7 +81,7 @@ class RecallResult:
     """Contract bundle for retrieval operations."""
     memories: list[Any]
     trace: RecallTrace
-    version: str = "v1.2.4"
+    version: str = "v1.2.5"
 
 
 
@@ -126,7 +126,7 @@ class WriteDecisionRecord:
 
 
 class RouterWriteBuffer:
-    """In-memory fallback when DB file is locked. (v1.2.4-COLLAPSE)"""
+    """In-memory fallback when DB file is locked. (v1.2.5-COLLAPSE)"""
 
     def __init__(self, max_size: int = 100):
         self.max_size = max_size
@@ -148,7 +148,7 @@ class RouterWriteBuffer:
 
 
 class RecallCache:
-    """L0 In-Memory Cache for hot recall patterns (v1.2.4-TITANIUM Tuning)."""
+    """L0 In-Memory Cache for hot recall patterns (v1.2.5-TITANIUM Tuning)."""
     
     def __init__(self, max_size: int = 50, ttl_seconds: int = 30):
         self.max_size = max_size
@@ -222,7 +222,7 @@ class MemoryTierRules:
     
     @classmethod
     def route_to_tier(cls, request: MemoryWriteRequest) -> MemoryTier:
-        """Route request to appropriate tier based on confidence (v1.2.4-TITANIUM)."""
+        """Route request to appropriate tier based on confidence (v1.2.5-TITANIUM)."""
         
         # 1. Direct override (Expert/Governance mode)
         if request.target_tier:
@@ -297,9 +297,9 @@ class MemoryRouter:
         self._closer = closer
         self._owns_connection = False # v1.2.5: Track ownership for lifecycle safety
 
-        logger.info(f"MemoryRouter v1.2.4 (TITANIUM) initialized")
+        logger.info(f"MemoryRouter v1.2.5 (TITANIUM) initialized")
         
-        # v1.2.4: Dedicated Log Sink (Disabled in TEST mode to prevent WinError 32)
+        # v1.2.5: Dedicated Log Sink (Disabled in TEST mode to prevent WinError 32)
         from kit.core.kit_env import ExecutionMode, get_execution_mode
         if get_execution_mode() != ExecutionMode.TEST:
             try:
@@ -317,7 +317,7 @@ class MemoryRouter:
         logger.info(f"  L4-Audit:  {self.history_path}")
 
     def close(self):
-        """Release system resources (v1.2.4-TITANIUM)."""
+        """Release system resources (v1.2.5-TITANIUM)."""
         if self._closer:
             try:
                 self._closer()
@@ -338,7 +338,7 @@ class MemoryRouter:
         return self._hydrate_memory(best_row)
 
     def _generate_cache_key(self, request: MemoryReadRequest) -> str:
-        """Normalized semantic cache key (v1.2.4-TITANIUM)."""
+        """Normalized semantic cache key (v1.2.5-TITANIUM)."""
         q = (request.query or "").lower().strip()
         s = (request.scope or "").strip("/")
         e = ",".join(sorted(request.entities)) if request.entities else ""
@@ -348,7 +348,7 @@ class MemoryRouter:
     
     def resolve_read(self, request: MemoryReadRequest, return_mode: str = "legacy") -> Any:
         """
-        Unified Read Dispatcher (v1.2.4-TITANIUM Stabilized).
+        Unified Read Dispatcher (v1.2.5-TITANIUM Stabilized).
         Routes query through L0 Cache -> Soft-Satiety Progressive Recall.
         """
         from kit.core.kit_cognitive_core import Memory
@@ -425,7 +425,7 @@ class MemoryRouter:
             logger.debug(f"Recall: Recent fallback found {len(raw_results)} rows.")
 
 
-        # --- Stage 5: Finalize & Hydrate Candidates (v1.2.4-TITANIUM Purity) ---
+        # --- Stage 5: Finalize & Hydrate Candidates (v1.2.5-TITANIUM Purity) ---
         # The router no longer ranks or scores. It returns hydrated candidates 
         # for the Core to arbitrate via MemoryPolicy.
         final_memories = [self._hydrate_memory(r) for r in raw_results]
@@ -434,7 +434,7 @@ class MemoryRouter:
         trace.latency_ms = (time.perf_counter() - start_time) * 1000
         self._recall_cache.set(cache_key, final_memories)
         
-        # Router Trace (v1.2.4-TITANIUM)
+        # Router Trace (v1.2.5-TITANIUM)
         logger.debug(f"Router: Recall complete | Tiers: {trace.tiers_queried} | Count: {len(final_memories)}")
 
         if return_mode == "contract":
@@ -444,7 +444,7 @@ class MemoryRouter:
 
 
     def _query_tier_raw(self, tier: MemoryTier, request: MemoryReadRequest) -> list[dict]:
-        """Execute query and return raw rows (v1.2.4-TITANIUM Tuning)."""
+        """Execute query and return raw rows (v1.2.5-TITANIUM Tuning)."""
         scope = "local" if tier == MemoryTier.LOCAL else "global"
         db_type = "local" if tier == MemoryTier.LOCAL else ("global" if tier == MemoryTier.GLOBAL else "frozen")
         
@@ -460,7 +460,7 @@ class MemoryRouter:
             # Authority Connection
             conn = self._connection_provider(path, readonly=True)
             
-            # v1.2.4-TITANIUM: Robust handle enforcement
+            # v1.2.5-TITANIUM: Robust handle enforcement
             # Ensure we are working with a raw connection or a wrapper
             # If it's a context manager (like SAMBrain.get_connection), we enter it
             if hasattr(conn, "__enter__"):
@@ -482,7 +482,7 @@ class MemoryRouter:
                     pass
 
     def _execute_recall_on_conn_raw(self, conn: sqlite3.Connection, tier: MemoryTier, request: MemoryReadRequest) -> list[dict]:
-        """Low-level row fetcher (v1.2.4-TITANIUM Tuning)."""
+        """Low-level row fetcher (v1.2.5-TITANIUM Tuning)."""
         current_branch = "main"
         where_clauses = ["o.is_active = 1", "o.branch = ?"]
         params = [current_branch]
@@ -554,7 +554,7 @@ class MemoryRouter:
         return rows
 
     def _hydrate_memory(self, row: dict) -> Any:
-        """Lazy hydration factory (v1.2.4-TITANIUM-FROZEN)."""
+        """Lazy hydration factory (v1.2.5-TITANIUM-FROZEN)."""
         from kit.core.kit_cognitive_core import Memory
         return Memory(
             id=row["id"],
@@ -578,10 +578,10 @@ class MemoryRouter:
         )
 
     def _query_tier(self, tier: MemoryTier, request: MemoryReadRequest) -> list[Any]:
-        """Legacy hydrated query (v1.2.4-patch)."""
+        """Legacy hydrated query (v1.2.5-patch)."""
 
     def _execute_recall_on_conn(self, conn: sqlite3.Connection, tier: MemoryTier, request: MemoryReadRequest) -> list[Any]:
-        """Internal low-level query executor (Unified v1.2.4-TITANIUM)."""
+        """Internal low-level query executor (Unified v1.2.5-TITANIUM)."""
         from kit.core.kit_cognitive_core import Memory
         
         current_branch = "main" # TODO: Support branching in Router
@@ -597,7 +597,7 @@ class MemoryRouter:
             where_clauses.append(f"(o.scope IN ({placeholders}) OR o.scope = '')")
             params.extend(scopes)
             
-        # 2. Temporal Filter (v1.2.4-TITANIUM)
+        # 2. Temporal Filter (v1.2.5-TITANIUM)
         if request.since:
             where_clauses.append("o.created_at >= ?")
             params.append(request.since)
@@ -605,7 +605,7 @@ class MemoryRouter:
             where_clauses.append("o.created_at <= ?")
             params.append(request.until)
 
-        # 3. Entity/FTS Filter (v1.2.4-TITANIUM SSOT)
+        # 3. Entity/FTS Filter (v1.2.5-TITANIUM SSOT)
         entity_where = ""
         if request.entities or request.query:
             symbol_clause = ""
@@ -687,7 +687,7 @@ class MemoryRouter:
         line: Optional[int] = None
     ) -> bool:
         """
-        [GWF] Graph Write Firewall - Enforces structural truth invariants (v1.2.4-FINAL).
+        [GWF] Graph Write Firewall - Enforces structural truth invariants (v1.2.5-FINAL).
         """
         # 1. Enforcement Gate
         is_valid, reason = self.validate_graph_edge(source, target, relation)
@@ -700,7 +700,7 @@ class MemoryRouter:
         
         # 3. Mutation
         try:
-            # v1.2.4-TITANIUM: Check for Seal before writing to LOCAL
+            # v1.2.5-TITANIUM: Check for Seal before writing to LOCAL
             from kit.core.kit_lock import is_sealed
             if self.topology.project_root and is_sealed(self.topology.project_root):
                 logger.error("[GWF BLOCK] Attempted graph mutation on SEALED kernel.")
@@ -720,7 +720,7 @@ class MemoryRouter:
 
     def validate_graph_edge(self, source: str, target: str, relation: str) -> tuple[bool, str]:
         """
-        Validates structural truth against v1.2.4 invariants.
+        Validates structural truth against v1.2.5 invariants.
         """
         # Rule 1: Ghost Prevention Protocol
         if source.startswith("Symbol_") or target.startswith("Symbol_"):
@@ -789,12 +789,12 @@ class MemoryRouter:
     def _write_to_tier(self, tier: MemoryTier, request: MemoryWriteRequest) -> int:
         """Write memory to the assigned tier's database with Titanium Schema enforcement."""
         
-        # v1.2.4-COLLAPSE-SAFE: Frozen Tier Architecture Invariant
+        # v1.2.5-COLLAPSE-SAFE: Frozen Tier Architecture Invariant
         if tier == MemoryTier.FROZEN:
             logger.error(f"CRITICAL: Attempted write to FROZEN tier: {request.key}")
             raise PermissionError(f"Tier {tier.value} (FROZEN) is read-only by architecture.")
 
-        # v1.2.4-TITANIUM: Logical Seal enforcement for L1
+        # v1.2.5-TITANIUM: Logical Seal enforcement for L1
         if tier == MemoryTier.LOCAL:
             from kit.core.kit_lock import is_sealed
             if self.topology.project_root and is_sealed(self.topology.project_root):
@@ -833,7 +833,7 @@ class MemoryRouter:
                     pass
 
     def _execute_write_on_conn(self, conn: sqlite3.Connection, request: MemoryWriteRequest) -> int:
-        """Internal low-level write executor (Titanium v1.2.4)."""
+        """Internal low-level write executor (Titanium v1.2.5)."""
         # 1. Prepare Node Data
         node_uid = request.key.lower()
         content_str = json.dumps(request.content) if isinstance(request.content, dict) else request.content
@@ -909,7 +909,7 @@ class MemoryRouter:
         with self._decision_lock:
             self._decision_log.append(decision)
             try:
-                # v1.2.4: Atomic history write within lock
+                # v1.2.5: Atomic history write within lock
                 with open(self.history_path, "a", encoding="utf-8") as f:
                     from dataclasses import asdict
                     import json
@@ -992,12 +992,12 @@ class MemoryRouterFactory:
         # (even if project_root is different, GLOBAL is shared)
         cls._initialize_scope(topology, "global")
         
-        # Initialize SAMBrain for authority connection (v1.2.4)
+        # Initialize SAMBrain for authority connection (v1.2.5)
         from kit.core.kit_cognitive_core import SAMBrain
         brain = SAMBrain(topology.resolve("local", "local"), root_path=project_root)
         
         # Create router with topology
-        # v1.2.4: Provide default connection authority via SAMBrain
+        # v1.2.5: Provide default connection authority via SAMBrain
         router = MemoryRouter(
             topology, 
             history_path, 
@@ -1027,10 +1027,10 @@ class MemoryRouterFactory:
                 continue
 
             # Authority Connection
-            # v1.2.4: Always use RW for initialization
+            # v1.2.5: Always use RW for initialization
             conn = topology.connect(scope, db_type, readonly=False)
             try:
-                # v1.2.4: PRAGMAs and Schema Init must be outside explicit transaction
+                # v1.2.5: PRAGMAs and Schema Init must be outside explicit transaction
                 init_db(conn)
                 enable_wal(conn)
                 
@@ -1047,7 +1047,7 @@ if __name__ == "__main__":
     import tempfile
     
     print("\n" + "="*70)
-    print("🧠 KIT v1.2.4 Memory Router - Demonstration")
+    print("🧠 KIT v1.2.5 Memory Router - Demonstration")
     print("="*70)
     
     with tempfile.TemporaryDirectory() as tmpdir:

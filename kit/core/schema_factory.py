@@ -16,10 +16,10 @@ CREATE TABLE IF NOT EXISTS kernel_metadata (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Initialize Kernel Identity (v1.2.4-FINAL)
-INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('version', '1.2.4-final');
-INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('kit_schema_version', '1.2.4-final');
-INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('vantage_contract_version', '1.2.4-rust');
+-- Initialize Kernel Identity (v1.2.5-FINAL)
+INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('version', '1.2.5-final');
+INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('kit_schema_version', '1.2.5-final');
+INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('vantage_contract_version', '1.2.5-rust');
 INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('integrity_policy', 'strict');
 INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('write_authority', 'MemoryRouter');
 
@@ -286,14 +286,14 @@ def _ensure_index(conn: sqlite3.Connection, name: str, ddl: str):
 
 
 def init_db(conn: sqlite3.Connection):
-    """Bootstrap or migrate the database schema (v1.2.4-FINAL)."""
+    """Bootstrap or migrate the database schema (v1.2.5-FINAL)."""
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
 
     # === Phase 1: Create core tables ===
     conn.executescript(SCHEMA_SQL)
 
-    # === Phase 2: Migrations (old DB → v1.2.4) ===
+    # === Phase 2: Migrations (old DB → v1.2.5) ===
 
     # Chronos patch: superseded_at
     _add_column_safe(conn, "observations", "superseded_at", "superseded_at DATETIME")
@@ -324,7 +324,7 @@ def init_db(conn: sqlite3.Connection):
     _add_column_safe(conn, "observations", "symbol", "symbol TEXT")
     _add_column_safe(conn, "observations", "structural_hash", "structural_hash TEXT")
 
-    # Symbol Governance (v1.2.4)
+    # Symbol Governance (v1.2.5)
     _add_column_safe(conn, "observations", "symbol_locked", "symbol_locked INTEGER DEFAULT 0")
     _add_column_safe(conn, "observations", "symbol_confidence", "symbol_confidence REAL DEFAULT 0.0")
     _add_column_safe(conn, "observations", "symbol_source", "symbol_source TEXT")
@@ -333,7 +333,7 @@ def init_db(conn: sqlite3.Connection):
     _add_column_safe(conn, "observations", "is_canonical", "is_canonical INTEGER DEFAULT 0")
     _add_column_safe(conn, "observations", "canonical_id", "canonical_id INTEGER")
 
-    # Perception-Cognition split (v1.2.4-LOCK)
+    # Perception-Cognition split (v1.2.5-LOCK)
     _add_column_safe(conn, "observations", "is_baked", "is_baked BOOLEAN DEFAULT 0",
                      backfill="UPDATE observations SET is_baked = 1 WHERE is_baked IS NULL OR is_baked = 0")
 
@@ -539,7 +539,7 @@ def init_db(conn: sqlite3.Connection):
 
 
 def enable_wal(conn: sqlite3.Connection):
-    """Activate high-performance mode (v1.2.4-TITANIUM Tuning)."""
+    """Activate high-performance mode (v1.2.5-TITANIUM Tuning)."""
     mode_row = conn.execute("PRAGMA journal_mode=WAL").fetchone()
     if mode_row:
         mode = mode_row[0] if isinstance(mode_row, tuple) else mode_row["journal_mode"]

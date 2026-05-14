@@ -1,7 +1,7 @@
 """
 RegressionCorpus - Given-When-Then test scenarios for cognitive flows.
 
-v1.2.4: Defines test scenarios for validating:
+v1.2.5: Defines test scenarios for validating:
 - Flow regression (7-state machine transitions)
 - Recall → Think → Learn pipeline
 - Decision tier outputs

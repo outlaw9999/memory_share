@@ -1,7 +1,7 @@
 """
 VantageConsistencyChecker - Ensure vantage signals don't drift.
 
-v1.2.4: Validates that:
+v1.2.5: Validates that:
 - kit learn triggers friction properly (not spam)
 - reflect doesn't create noise (duplicate observations)
 - signal confidence scores are stable

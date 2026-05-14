@@ -1,5 +1,5 @@
 # tests/test_kit_system_contract.py
-# v1.2.4-TITANIUM — SYSTEM CONTRACT TEST (Core Chain TDD)
+# v1.2.5-TITANIUM — SYSTEM CONTRACT TEST (Core Chain TDD)
 #
 # This test validates the complete memory lifecycle under the CLI orchestration.
 # TIER 0 critical path: kit init → kit learn → kit recall
@@ -25,14 +25,14 @@ def run_kit_command(cwd: Path, *args) -> tuple[int, str, str]:
     # Get the repo root (parent of tests/)
     repo_root = Path(__file__).parent.parent.absolute()
 
-    # Set environment for v1.2.4 Titanium enforcement bypass (internal lock only)
+    # Set environment for v1.2.5 Titanium enforcement bypass (internal lock only)
     env = os.environ.copy()
     env["PYTHONPATH"] = str(repo_root)
     env["KIT_BYPASS_RUNTIME_LOCK"] = "1"
     env["KIT_DISABLE_ASYNC_BAKE"] = "1"
     env["PYTHONUTF8"] = "1"
     env["VANTAGE_HOME"] = os.path.join(str(repo_root), "non_existent_vantage")
-    # v1.2.4-ISOLATION: Use the temp directory as HOME to isolate global_brain.db
+    # v1.2.5-ISOLATION: Use the temp directory as HOME to isolate global_brain.db
     env["USERPROFILE"] = str(cwd.parent) # For Windows
     env["HOME"] = str(cwd.parent) # For Unix-like
 
@@ -47,7 +47,7 @@ def run_kit_command(cwd: Path, *args) -> tuple[int, str, str]:
         env=env,
     )
 
-    # v1.2.4-TITANIUM: PROCESS LIFECYCLE BARRIER (Windows ONLY)
+    # v1.2.5-TITANIUM: PROCESS LIFECYCLE BARRIER (Windows ONLY)
     # Ensure OS has released file handles before next command or cleanup
     if os.name == "nt":
         import time
@@ -85,7 +85,7 @@ class TestKitSystemContract:
             kit_dir = project_root / ".kit"
             assert kit_dir.exists(), ".kit directory not created"
             assert (kit_dir / "local_brain.db").exists(), "local_brain.db not created"
-            assert (kit_dir / "bootstrap_v1_2_4.seed").exists(), "sentinel file not created"
+            assert (kit_dir / "bootstrap_v1_2_5.seed").exists(), "sentinel file not created"
             print("[OK] kit init succeeded")
 
             # STEP 2: kit learn (Simplified UX: kit learn "text")
@@ -170,7 +170,7 @@ class TestKitSystemContract:
             print(f"DEBUG: ws2 init out: {out2}\nerr: {err2}")
             
             print(f"DEBUG: ws1 content: {list(ws1.glob('**/*'))}")
-            sentinel = ws1 / ".kit" / "bootstrap_v1_2_4.seed"
+            sentinel = ws1 / ".kit" / "bootstrap_v1_2_5.seed"
             print(f"DEBUG: ws1 sentinel exists: {sentinel.exists()} at {sentinel}")
 
             # Learn in WS1
@@ -197,7 +197,7 @@ if __name__ == "__main__":
     import traceback
 
     print("=" * 70)
-    print("KIT v1.2.4-TITANIUM — SYSTEM CONTRACT TEST (Core Chain)")
+    print("KIT v1.2.5-TITANIUM — SYSTEM CONTRACT TEST (Core Chain)")
     print("=" * 70 + "\n")
 
     test_suite = TestKitSystemContract()

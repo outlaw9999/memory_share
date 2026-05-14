@@ -316,7 +316,7 @@ def run_doctor(
         import importlib.metadata
         package_version = importlib.metadata.version("memory-share-kit")
     except importlib.metadata.PackageNotFoundError:
-        package_version = "1.2.4-FINAL"
+        package_version = "1.2.5-FINAL"
 
     brain = get_brain()
 
@@ -349,7 +349,7 @@ def run_doctor(
             file=sys.stderr,
         )
 
-    # --- Vantage Integration (v1.2.4) ---
+    # --- Vantage Integration (v1.2.5) ---
     from kit.core import kit_env
     from kit.core.kit_vantage import VANTAGE_BIN
 

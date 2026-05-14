@@ -1,7 +1,7 @@
 """
 StateDiff - Snapshot comparison for state verification.
 
-v1.2.4: Computes diffs between brain states and verifies invariants.
+v1.2.5: Computes diffs between brain states and verifies invariants.
 """
 
 import json

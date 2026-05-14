@@ -1,5 +1,5 @@
 {
-  "version": "v1.2.4",
+  "version": "v1.2.5",
   "commands": {
     "hygiene": {
       "name": "hygiene",
@@ -22,7 +22,7 @@
     "init-env": {
       "name": "init-env",
       "namespace": "core",
-      "description": "Standardize VSCode and .env for relative path anchoring (v1.2.4)",
+      "description": "Standardize VSCode and .env for relative path anchoring (v1.2.5)",
       "input_schema": {},
       "output_schema": {},
       "side_effect": "READ_ONLY",

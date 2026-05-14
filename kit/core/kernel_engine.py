@@ -72,7 +72,7 @@ class DeterministicKernel:
                 frame.update_state("failed")
                 
                 if frame.return_code == -2:
-                    # v1.2.4: PermissionError/Sealed is terminal, no retry
+                    # v1.2.5: PermissionError/Sealed is terminal, no retry
                     print(f"  [Kernel] FATAL: {frame.stderr}")
                     return False
                 

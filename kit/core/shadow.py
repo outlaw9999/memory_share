@@ -4,7 +4,7 @@ import re
 import sys
 from pathlib import Path
 
-# .kit v1.2.4 SHADOW - Phase 0: Raw Regex Sensors
+# .kit v1.2.5 SHADOW - Phase 0: Raw Regex Sensors
 # O(n) Complexity | Silent | Observation Only
 SENSORS = {
     "SQL_INJECTION_SMELL": r"(?i)(SELECT|INSERT|UPDATE|DELETE).*(\{.*\}|\+.*|%s|\.format\()",
