@@ -1,0 +1,53 @@
+version: 1.2.5
+metadata:
+  purpose: "Contract-Driven Cognitive Runtime"
+  engine: "SAMBrain 1.2.5"
+  status: "Sealed Stable"
+
+contract:
+  cli:
+    learn: 
+      syntax: "kit learn <content> [--tag T]"
+      out: "OK"
+      err: "KIT-SEALED"
+    recall: 
+      syntax: "kit recall [entities...]"
+      out: "* [{source}:{tag}] {content}"
+      err: "KIT-NOT-INIT"
+    init: 
+      syntax: "kit init [--force]"
+      out: "OK"
+      err: "KIT-ENV-LOCK"
+    seal: 
+      out: "OK"
+      err: "KIT-BUSY"
+    unseal: 
+      out: "OK"
+    snapshot: 
+      out: "OK"
+
+  errors:
+    KIT-SEALED: 
+      msg: "run kit unseal first"
+      source: "PermissionError"
+    KIT-NOT-INIT: 
+      msg: "run kit init first"
+      source: "FileNotFoundError"
+    KIT-ENV-LOCK: 
+      msg: "use project venv"
+      source: "RuntimeError"
+    KIT-BUSY: 
+      msg: "retry with --force"
+      source: "ZombieHandleDetected"
+    UNKNOWN: 
+      msg: "FAILED: {e}"
+      action: "run kit doctor"
+
+runtime:
+  logging:
+    router: 
+      scope: "kit.memory_router.*"
+      sink: ".kit/logs/router.log"
+      propagate: false
+  vantage:
+    gating: [init, seal, snapshot, hygiene]

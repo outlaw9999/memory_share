@@ -1,0 +1,33 @@
+name: Royal Guard - Engine Verification
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+        
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+        
+    - name: Environment Fingerprint
+      run: |
+        uv run python -c "import sys; print(f'Interpreter: {sys.executable}'); print(f'Version: {sys.version}')"
+        uv run python -c "import os; print(f'PYTHONPATH: {os.environ.get(\"PYTHONPATH\")}')"
+        
+    - name: Epistemic Verification (Vantage Authority)
+      env:
+        PYTHONUTF8: 1
+      run: |
+        uv run python -m kit verify

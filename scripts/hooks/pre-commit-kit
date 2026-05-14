@@ -1,0 +1,26 @@
+#!/bin/sh
+# Kit Pre-Commit Hook (v1.2.5)
+# Emits LIFECYCLE:PRE_COMMIT via kit-runtime. Blocks commit on failure.
+# Safety: 5s timeout prevents blocking git workflow.
+
+echo "[Kit] Pre-commit runtime check..."
+if command -v timeout >/dev/null 2>&1; then
+    KIT_OUTPUT=$(timeout 5 kit-runtime runtime --hook pre-commit --json 2>&1)
+    EXIT_CODE=$?
+    if [ $EXIT_CODE -eq 124 ]; then
+        echo "[Kit] Pre-commit timed out (5s) — allowing commit"
+        exit 0
+    fi
+else
+    KIT_OUTPUT=$(kit-runtime runtime --hook pre-commit --json 2>&1)
+    EXIT_CODE=$?
+fi
+
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "[Kit] Pre-commit check passed"
+    exit 0
+fi
+
+echo "[Kit] Pre-commit check FAILED"
+echo "$KIT_OUTPUT"
+exit 1

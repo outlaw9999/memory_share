@@ -1,0 +1,69 @@
+# kit/event/event_contract.yaml
+# v1.2.5 — Plane 1 ↔ Plane 2 Boundary Contract
+#
+# PLANE 1 (Git hooks) produces → RawGitEvent JSON via stdout
+# PLANE 2 (Runtime) consumes  ← RawGitEvent JSON via stdin or --event flag
+#
+# INVARIANTS:
+#   1. Plane 1 never reads from Plane 2 (no reverse flow)
+#   2. Plane 2 never writes to Git (runtime is read-only at boundary)
+#   3. Same (event, commit_hash) within 5s = no-op (idempotency)
+#   4. Hook depth max = 5 (loop prevention)
+
+version: "1.0"
+description: "Formal JSON boundary contract between Git hooks (Plane 1) and Cognitive Runtime (Plane 2)"
+
+raw_event:
+  description: "Emitted by Plane 1 via stdout. Consumed by Plane 2 via stdin."
+  fields:
+    version:
+      type: string
+      required: true
+      description: "Contract version (must match '1.0')"
+    event:
+      type: string
+      required: true
+      allowed: ["pre-commit", "post-commit", "post-merge"]
+    timestamp:
+      type: string
+      required: false
+      description: "ISO 8601 timestamp of event emission"
+    payload:
+      type: object
+      required: false
+      fields:
+        commit_hash: { type: string | null }
+        branch:      { type: string | null }
+        diff:        { type: string | null }
+    origin:
+      type: object
+      required: false
+      description: "Provenance metadata — NEVER trusted for business logic"
+      fields:
+        type:       { type: string, default: "git_hook" }
+        repo:       { type: string | null }
+        hook_depth: { type: integer, default: 0 }
+
+intent_result:
+  description: "Returned by Plane 2 via stdout. Consumed by Plane 1 hooks."
+  fields:
+    status:
+      type: string
+      values: ["success", "failed"]
+    intent:
+      type: string
+      example: "LIFECYCLE:PRE_COMMIT"
+    trace_id:
+      type: string
+    error:
+      type: string | null
+    verification:
+      type: string | null
+
+rules:
+  - "Plane 1 must never read from Plane 2 (no reverse flow)"
+  - "Plane 2 must never write to Git (runtime is read-only at boundary)"
+  - "Idempotency: same (event, commit_hash) within 5s = no-op"
+  - "Hook depth max = 5 (KIT_HOOK_DEPTH env var)"
+  - "Contract version mismatch → Plane 2 rejects the event"
+  - "All plane crossings must use RawGitEvent JSON — no raw env vars"

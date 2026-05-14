@@ -1,0 +1,24 @@
+version: '3'
+
+tasks:
+  build:
+    desc: "⚡ FAST: Structural build check (bypass CLI)"
+    cmds:
+      - python -m py_compile kit/**/*.py
+    silent: true
+
+  test:
+    desc: "🧪 FAST: Run TDD unit tests (bypass CLI)"
+    cmds:
+      - pytest -q tests/
+    silent: true
+
+  verify:
+    desc: "🛡️ Integrity: Full Vantage scan"
+    cmds:
+      - kit verify
+
+  doctor:
+    desc: "🛡️ Health: Health check"
+    cmds:
+      - kit doctor

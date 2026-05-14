@@ -1,0 +1,105 @@
+# kit/vantage/epistemic_contract.yaml
+# v1.2.5 — Epistemic Layer (EL-1): formal truth-gate contract.
+#
+# kit-vantage does NOT approve memory. It only certifies reality.
+# It is a deterministic epistemic filter, NOT a service/oracle.
+# It sits between Planner and Executor in the cognitive substrate.
+#
+# AUTHORITY:
+#   Truth Gate: Certify reality via invariant checks, causal consistency,
+#               idempotency, and optional Rust cryptographic proof.
+#   Forbidden:  Memory write decisions, traffic governance, business logic.
+#
+# INVARIANTS:
+#   - Deterministic: same input → same verdict
+#   - Side-effect free: never mutates state
+#   - Stateless (except request fingerprint cache)
+
+version: "1.0"
+layer: "Epistemic (EL-1)"
+placement: "Planner → [kit-vantage] → Executor"
+
+input:
+  name: VerificationRequest
+  fields:
+    request_id: { type: string, auto: uuid }
+    timestamp: { type: string, format: ISO-8601 }
+    intent: { type: enum, values: [READ, WRITE, VERIFY, SYNC] }
+    event:
+      type: object
+      fields:
+        type: { type: enum, values: [RawGitEvent, IntentEvent, RuntimeEvent] }
+        payload: { type: object }
+    context:
+      type: object
+      fields:
+        commit_hash: { type: string }
+        branch: { type: string }
+        diff_hash: { type: string }
+        depth: { type: integer }
+        caller: { type: string }
+    proposed_effect:
+      type: object
+      fields:
+        memory_delta: { type: object }
+        graph_delta: { type: object }
+        side_effects: { type: array }
+    proof_mode: { type: enum, values: [STRICT, RELAXED] }
+
+verification_pipeline:
+  - step: 1
+    name: Structural validation
+    description: Schema compliance, missing fields
+  - step: 2
+    name: Epistemic consistency
+    description: Memory delta vs graph invariants
+  - step: 3
+    name: Causal safety
+    description: Recursion/loop/overwrite hazard
+  - step: 4
+    name: Idempotency
+    description: Fingerprint(request) in recent cache
+  - step: 5
+    name: Optional Rust verification
+    description: Structural hash / cryptographic proof
+
+output:
+  name: VerdictResult
+  fields:
+    verdict: { type: enum, values: [APPROVED, REJECTED, DEGRADED] }
+    confidence: { type: float, range: [0.0, 1.0] }
+    reason_code: { type: enum, values: [APPROVED, SCHEMA_VIOLATION, INVARIANT_BREAK, LOOP_RISK, UNVERIFIABLE_STATE, RUST_REJECTED] }
+    explanation: { type: string }
+    proof:
+      type: object
+      fields:
+        structural_hash: { type: string }
+        violations: { type: array }
+        invariants_checked: { type: array }
+    fallback:
+      type: object
+      fields:
+        rust_engaged: { type: boolean }
+        rust_confidence: { type: float }
+
+failure_modes:
+  schema_violation:
+    action: REJECTED
+    confidence: 0.0
+  invariant_break:
+    action: REJECTED
+    confidence: "< 0.5"
+  loop_risk:
+    action: DEGRADED or REJECTED
+  unverifiable_state:
+    action: DEGRADED (allow with reduced confidence)
+
+rust_boundary:
+  responsibilities:
+    - cryptographic hashing
+    - structural graph validation
+    - invariant proof checks
+  forbidden:
+    - business logic decisions
+    - state mutation
+    - intent interpretation

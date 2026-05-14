@@ -1,0 +1,11 @@
+#!/bin/sh
+# Kit Post-Merge Hook (v1.2.5)
+# Emits MEMORY:RECONCILE for graph resolution after merge.
+# Safety: 10s timeout — reconciliation should not block merge.
+
+if command -v timeout >/dev/null 2>&1; then
+    timeout 10 kit-runtime runtime --hook post-merge --json >/dev/null 2>&1
+else
+    kit-runtime runtime --hook post-merge --json >/dev/null 2>&1
+fi
+exit 0

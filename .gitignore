@@ -1,8 +1,65 @@
-brain/layer1_stream/
-brain/layer2_core/
-brain/layer2_private/
-brain/layer3_index/*.db
-brain/layer3_index/*.db.*
-brain/ops/.sync_state.json
+# --- .kit v1.2.3 RELEASE GUARD ---
+.kit/
+scripts/archive_v123/
+
+# --- Simulation & Test Stadiums ---
+tests/invariant_cluster/
+tests/v123_stadium/
+tests/simulation_cluster/
+tests/temp_kit_home/
+tests/clean_kit/
+test_plugin_root/
+test_repo_root/
+*.log
+routing_telemetry.jsonl
+
+# --- Python Trash ---
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+
+# --- Build & Dist ---
+dist/
+build/
+*.egg-info/
+*.whl
+
+# --- Cache & Tooling ---
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.tmp_*/
+
+# --- Environment & OS ---
+.env
+.venv
+venv/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.db
+*.sqlite
+
+
+# .kit Memory Store
+.kit/brain.db-*
+.kit/brain.db.bak
+.kit/shadow.log*
+
+# Shadow / governance
+*.jsonl
+shadow_traces/
+
+# Workspace Hygiene (v1.2.5)
+.kit_test_session/
+scratch/
+audit_test.json
+archive_backup/.antigravity_cache/
+validation_report.json
+runtime_call_graph.json
+.test_*
+*.db-wal
+*.db-shm
+

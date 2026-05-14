@@ -1,0 +1,50 @@
+{
+  "version": "1.2.5-TITANIUM-FROZEN",
+  "cases": [
+    {
+      "name": "Score Priority",
+      "pool": [
+        {"id": 1, "content": "A", "score": 0.9, "brain_source": "local", "created_at": "2026-04-21T10:00:00Z"},
+        {"id": 2, "content": "B", "score": 0.8, "brain_source": "law", "created_at": "2026-04-21T10:00:01Z"}
+      ],
+      "expected_id": 2,
+      "reason": "Authority Guard: 'law' tier must win over any local memory, even with lower score"
+    },
+    {
+      "name": "Tier Weight Tie-break",
+      "pool": [
+        {"id": 3, "content": "A", "score": 0.5, "brain_source": "local", "created_at": "2026-04-21T10:00:00Z"},
+        {"id": 4, "content": "B", "score": 0.5, "brain_source": "law", "created_at": "2026-04-21T10:00:00Z"}
+      ],
+      "expected_id": 4,
+      "reason": "Equal score, higher tier weight (law) must win"
+    },
+    {
+      "name": "Timestamp Bucket Tie-break",
+      "pool": [
+        {"id": 5, "content": "A", "score": 0.5, "brain_source": "local", "created_at": "2026-04-21T10:00:00Z"},
+        {"id": 6, "content": "B", "score": 0.5, "brain_source": "local", "created_at": "2026-04-21T10:00:10Z"}
+      ],
+      "expected_id": 6,
+      "reason": "Equal score and tier, later timestamp bucket must win"
+    },
+    {
+      "name": "Content Hash Tie-break",
+      "pool": [
+        {"id": 7, "content": "Z", "score": 0.5, "brain_source": "local", "created_at": "2026-04-21T10:00:00Z"},
+        {"id": 8, "content": "A", "score": 0.5, "brain_source": "local", "created_at": "2026-04-21T10:00:00Z"}
+      ],
+      "expected_id": 8,
+      "reason": "Equal score, tier, and time. Higher BLAKE2b hash (content 'A' vs 'Z') must win"
+    },
+    {
+      "name": "Final ID Tie-break",
+      "pool": [
+        {"id": 10, "content": "Same", "score": 0.5, "brain_source": "local", "created_at": "2026-04-21T10:00:00Z"},
+        {"id": 9, "content": "Same", "score": 0.5, "brain_source": "local", "created_at": "2026-04-21T10:00:00Z"}
+      ],
+      "expected_id": 10,
+      "reason": "Absolute tie in all fields, higher ID (10) wins for total order guarantee"
+    }
+  ]
+}
