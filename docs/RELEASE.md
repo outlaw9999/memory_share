@@ -9,7 +9,8 @@ This document tracks the evolution of the KIT system, migration protocols, and r
 **Focus:** Stateless Verification & Epistemic Authority
 
 ### Key Innovations
-- **Stateless Verify Engine**: Decoupled `kit verify` from the `.kit` sentinel. Can run in pure ephemeral contexts (CI-ready).
+- **Externalized Verify Engine**: Moved structural verification to `kit-vantage verify`. Purged `kit verify` from Python CLI to ensure clear authority boundaries.
+- **Friction-Triggered Learning**: Formalized the event-driven learning loop where `kit` records verified changes rather than initiating autonomous learning. See [LEARNING_LOOP.md](./LEARNING_LOOP.md).
 - **Epistemic Ledger**: Introduced `kit_ledger.py` as the Single Source of Truth for component hashes.
 - **Windows 11 Resilience**: Lock-free execution and path determinism for AI-integrated IDEs.
 
@@ -23,7 +24,7 @@ This document tracks the evolution of the KIT system, migration protocols, and r
 Before any schema or structural change:
 1. `kit snapshot`
 2. Migrate on a DB copy.
-3. `kit-vantage verify-memory -d`
+3. `kit-vantage verify -d`
 4. `kit restore <verified_copy>`
 
 ### Operational Rules

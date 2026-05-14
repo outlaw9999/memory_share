@@ -33,7 +33,7 @@ build/
 
 # --- Environment & OS ---
 .env
-.venv
+.venv/
 venv/
 .DS_Store
 Thumbs.db

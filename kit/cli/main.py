@@ -1223,40 +1223,6 @@ def handle_test(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, *
         sys.exit(res.returncode)
 
 
-@kit_command(name="verify", namespace=CommandNamespace.DIAGNOSTIC, description="Full Vantage Structural Integrity Scan")
-def handle_verify(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
-    """Handler for 'kit verify' - Full Vantage Scan (Epistemic Authority)."""
-    import subprocess
-
-    from kit.core.kit_vantage import VANTAGE_BIN
-
-    # 1. Structural Verification (Vantage Binary)
-    if VANTAGE_BIN and VANTAGE_BIN.exists():
-        print_diagnostic("[VANTAGE] Running structural integrity scan...")
-        # v1.2.5: Try verify-memory, ignore if subcommand missing in legacy binary
-        subprocess.run([str(VANTAGE_BIN), "verify-memory"], capture_output=False)
-        print_diagnostic("[VANTAGE] Verifying structural claims...")
-    else:
-        print_diagnostic("[WARN] Vantage binary not found. Skipping structural invariants.")
-
-    # 2. Behavioral Verification (Unified Validator Adapter)
-    print_diagnostic("[VALIDATOR] Running behavioral and contract verification...")
-    try:
-        from scripts.unified_validator import UnifiedValidator
-
-        validator = UnifiedValidator()
-        report = validator.run_full_validation()
-
-        if report.overall_status != "PASS":
-            print_diagnostic(f"[FAIL] Epistemic boundary breached. Success rate: {report.summary['success_rate']}%")
-            sys.exit(1)
-
-        print_diagnostic(f"[OK] Behavioral verification passed. ({report.summary['success_rate']}%)")
-    except ImportError:
-        print_diagnostic("[ERROR] Unified Validator script missing. Cannot guarantee epistemic safety.")
-        sys.exit(1)
-
-    print("VERIFIED")
 
 
 @kit_command(name="release", namespace=CommandNamespace.DIAGNOSTIC, description="Single Authority Release Gate (Verify + Tag + Push)")
@@ -1563,81 +1529,8 @@ def handle_evolve(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter,
         sys.exit(1)
 
 
-@kit_command(
-    name="blast",
-    namespace=CommandNamespace.RUNTIME,
-    description="Analyze recursive dependency blast radius (Predictive Radar)",
-    input_schema={
-        "symbol": "string (target symbol)",
-        "depth": "int (max recursion depth)",
-        "direction": "forward | backward",
-    },
-)
-def handle_blast(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
-    """Handler for 'kit blast' (Recursive Dependency Awareness)."""
-    import kit.api as api
-    from kit.core.release_guard import ReleaseGuard
-    from kit.graph.query import TraversalDirection, get_blast_radius
-
-    symbol = args.symbol
-    depth = getattr(args, "depth", 5)
-    direction_str = getattr(args, "direction", "forward").upper()
-    direction = (
-        TraversalDirection[direction_str]
-        if direction_str in TraversalDirection.__members__
-        else TraversalDirection.FORWARD
-    )
-
-    brain = api.get_brain()
-    # v1.2.5: Ensure kernel integrity before recursive traversal
-    ReleaseGuard.enforce_p0(brain)
-
-    with brain.get_connection(readonly=True) as conn:
-        results = get_blast_radius(conn, symbol, max_depth=depth, direction=direction)
-
-    if not results:
-        print_diagnostic(f"No blast radius found for {symbol}.")
-    else:
-        print_diagnostic(f"Blast Radius for '{symbol}' (Depth: {depth}, Direction: {direction.value})")
-        for sym, dist, edge_type in results:
-            indent = "  " * dist
-            print(f"{indent} {edge_type} -> {sym} (dist: {dist})")
 
 
-@kit_command(
-    name="graph",
-    namespace=CommandNamespace.RUNTIME,
-    description="Selective structural graph extraction (Vantage v1.2.5)",
-    input_schema={"path": "string (path to analyze)", "json": "bool (machine readable output)"},
-)
-def handle_graph(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, **kwargs: Any) -> None:
-    """Handler for 'kit graph'."""
-    import kit.api as api
-    from kit.core.kit_vantage import get_graph
-    from kit.core.release_guard import ReleaseGuard
-
-    brain = api.get_brain()
-    # v1.2.5: Ensure kernel integrity before structural extraction
-    ReleaseGuard.enforce_p0(brain)
-
-    path_str = getattr(args, "path", ".")
-    path = Path(path_str).resolve()
-
-    print_diagnostic(f"[VANTAGE] Extracting selective graph for {path.name}...")
-    graph_data = get_graph(path)
-
-    if getattr(args, "json", False):
-        import json
-
-        print(json.dumps(graph_data, indent=2))
-    else:
-        nodes = graph_data.get("nodes", [])
-        edges = graph_data.get("edges", [])
-        print_diagnostic(f"Graph: {len(nodes)} nodes, {len(edges)} edges")
-        for edge in edges[:20]:
-            print(f"  {edge.get('source')} --[{edge.get('relation')}]--> {edge.get('target')}")
-        if len(edges) > 20:
-            print(f"  ... and {len(edges) - 20} more edges")
 
 
 @kit_command(
@@ -1928,7 +1821,7 @@ def _main_impl() -> None:
     kit_env.get_substrate_report()
 
     # --- Workspace Initialization Guard (v1.2.5) ---
-    is_diagnostic = len(sys.argv) > 1 and sys.argv[1] in ["verify", "test", "build", "verify-release", "release"]
+    is_diagnostic = len(sys.argv) > 1 and sys.argv[1] in ["test", "build", "verify-release", "release"]
     
     if (
         len(sys.argv) > 1
@@ -2053,7 +1946,6 @@ def _main_impl() -> None:
 
     subparsers.add_parser("build", help="Fast structural build check")
     subparsers.add_parser("test", help="Run TDD unit tests")
-    subparsers.add_parser("verify", help="Full Vantage structural scan")
     subparsers.add_parser("release", help="Single Authority Release Gate (Verify + Tag + Push)")
 
     p_repair = subparsers.add_parser("repair", help="Plan bounded drift repair")
@@ -2096,15 +1988,6 @@ def _main_impl() -> None:
     p_ingest = subparsers.add_parser("ingest", help="Consume structural stream (Bridge Layer)")
     p_ingest.add_argument("--watch", action="store_true", help="Monitor stream continuously")
 
-    # v1.2.5: Runtime Structural Tools
-    p_blast = subparsers.add_parser("blast", help="Analyze recursive dependency blast radius")
-    p_blast.add_argument("symbol", help="Target symbol")
-    p_blast.add_argument("--depth", type=int, default=5, help="Max recursion depth")
-    p_blast.add_argument("--direction", choices=["forward", "backward"], default="forward")
-
-    p_graph = subparsers.add_parser("graph", help="Selective structural graph extraction")
-    p_graph.add_argument("path", nargs="?", default=".", help="Path to analyze")
-    p_graph.add_argument("--json", action="store_true", help="Output in JSON format")
 
     args = parser.parse_args()
     command_mode = classify(args.command) if args.command else "standard"
@@ -2135,7 +2018,7 @@ def _main_impl() -> None:
     # Initialize Kernel API
     should_init_kernel = not (
         args.command == "trace"
-        or args.command in ["verify", "test", "build", "verify-release"]
+        or args.command in ["test", "build", "verify-release"]
         or (
             args.command == "stats"
             and (

@@ -329,4 +329,42 @@ FROZEN (immutable)
 | I11| **Deterministic Teardown**| Ensures repeatable CI/CD runs | `gc.collect()` + `sleep(0.2)` on Win |
 
 ---
+
+## 4. GOVERNANCE: Boundary Classification & Enforcement (v1.2.5)
+
+### 🧬 Core Principle
+Vantage exists only within systems containing **Recorded Truth**. If there is no traceable memory write or state evolution, Vantage has no reason to exist.
+
+### 🧩 Repo Classification System
+
+| Class | Repo Type | Vantage Role | Examples |
+| :--- | :--- | :--- | :--- |
+| **Class A** | Cognitive Substrate | **HARD GATE** (Mandatory) | `memory_share_kit`, Reasoning Engines |
+| **Class B** | Tooling / Dev Utilities | **Optional / Discouraged** | Parsers, Code Generators, Analyzers |
+| **Class C** | Ordinary Software | **STRICTLY FORBIDDEN** | Web Apps, APIs, Microservices |
+
+#### Class A Eligibility Criteria (Must satisfy ANY):
+- Persistent memory (SQLite, DB, Log Graph).
+- Cognitive commands: `learn`, `ingest`, `recall`.
+- Traceable state evolution (Deterministic history).
+- Epistemic concepts: "Truth", "Commitment", "Invariant".
+
+### 🚫 Forbidden Architecture Patterns (Anti-Patterns)
+1. **Global Import**: Importing `kit-vantage` in non-cognitive (Class B/C) repositories.
+2. **Vantage as Linter**: Using Vantage for generic static analysis or code style.
+3. **Stateless Enforcement**: Forcing truth gates into ephemeral or stateless services.
+4. **Best-effort Verification**: Using `try/except` to bypass Vantage failures. **Failure must be terminal.**
+
+### 🧭 Declaration Protocol
+A repository must explicitly declare its status as a Cognitive Substrate before enabling Vantage:
+```yaml
+system:
+  mode: cognitive_substrate
+  use_vantage: true
+```
+
+### 🔒 Governance Summary
+Vantage is not a system-wide utility. It is a **domain-bound epistemic enforcement kernel** for systems that persist truth over time.
+
+---
 *End of Specification*

@@ -30,4 +30,5 @@ jobs:
       env:
         PYTHONUTF8: 1
       run: |
-        uv run python -m kit verify
+        # v1.2.5: Bounded verification scope (no raw traversal)
+        uv run kit-vantage verify kit tests docs

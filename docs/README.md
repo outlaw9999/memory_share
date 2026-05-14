@@ -37,24 +37,21 @@ Initializes the local cognitive environment and seals the kernel.
 
 ## 🏗 Architecture Overview
 
-The system operates as a deterministic cognitive substrate:
+The system operates as a **friction-triggered cognitive substrate**. It does not possess autonomous agency; instead, it records verified system events as a side-effect of environmental changes (Git commits, CLI actions).
 
-```text
-Agent / IDE
-  ↓
-Kit CLI (The Brain)
-  ↓
-Memory Router (Routing & Governance)
-  ↓
-SQLite Storage (JSONB + WAL + STRICT)
+### The Learning Loop
 
-Verification Path (Forensic):
-Kit CLI
-  ↓
-Vantage (The Sensor - Rust Core)
-  ↓
-Integrity Verification (Drift Detection)
+```mermaid
+flowchart TD
+    A[Git/CLI Event] --> B[Friction Sensor]
+    B --> C[Vantage Truth Gate]
+    C -->|Verified| D[Memory Router]
+    D --> E[Deterministic Storage]
+    E --> F[Context Recall]
+    F --> A
 ```
+
+For a detailed breakdown of the internal pipeline, see [LEARNING_LOOP.md](./LEARNING_LOOP.md).
 
 ---
 
@@ -84,7 +81,7 @@ kit learn --tag decision "Always use WAL mode for high concurrency"
 kit recall
 
 # 4. Verify structural integrity
-kit-vantage verify-memory
+kit-vantage verify
 ```
 
 ---
@@ -108,7 +105,7 @@ kit search "router failure"
 
 ### Verify integrity
 ```bash
-kit-vantage verify-memory
+kit-vantage verify
 ```
 
 ---
@@ -122,7 +119,7 @@ Kit supports external structural verification using **Vantage**. While optional,
 
 After installation, you can run forensic verification:
 ```bash
-kit-vantage verify-memory
+kit-vantage verify
 ```
 
 ---

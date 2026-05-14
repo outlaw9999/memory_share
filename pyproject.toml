@@ -147,3 +147,9 @@ executionEnvironments = [
 testpaths = ["tests"]
 norecursedirs = ["archive_v123", "__pycache__", ".git", "adversarial", "benchmark", "research", "perf"]
 python_files = ["test_*.py"]
+
+[tool.kit.governance]
+declared_class = "A"
+vantage_required = true
+write_boundary = "strict"
+model = "CAL-v1.2.5"
