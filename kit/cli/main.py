@@ -2042,6 +2042,7 @@ def _main_impl() -> None:
     subparsers.add_parser("build", help="Fast structural build check")
     subparsers.add_parser("test", help="Run TDD unit tests")
     subparsers.add_parser("verify", help="Full Vantage structural scan")
+    subparsers.add_parser("release", help="Single Authority Release Gate (Verify + Tag + Push)")
 
     p_repair = subparsers.add_parser("repair", help="Plan bounded drift repair")
     p_repair.add_argument("--plan", action="store_true", help="Generate repair plan artifact")
