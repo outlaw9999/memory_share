@@ -1,39 +1,43 @@
-# 🚀 KIT Release & Operation Journal
+# RELEASE NOTES - v1.2.5 TITANIUM
 
-This document tracks the evolution of the KIT system, migration protocols, and release-specific hardening notes.
-
----
-
-## 🛡️ v1.2.5 TITANIUM (Stable)
-**Release Date:** 2026-05-14
-**Focus:** Stateless Verification & Epistemic Authority
-
-### Key Innovations
-- **Externalized Verify Engine**: Moved structural verification to `kit-vantage verify`. Purged `kit verify` from Python CLI to ensure clear authority boundaries.
-- **Friction-Triggered Learning**: Formalized the event-driven learning loop where `kit` records verified changes rather than initiating autonomous learning. See [LEARNING_LOOP.md](./LEARNING_LOOP.md).
-- **Epistemic Ledger**: Introduced `kit_ledger.py` as the Single Source of Truth for component hashes.
-- **Windows 11 Resilience**: Lock-free execution and path determinism for AI-integrated IDEs.
-
-### Purged Artifacts
-- Removed `research/`, `scratch/`, and `tests/phase10/` to harden the substrate.
-- Deprecated legacy `.lock` files in favor of the Ledger.
+## 🚀 Overview: The Balanced Titanium Protocol
+Version 1.2.5 (Titanium) marks the transition of `memory-share-kit` from a tool to a **foundational semantic infrastructure protocol**. We have achieved a critical architectural balance: a lightning-fast cognitive runtime for agents combined with a forensic-grade structural verification sidecar.
 
 ---
 
-## 🛠️ Safe Migration Protocol
-Before any schema or structural change:
-1. `kit snapshot`
-2. Migrate on a DB copy.
-3. `kit-vantage verify -d`
-4. `kit restore <verified_copy>`
+## 🏗️ The 7 Phases of Achievement
 
-### Operational Rules
-- Never edit the SQLite database manually.
-- Never delete L3 (Semantic/Frozen) records.
-- Use `kit hygiene` for automated cleanup.
+| Phase | Innovation | Impact |
+| :--- | :--- | :--- |
+| **1-2** | **Unified Semantic Identity** | Established a singular, immutable ID system for code and memory. |
+| **3** | **Deterministic Extraction** | Guaranteed 1-to-1 reproducible AST-to-Signal mapping. |
+| **4** | **Architectural Intent Layer** | Gated memory writes by verified structural intent (Vantage). |
+| **5** | **Stable Operator Interface** | Hardened CLI/API against environmental and platform drift. |
+| **6** | **Semantic Law Enforcement** | Integrated Constitutional Admission Layer (CAL) for repo-bound truth. |
+| **7** | **Temporal Drift Forensics** | Enabled deep, point-in-time structural evolution auditing. |
 
 ---
 
-## 📜 Version History (Legacy)
-- **v1.2.4**: Titanium Memory Integrity Pillar. Fixed scope hierarchy (Child > Parent).
-- **v1.2.3**: Initial Titanium hardening.
+## 💎 Key Innovations in v1.2.5
+
+### 1. Friction-Triggered Learning
+Kit no longer "autonomous learns" from the world. It records changes in the world after they have been verified through the Git-to-Vantage pipeline. See [LEARNING_LOOP.md](./LEARNING_LOOP.md).
+
+### 2. Runtime/Forensic Decoupling
+- **Cognitive Hot-Path**: `learn`, `recall`, and `stats` are now local-only, zero-subprocess, and optimized for low-latency IDE agent workflows (~40ms).
+- **Forensic Sidecar**: `vantage`, `doctor`, and `verify` provide deep structural truth without blocking daily execution.
+
+### 3. Constitutional Admission Layer (CAL)
+Self-attested repository identity in `pyproject.toml` is verified against structural evidence, preventing identity smuggling and architectural pollution. See [SPECIFICATION.md](./SPECIFICATION.md).
+
+---
+
+## 🛠 Usage for Agents
+Agents should focus on the four core primitives for maximum stability:
+1. `kit learn` - Record a fact.
+2. `kit recall` - Retrieve context.
+3. `kit search` - Query memory.
+4. `kit status` - Check health.
+
+---
+*Signed, The Architect.*
