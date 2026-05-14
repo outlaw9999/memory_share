@@ -973,8 +973,9 @@ class SAMBrain:
         output_hash = hashlib.md5(str([m.id for m in final_memories]).encode()).hexdigest()
         logger.debug(f"Authority: MemoryPolicy.arbitrate | In: {input_hash} | Out: {output_hash}")
 
-        # v1.2.5: Final Verification Oracle (Vantage Gate)
-        final_memories = self._verify_with_vantage(final_memories)
+        # v1.2.5: Vantage is optional forensic sidecar.
+        # Never block recall/init hot paths.
+        # Recall is deterministic, local-only, zero subprocess.
 
         # 1.2.5patch-infrastructure: Update usage telemetry (The "Usage Boost" foundation)
         # Skip synchronous telemetry in TEST mode to maintain performance invariants
