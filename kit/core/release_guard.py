@@ -1,4 +1,4 @@
-"""Release Kernel Guard (v1.2.5-RC1).
+"""Release Kernel Guard (v1.2.5).
 
 Enforces P0/P1/P2 gates as runtime invariants to ensure Global Release Safety.
 """
@@ -13,11 +13,11 @@ logger = logging.getLogger("kit.release_guard")
 
 
 class ReleaseGuard:
-    """Authority for enforcing v1.2.5-RC1 release invariants."""
+    """Authority for enforcing v1.2.5 release invariants."""
 
     EXPECTED_PINS = {
-        "version": "1.2.5-final",
-        "kit_schema_version": "1.2.5-final",
+        "version": "1.2.5",
+        "kit_schema_version": "1.2.5",
         "vantage_contract_version": "1.2.5-rust",
     }
 

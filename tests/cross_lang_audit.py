@@ -12,7 +12,7 @@ sys.path.insert(0, str(repo_root))
 
 
 def run_cross_lang_audit():
-    print("Starting Cross-Language Graph Audit (v1.2.5-RC1)")
+    print("Starting Cross-Language Graph Audit (v1.2.5)")
 
     # 1. Prepare temp environment
     tmp_dir_obj = tempfile.TemporaryDirectory()

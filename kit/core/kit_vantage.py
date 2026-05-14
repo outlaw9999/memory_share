@@ -9,14 +9,14 @@ from kit.models.signal import Signal
 
 logger = logging.getLogger("kit.vantage")
 
-# v1.2.5-TITANIUM: Unified Binary Discovery
+# v1.2.5: Unified Binary Discovery
 VANTAGE_BIN = kit_env.get_vantage_bin()
 
 
 def invoke_vantage(path: Path, timeout: int = 10, strict: bool = False) -> list[Signal]:
     """
     Invoke the Vantage AST Sensor (Rust) and map its output to standardized Signals.
-    Implementation of Phase B 'Neural Wiring' (v1.2.5-TITANIUM).
+    Implementation of Phase B 'Neural Wiring' (v1.2.5).
     """
     if not VANTAGE_BIN or not VANTAGE_BIN.exists():
         msg = "Vantage binary missing. Please set VANTAGE_HOME or install to project root."

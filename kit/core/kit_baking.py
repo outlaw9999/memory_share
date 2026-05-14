@@ -1,5 +1,5 @@
 """
-kit_baking.py — KIT v1.2.5-LOCK: Structural Graduation Engine.
+kit_baking.py — KIT 1.2.5LOCK: Structural Graduation Engine.
 
 The ONLY place where Vantage is called for user-submitted content.
 Triggered explicitly by: `kit bake` or as the first step of `kit reflect`.

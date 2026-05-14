@@ -69,7 +69,7 @@ class ASRRuntime:
         }
         self.trace_buffer.append(trace)
 
-        # v1.2.5-LOCK: Circular buffer enforcement (Max 50 traces)
+        # 1.2.5LOCK: Circular buffer enforcement (Max 50 traces)
         if len(self.trace_buffer) > 50:
             self.trace_buffer.pop(0)
 

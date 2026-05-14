@@ -1,4 +1,4 @@
-"""Titanium Memory Compaction Engine (v1.2.5-STAGE5.3).
+"""Titanium Memory Compaction Engine (1.2.5STAGE5.3).
 
 Implements the Canonical Memory Model.
 Instead of deleting data, it merges semantically similar memories

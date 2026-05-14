@@ -7,7 +7,7 @@ from kit.core.kit_cognitive_core import RankingAssessment, SAMBrain, SAMBrainErr
 from kit.core.memory_topology import MemoryTopologyFactory
 from kit.core.rmil import warmup_memory  # RMIL v1.0
 
-# v1.2.5-LOCK: Vantage is external-binary-only; called from kit_baking, NOT from learn().
+# 1.2.5LOCK: Vantage is external-binary-only; called from kit_baking, NOT from learn().
 
 # --- Stable API Boundary Definitions ---
 # This file is the primary entry point for community forks and IDE integrations.
@@ -19,7 +19,7 @@ from kit.core.kit_replay_tracer import traced
 
 def resolve_paths(force_local: bool = False, mode: str = "auto") -> tuple[Path, Path, Path]:
     """
-    Standard Path Resolver for .kit Kernel. (v1.2.5-COLLAPSE)
+    Standard Path Resolver for .kit Kernel. (1.2.5COLLAPSE)
     """
     cwd = Path.cwd().resolve()
 
@@ -48,7 +48,7 @@ def resolve_paths(force_local: bool = False, mode: str = "auto") -> tuple[Path, 
                 root_path = parent
                 break
 
-    # v1.2.5-COLLAPSE: Authority resolution via MemoryTopology
+    # 1.2.5COLLAPSE: Authority resolution via MemoryTopology
     topology = MemoryTopologyFactory.for_project(root_path)
     global_db = topology.resolve("global", "global")
     project_db = topology.resolve("local", "local")
@@ -107,7 +107,7 @@ def learn(
     skip_render: bool = False,
 ) -> int:
     """
-    Learn a fact. v1.2.5-LOCK: Pure O(1) write. No Vantage. No structural analysis.
+    Learn a fact. 1.2.5LOCK: Pure O(1) write. No Vantage. No structural analysis.
     Structural graduation happens via `kit bake` (explicit baking pass) or `kit reflect`.
     """
     brain = get_brain()

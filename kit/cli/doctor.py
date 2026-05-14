@@ -339,7 +339,7 @@ def run_doctor(
 
         package_version = importlib.metadata.version("memory-share-kit")
     except importlib.metadata.PackageNotFoundError:
-        package_version = "1.2.5-FINAL"
+        package_version = "1.2.5"
 
     brain = get_brain()
 

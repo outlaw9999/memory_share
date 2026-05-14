@@ -40,7 +40,7 @@ def test_freeze_guard_v1_2_5(case):
 
     winner = MemoryPolicy.resolve(pool, now=now)
 
-    # [v1.2.5-IMMUTABLE] Binary Verification: Winner must be bit-identical
+    # [1.2.5IMMUTABLE] Binary Verification: Winner must be bit-identical
     assert winner.id == case["expected_id"], (
         f"FREEZE VIOLATION in '{case['name']}': "
         f"Expected ID {case['expected_id']}, but got {winner.id}. "
@@ -73,7 +73,7 @@ def test_policy_integrity_lock():
 def test_policy_version_lock():
     """Ensures the policy is explicitly marked as FROZEN."""
     assert hasattr(MemoryPolicy, "POLICY_VERSION"), "MemoryPolicy must have a POLICY_VERSION."
-    assert MemoryPolicy.POLICY_VERSION == "1.2.5-TITANIUM-FROZEN", "Policy version drift detected!"
+    assert MemoryPolicy.POLICY_VERSION == "1.2.5-FROZEN", "Policy version drift detected!"
 
 
 if __name__ == "__main__":

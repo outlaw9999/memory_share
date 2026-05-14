@@ -5,7 +5,7 @@ import sysconfig
 from enum import StrEnum
 from pathlib import Path
 
-# --- Runtime Shield Invariants (v1.2.5-LOCK) ---
+# --- Runtime Shield Invariants (1.2.5LOCK) ---
 
 
 class ExecutionMode(StrEnum):
@@ -15,7 +15,7 @@ class ExecutionMode(StrEnum):
 
 
 def get_execution_mode() -> ExecutionMode:
-    """Detect the current execution mode (v1.2.5-TITANIUM)."""
+    """Detect the current execution mode (v1.2.5)."""
     # 1. Environment variable override
     mode_env = os.getenv("KIT_RUNTIME_MODE", "").lower()
     if mode_env in [m.value for m in ExecutionMode]:
@@ -53,7 +53,7 @@ def is_env_locked() -> bool:
 
 
 def get_vantage_bin() -> Path | None:
-    """Discover the Vantage binary with multi-anchor fallback (v1.2.5-TITANIUM)."""
+    """Discover the Vantage binary with multi-anchor fallback (v1.2.5)."""
     # 1. Environment Variable Override (Highest Priority)
     env_home = os.getenv("VANTAGE_HOME")
     if env_home:

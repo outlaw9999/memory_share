@@ -63,7 +63,7 @@ def safe_walk(
     allowed_extensions: set[str] = ALLOWED_EXTENSIONS,
 ) -> Generator[Path]:
     """
-    Standardized filesystem discovery layer (v1.2.5-TITANIUM).
+    Standardized filesystem discovery layer (v1.2.5).
     Protects against infinite recursion, symlink loops, and hardlink loops.
     """
     visited_inodes: set[tuple[int, int]] = set()
@@ -118,7 +118,7 @@ def safe_walk(
 
 def read_text_safe(path: Path) -> FileContent:
     """
-    Truth Acquisition Layer (v1.2.5-TITANIUM).
+    Truth Acquisition Layer (v1.2.5).
     Deterministic file reading pipeline: UTF-8 -> UTF-8-SIG -> UTF-16.
     Enforces a strict fail-loudly policy on binary data and encoding corruption.
     """

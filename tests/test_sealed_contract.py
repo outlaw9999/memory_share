@@ -56,7 +56,7 @@ def test_router_single_write_authority(mock_db):
 
     # Manually configure router to use mock_db for local
     # Manually configure router to use mock_db for local
-    # v1.2.5-STABLE: Use a SHARED connection context.
+    # v1.2.5: Use a SHARED connection context.
     # Router will NOT close it because _owns_connection will be False.
     conn = sqlite3.connect(mock_db)
     conn.row_factory = sqlite3.Row
@@ -95,7 +95,7 @@ def test_router_single_write_authority(mock_db):
 
 
 def test_kernel_seal_verification(mock_db):
-    """Verify that the Sealing layer correctly identifies a v1.2.5-sealed DB."""
+    """Verify that the Sealing layer correctly identifies a 1.2.5sealed DB."""
     info = verify_kernel_seal(mock_db)
     assert info["status"] == "sealed"
     assert info["version"] == SEALED_VERSION

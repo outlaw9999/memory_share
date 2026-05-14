@@ -16,9 +16,9 @@ CREATE TABLE IF NOT EXISTS kernel_metadata (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Initialize Kernel Identity (v1.2.5-FINAL)
-INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('version', '1.2.5-final');
-INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('kit_schema_version', '1.2.5-final');
+-- Initialize Kernel Identity (v1.2.5)
+INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('version', '1.2.5');
+INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('kit_schema_version', '1.2.5');
 INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('vantage_contract_version', '1.2.5-rust');
 INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('integrity_policy', 'strict');
 INSERT OR REPLACE INTO kernel_metadata (key, value) VALUES ('write_authority', 'MemoryRouter');
@@ -286,7 +286,7 @@ def _ensure_index(conn: sqlite3.Connection, name: str, ddl: str):
 
 
 def init_db(conn: sqlite3.Connection):
-    """Bootstrap or migrate the database schema (v1.2.5-FINAL)."""
+    """Bootstrap or migrate the database schema (v1.2.5)."""
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
 
@@ -335,7 +335,7 @@ def init_db(conn: sqlite3.Connection):
     _add_column_safe(conn, "observations", "is_canonical", "is_canonical INTEGER DEFAULT 0")
     _add_column_safe(conn, "observations", "canonical_id", "canonical_id INTEGER")
 
-    # Perception-Cognition split (v1.2.5-LOCK)
+    # Perception-Cognition split (1.2.5LOCK)
     _add_column_safe(
         conn,
         "observations",
@@ -564,7 +564,7 @@ def init_db(conn: sqlite3.Connection):
 
 
 def enable_wal(conn: sqlite3.Connection):
-    """Activate high-performance mode (v1.2.5-TITANIUM Tuning)."""
+    """Activate high-performance mode (v1.2.5 Tuning)."""
     mode_row = conn.execute("PRAGMA journal_mode=WAL").fetchone()
     if mode_row:
         mode = mode_row[0] if isinstance(mode_row, tuple) else mode_row["journal_mode"]

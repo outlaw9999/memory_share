@@ -48,7 +48,7 @@ class CommitQueue:
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
 
-        # v1.2.5-TITANIUM: Dedicated Commit Thread (The Clock)
+        # v1.2.5: Dedicated Commit Thread (The Clock)
         self._clock_thread: threading.Thread | None = None
 
     def start(self):
@@ -113,7 +113,7 @@ class CommitQueue:
                 # Perform the transaction
                 self.brain._run_write_transaction(_batch_commit_op)
 
-                # v1.2.5-STAGE5.5.3: Graduation Callback
+                # 1.2.5STAGE5.5.3: Graduation Callback
                 committed_events = list(self._queue)
                 self._queue.clear()
 
@@ -126,7 +126,7 @@ class CommitQueue:
                 logger.info(f"CommitKernel: Successfully committed {count} events. Snapshot synchronized.")
 
             except Exception as e:
-                # v1.2.5-TITANIUM: On failure, we KEEP the queue for next retry
+                # v1.2.5: On failure, we KEEP the queue for next retry
                 # This ensures zero-data-loss for structural streams.
                 logger.error(f"CommitKernel: Batch commit failed: {e}. Queue preserved for retry.")
 

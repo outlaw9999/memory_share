@@ -8,15 +8,15 @@ from typing import Any, List, Optional
 
 class MemoryPolicy:
     """
-    The Single Authority for Memory Truth (v1.2.5-TITANIUM-FROZEN).
+    The Single Authority for Memory Truth (1.2.5FROZEN).
     Consolidates Arbitration, Scoring, and Temporal Decay into one deterministic path.
     """
 
-    POLICY_VERSION = "1.2.5-TITANIUM-FROZEN"
+    POLICY_VERSION = "1.2.5-FROZEN"
 
     TIER_WEIGHTS = {"frozen": 1.0, "law": 1.0, "global": 0.7, "local": 0.5}
 
-    # --- SQL Authority Constants (v1.2.5-TITANIUM) ---
+    # --- SQL Authority Constants (v1.2.5) ---
     # These ensure that even SQL-level ranking follows the unified kernel logic.
 
     SQL_RANKING_FORMULA = """
@@ -218,7 +218,7 @@ class MemoryPolicy:
 
         scored = []
         for m in candidates:
-            # v1.2.5-TITANIUM: Collapse Arbitration Authority to get_boosted_score
+            # v1.2.5: Collapse Arbitration Authority to get_boosted_score
             final_score = MemoryPolicy.get_boosted_score(m, context, now)
 
             # Canonical Sort Key (Determinism Plane)

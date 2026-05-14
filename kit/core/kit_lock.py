@@ -119,7 +119,7 @@ def save_lock_state(root_path: Path, state: dict[str, Any]) -> None:
 def log_unseal_audit(root_path: Path, reason: str) -> None:
     from kit.core.memory_topology import MemoryTopologyFactory
 
-    # v1.2.5-TITANIUM: Route audit traces to Global Trace Layer (L4)
+    # v1.2.5: Route audit traces to Global Trace Layer (L4)
     topo = MemoryTopologyFactory.for_project(root_path)
     audit_file = topo.resolve("global", "audit")
 

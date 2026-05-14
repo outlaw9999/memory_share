@@ -84,7 +84,7 @@ class VantageStreamConsumer:
     def _ingest_events(self, events: list[dict]):
         """Normalize and push events into the Kit Canonical Layer."""
 
-        # v1.2.5-TITANIUM: Use authoritative connection via brain
+        # v1.2.5: Use authoritative connection via brain
         with self.brain.get_connection() as conn:
             for event in events:
                 event_type = event.get("type", "unknown")

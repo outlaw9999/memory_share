@@ -36,7 +36,7 @@ class CommandContract:
 
 
 class CommandRegistry:
-    """Centralized Registry for kit commands (v1.2.5-TITANIUM)."""
+    """Centralized Registry for kit commands (v1.2.5)."""
 
     _instance: CommandRegistry | None = None
 

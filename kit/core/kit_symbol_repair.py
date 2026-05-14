@@ -1,4 +1,4 @@
-"""Titanium Symbol Repair Engine (v1.2.5-STAGE5.3).
+"""Titanium Symbol Repair Engine (1.2.5STAGE5.3).
 
 Heuristic-based auto-repair for symbol debt with governance guards:
 - Confidence threshold per domain (domain-aware repair)
@@ -117,7 +117,7 @@ def _repair_db(conn: sqlite3.Connection, label: str) -> int:
 
             target_symbol, confidence = max(matches, key=lambda x: x[1])
 
-            # v1.2.5-STAGE5.5: Record ambiguity sensor even if locked
+            # 1.2.5STAGE5.5: Record ambiguity sensor even if locked
             if len(matches) > 1 or (current_symbol and current_symbol != target_symbol):
                 import json
 

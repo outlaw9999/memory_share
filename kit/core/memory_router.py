@@ -71,7 +71,7 @@ class MemoryReadRequest:
 
 @dataclass
 class RecallTrace:
-    """Telemetry and explainability for a recall request (v1.2.5-TITANIUM)."""
+    """Telemetry and explainability for a recall request (v1.2.5)."""
 
     cache_hit: bool = False
     satiety_reached: bool = False
@@ -131,7 +131,7 @@ class WriteDecisionRecord:
 
 
 class RouterWriteBuffer:
-    """In-memory fallback when DB file is locked. (v1.2.5-COLLAPSE)"""
+    """In-memory fallback when DB file is locked. (1.2.5COLLAPSE)"""
 
     def __init__(self, max_size: int = 100):
         self.max_size = max_size
@@ -153,7 +153,7 @@ class RouterWriteBuffer:
 
 
 class RecallCache:
-    """L0 In-Memory Cache for hot recall patterns (v1.2.5-TITANIUM Tuning)."""
+    """L0 In-Memory Cache for hot recall patterns (v1.2.5 Tuning)."""
 
     def __init__(self, max_size: int = 50, ttl_seconds: int = 30):
         self.max_size = max_size
@@ -227,7 +227,7 @@ class MemoryTierRules:
 
     @classmethod
     def route_to_tier(cls, request: MemoryWriteRequest) -> MemoryTier:
-        """Route request to appropriate tier based on confidence (v1.2.5-TITANIUM)."""
+        """Route request to appropriate tier based on confidence (v1.2.5)."""
 
         # 1. Direct override (Expert/Governance mode)
         if request.target_tier:
@@ -324,7 +324,7 @@ class MemoryRouter:
         logger.info(f"  L4-Audit:  {self.history_path}")
 
     def close(self):
-        """Release system resources (v1.2.5-TITANIUM)."""
+        """Release system resources (v1.2.5)."""
         if self._closer:
             try:
                 self._closer()
@@ -346,7 +346,7 @@ class MemoryRouter:
         return self._hydrate_memory(best_row)
 
     def _generate_cache_key(self, request: MemoryReadRequest) -> str:
-        """Normalized semantic cache key (v1.2.5-TITANIUM)."""
+        """Normalized semantic cache key (v1.2.5)."""
         q = (request.query or "").lower().strip()
         s = (request.scope or "").strip("/")
         e = ",".join(sorted(request.entities)) if request.entities else ""
@@ -360,7 +360,7 @@ class MemoryRouter:
 
     def resolve_read(self, request: MemoryReadRequest, return_mode: str = "legacy") -> Any:
         """
-        Unified Read Dispatcher (v1.2.5-TITANIUM Stabilized).
+        Unified Read Dispatcher (v1.2.5 Stabilized).
         Routes query through L0 Cache -> Soft-Satiety Progressive Recall.
         """
         import time
@@ -437,7 +437,7 @@ class MemoryRouter:
                 trace.tier_counts[f"fallback_{tier.value}"] = len(rows)
             logger.debug(f"Recall: Recent fallback found {len(raw_results)} rows.")
 
-        # --- Stage 5: Finalize & Hydrate Candidates (v1.2.5-TITANIUM Purity) ---
+        # --- Stage 5: Finalize & Hydrate Candidates (v1.2.5 Purity) ---
         # The router no longer ranks or scores. It returns hydrated candidates
         # for the Core to arbitrate via MemoryPolicy.
         final_memories = [self._hydrate_memory(r) for r in raw_results]
@@ -446,7 +446,7 @@ class MemoryRouter:
         trace.latency_ms = (time.perf_counter() - start_time) * 1000
         self._recall_cache.set(cache_key, final_memories)
 
-        # Router Trace (v1.2.5-TITANIUM)
+        # Router Trace (v1.2.5)
         logger.debug(f"Router: Recall complete | Tiers: {trace.tiers_queried} | Count: {len(final_memories)}")
 
         if return_mode == "contract":
@@ -456,7 +456,7 @@ class MemoryRouter:
         return final_memories
 
     def _query_tier_raw(self, tier: MemoryTier, request: MemoryReadRequest) -> list[dict]:
-        """Execute query and return raw rows (v1.2.5-TITANIUM Tuning)."""
+        """Execute query and return raw rows (v1.2.5 Tuning)."""
         scope = "local" if tier == MemoryTier.LOCAL else "global"
         db_type = "local" if tier == MemoryTier.LOCAL else ("global" if tier == MemoryTier.GLOBAL else "frozen")
 
@@ -472,7 +472,7 @@ class MemoryRouter:
             # Authority Connection
             conn = self._connection_provider(path, readonly=True)
 
-            # v1.2.5-TITANIUM: Robust handle enforcement
+            # v1.2.5: Robust handle enforcement
             # Ensure we are working with a raw connection or a wrapper
             # If it's a context manager (like SAMBrain.get_connection), we enter it
             if hasattr(conn, "__enter__"):
@@ -496,7 +496,7 @@ class MemoryRouter:
     def _execute_recall_on_conn_raw(
         self, conn: sqlite3.Connection, tier: MemoryTier, request: MemoryReadRequest
     ) -> list[dict]:
-        """Low-level row fetcher (v1.2.5-TITANIUM Tuning)."""
+        """Low-level row fetcher (v1.2.5 Tuning)."""
         current_branch = "main"
         where_clauses = ["o.is_active = 1", "o.branch = ?"]
         params = [current_branch]
@@ -568,7 +568,7 @@ class MemoryRouter:
         return rows
 
     def _hydrate_memory(self, row: dict) -> Any:
-        """Lazy hydration factory (v1.2.5-TITANIUM-FROZEN)."""
+        """Lazy hydration factory (1.2.5FROZEN)."""
         from kit.core.kit_cognitive_core import Memory
 
         return Memory(
@@ -595,12 +595,12 @@ class MemoryRouter:
         )
 
     def _query_tier(self, tier: MemoryTier, request: MemoryReadRequest) -> list[Any]:
-        """Legacy hydrated query (v1.2.5-patch)."""
+        """Legacy hydrated query (1.2.5patch)."""
 
     def _execute_recall_on_conn(
         self, conn: sqlite3.Connection, tier: MemoryTier, request: MemoryReadRequest
     ) -> list[Any]:
-        """Internal low-level query executor (Unified v1.2.5-TITANIUM)."""
+        """Internal low-level query executor (Unified v1.2.5)."""
         from kit.core.kit_cognitive_core import Memory
 
         current_branch = "main"  # TODO: Support branching in Router
@@ -616,7 +616,7 @@ class MemoryRouter:
             where_clauses.append(f"(o.scope IN ({placeholders}) OR o.scope = '')")
             params.extend(scopes)
 
-        # 2. Temporal Filter (v1.2.5-TITANIUM)
+        # 2. Temporal Filter (v1.2.5)
         if request.since:
             where_clauses.append("o.created_at >= ?")
             params.append(request.since)
@@ -624,7 +624,7 @@ class MemoryRouter:
             where_clauses.append("o.created_at <= ?")
             params.append(request.until)
 
-        # 3. Entity/FTS Filter (v1.2.5-TITANIUM SSOT)
+        # 3. Entity/FTS Filter (v1.2.5 SSOT)
         entity_where = ""
         if request.entities or request.query:
             symbol_clause = ""
@@ -710,7 +710,7 @@ class MemoryRouter:
         line: int | None = None,
     ) -> bool:
         """
-        [GWF] Graph Write Firewall - Enforces structural truth invariants (v1.2.5-FINAL).
+        [GWF] Graph Write Firewall - Enforces structural truth invariants (v1.2.5).
         """
         # 1. Enforcement Gate
         is_valid, reason = self.validate_graph_edge(source, target, relation)
@@ -723,7 +723,7 @@ class MemoryRouter:
 
         # 3. Mutation
         try:
-            # v1.2.5-TITANIUM: Check for Seal before writing to LOCAL
+            # v1.2.5: Check for Seal before writing to LOCAL
             from kit.core.kit_lock import is_sealed
 
             if self.topology.project_root and is_sealed(self.topology.project_root):
@@ -816,12 +816,12 @@ class MemoryRouter:
     def _write_to_tier(self, tier: MemoryTier, request: MemoryWriteRequest) -> int:
         """Write memory to the assigned tier's database with Titanium Schema enforcement."""
 
-        # v1.2.5-COLLAPSE-SAFE: Frozen Tier Architecture Invariant
+        # 1.2.5COLLAPSE-SAFE: Frozen Tier Architecture Invariant
         if tier == MemoryTier.FROZEN:
             logger.error(f"CRITICAL: Attempted write to FROZEN tier: {request.key}")
             raise PermissionError(f"Tier {tier.value} (FROZEN) is read-only by architecture.")
 
-        # v1.2.5-TITANIUM: Logical Seal enforcement for L1
+        # v1.2.5: Logical Seal enforcement for L1
         if tier == MemoryTier.LOCAL:
             from kit.core.kit_lock import is_sealed
 

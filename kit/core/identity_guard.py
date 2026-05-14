@@ -1,5 +1,5 @@
 """
-identity_guard.py — KIT v1.2.5-TITANIUM: The Identity Firewall.
+identity_guard.py — KIT v1.2.5: The Identity Firewall.
 Enforces structural hash consistency and agent authority boundaries.
 """
 

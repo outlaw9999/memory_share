@@ -3,7 +3,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Dict, List, Literal, Optional
 
-# v1.2.5-TITANIUM Execution State Machine
+# v1.2.5 Execution State Machine
 ExecutionState = Literal["queued", "running", "success", "failed", "rolled_back"]
 
 

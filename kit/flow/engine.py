@@ -197,7 +197,7 @@ class FlowExecutor:
         else:
             python_exe = sys.executable
 
-        # v1.2.5-LOCK: Reify 'kit' to absolute module execution if possible
+        # 1.2.5LOCK: Reify 'kit' to absolute module execution if possible
         kit_reified = f"{python_exe} -m kit.cli.main"
 
         for step in ordered_steps:

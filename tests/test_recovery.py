@@ -21,7 +21,7 @@ def test_snapshot_restore_cycle(brain, tmp_path):
     snapshot_path = brain.snapshot()
     assert snapshot_path.exists()
 
-    # v1.2.5-TITANIUM: Save to a separate file so the auto-syncer doesn't overwrite it
+    # v1.2.5: Save to a separate file so the auto-syncer doesn't overwrite it
     import shutil
 
     safe_snapshot = tmp_path / "safe_baseline.db"

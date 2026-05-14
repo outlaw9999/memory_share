@@ -40,12 +40,12 @@ class SystemValidationReport:
 
 
 class UnifiedValidator:
-    """Unified validation system for v1.2.5."""
+    """Unified validation system for 1.2.5."""
 
     def __init__(self):
         self.repo_root = Path(__file__).resolve().parents[1]
         self.results: list[ValidationResult] = []
-        # v1.2.5-PURE: Use a fresh, random temp directory for absolute statelessness
+        # 1.2.5PURE: Use a fresh, random temp directory for absolute statelessness
         self._temp_dir = tempfile.TemporaryDirectory(prefix="kit_val_")
         self.validation_home = Path(self._temp_dir.name)
 
@@ -58,7 +58,7 @@ class UnifiedValidator:
         if cwd is None:
             cwd = self.repo_root
 
-        # v1.2.5-STRICT-CONTRACT: Use the exact same interpreter for all steps
+        # 1.2.5STRICT-CONTRACT: Use the exact same interpreter for all steps
         env = os.environ.copy()
         env["KIT_BYPASS_RUNTIME_LOCK"] = "1"
         env["KIT_GLOBAL_HOME"] = str(self.validation_home / "global")
@@ -253,7 +253,7 @@ class UnifiedValidator:
     def run_full_validation(self) -> SystemValidationReport:
         """Run complete validation suite."""
         self.print_fingerprint()
-        print(">>> Starting Unified Validation System v1.2.5")
+        print(">>> Starting Unified Validation System 1.2.5")
         print("=" * 50)
 
         # Core runtime

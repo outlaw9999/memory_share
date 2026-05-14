@@ -1,4 +1,4 @@
-version: v1.2.5-TITANIUM
+version: 1.2.5
 metadata:
   purpose: "Contract-Driven Cognitive Runtime"
   engine: "SAMBrain 1.2.5"

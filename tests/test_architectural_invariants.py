@@ -1,5 +1,5 @@
 # tests/test_architectural_invariants.py
-# v1.2.5-TITANIUM: Final Architecture Freeze Suite
+# v1.2.5: Final Architecture Freeze Suite
 #
 # Philosophy:
 #   This suite does NOT test features. It tests BOUNDARIES.

@@ -71,7 +71,7 @@ def test_snapshot_syncer_refreshes_after_local_write(tmp_path):
     db_path = tmp_path / ".kit" / "local_brain.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
     brain = SAMBrain(db_path, root_path=tmp_path)
-    # v1.2.5-TITANIUM: Force start syncer for background sync verification
+    # v1.2.5: Force start syncer for background sync verification
     brain._start_snapshot_syncer()
 
     brain.learn("sync", "Local change triggers snapshot refresh", tag="decision", importance=0.8)

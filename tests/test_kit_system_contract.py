@@ -1,5 +1,5 @@
 # tests/test_kit_system_contract.py
-# v1.2.5-TITANIUM — SYSTEM CONTRACT TEST (Core Chain TDD)
+# v1.2.5 — SYSTEM CONTRACT TEST (Core Chain TDD)
 #
 # This test validates the complete memory lifecycle under the CLI orchestration.
 # TIER 0 critical path: kit init → kit learn → kit recall
@@ -32,7 +32,7 @@ def run_kit_command(cwd: Path, *args) -> tuple[int, str, str]:
     env["KIT_DISABLE_ASYNC_BAKE"] = "1"
     env["PYTHONUTF8"] = "1"
     env["VANTAGE_HOME"] = os.path.join(str(repo_root), "non_existent_vantage")
-    # v1.2.5-ISOLATION: Use the temp directory as HOME to isolate global_brain.db
+    # 1.2.5ISOLATION: Use the temp directory as HOME to isolate global_brain.db
     env["USERPROFILE"] = str(cwd.parent)  # For Windows
     env["HOME"] = str(cwd.parent)  # For Unix-like
 
@@ -47,7 +47,7 @@ def run_kit_command(cwd: Path, *args) -> tuple[int, str, str]:
         env=env,
     )
 
-    # v1.2.5-TITANIUM: PROCESS LIFECYCLE BARRIER (Windows ONLY)
+    # v1.2.5: PROCESS LIFECYCLE BARRIER (Windows ONLY)
     # Ensure OS has released file handles before next command or cleanup
     if os.name == "nt":
         import time
@@ -204,7 +204,7 @@ if __name__ == "__main__":
     import traceback
 
     print("=" * 70)
-    print("KIT v1.2.5-TITANIUM — SYSTEM CONTRACT TEST (Core Chain)")
+    print("KIT v1.2.5 — SYSTEM CONTRACT TEST (Core Chain)")
     print("=" * 70 + "\n")
 
     test_suite = TestKitSystemContract()

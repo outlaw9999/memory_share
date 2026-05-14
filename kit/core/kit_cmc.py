@@ -1,5 +1,5 @@
 """
-kit_cmc.py — KIT v1.2.5-TITANIUM: Truth Computation Layer (CMC v1).
+kit_cmc.py — KIT v1.2.5: Truth Computation Layer (CMC v1).
 Calculates structural invariants and epistemic stability.
 """
 

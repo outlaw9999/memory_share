@@ -21,7 +21,7 @@ def test_single_connect_authority():
         "migrate_brain.py",  # Administrative migration utility (v1.2.5)
     }
 
-    # Match ANY connect(...) pattern (v1.2.5-STABILIZE-HARD)
+    # Match ANY connect(...) pattern (1.2.5STABILIZE-HARD)
     CONNECT_PATTERN = re.compile(
         r"""
         (?:
@@ -39,7 +39,7 @@ def test_single_connect_authority():
 
         content = py_file.read_text(encoding="utf-8", errors="ignore")
 
-        # v1.2.5-TITANIUM: Strip comments to prevent false positives in documentation
+        # v1.2.5: Strip comments to prevent false positives in documentation
         stripped_lines = []
         for line in content.splitlines():
             code_part = line.split("#")[0]

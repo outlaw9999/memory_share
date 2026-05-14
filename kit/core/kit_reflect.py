@@ -119,7 +119,7 @@ def extract_signals(diff_text: str) -> list[str]:
     return sorted(list(signals))
 
 
-# v1.2.5-TITANIUM: Logic Collapsed into MemoryPolicy.arbitrate
+# v1.2.5: Logic Collapsed into MemoryPolicy.arbitrate
 # resolve_cognitive_conflict and calculate_adaptive_score are removed to prevent drift.
 
 
@@ -133,12 +133,12 @@ def run_reflect(
 ) -> ReflectReport:
     """
     Main reflection pipeline with Calibration (Consistency Engine v2).
-    v1.2.5-TITANIUM: Integrated Structural Drift Detection.
+    v1.2.5: Integrated Structural Drift Detection.
     """
     report = ReflectReport()
     raw_signals = extract_signals(diff_text)
 
-    # v1.2.5-SEMANTIC: Semantic Overlay Layer Activation (Physical + Cognitive)
+    # 1.2.5SEMANTIC: Semantic Overlay Layer Activation (Physical + Cognitive)
     # v1.2.5: Invoke Vantage (Physics) first to get Anchors, then apply Security Lens (Cognition)
     if file_path and deep:
         from kit.core.contract import normalize_vantage_signal
@@ -209,7 +209,7 @@ def run_reflect(
     from kit.core.memory_policy import MemoryPolicy
 
     for signal in processed_raw:
-        # v1.2.5-TITANIUM: Unified Arbitration Path
+        # v1.2.5: Unified Arbitration Path
         memories = brain.recall([signal], limit=10, fast=True, with_global=True, deduplicate=False)
 
         # Use MemoryPolicy to arbitrate
@@ -220,7 +220,7 @@ def run_reflect(
         if not ranked:
             res = Resolution(reason=f"GAP: '{signal}' not in memory.", confidence=0.0)
         else:
-            # v1.2.5-TITANIUM: Unified Arbitration Path (Non-deduplicated for diagnostic depth)
+            # v1.2.5: Unified Arbitration Path (Non-deduplicated for diagnostic depth)
             winner = ranked[0]
             losers = ranked[1:]
 

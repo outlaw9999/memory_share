@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def main():
-    # AMSB v1.2.4 - The Vantage Protocol Shim (Robust)
+    # AMSB v1.2.5 - The Vantage Protocol Shim (Robust)
     # Delegates 'kit vantage ...' to the Vantage CLI binary
     
     cwd = Path.cwd()

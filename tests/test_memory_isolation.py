@@ -39,13 +39,13 @@ def test_local_global_isolation():
         import sqlite3
 
         conn = sqlite3.connect(str(local2_db))
-        # v1.2.5-TITANIUM: Check 'nodes' table for the UID
+        # v1.2.5: Check 'nodes' table for the UID
         count = conn.execute("SELECT COUNT(*) FROM nodes WHERE uid='iso:local:a'").fetchone()[0]
         conn.close()
 
         assert count == 0, "Isolation failure! Repo 2 local brain contains Repo 1 data."
 
-        # v1.2.5-TITANIUM: Resource Release
+        # v1.2.5: Resource Release
         r1.close()
         r2.close()
 
