@@ -26,8 +26,8 @@ jobs:
         uv run python -c "import sys; print(f'Interpreter: {sys.executable}'); print(f'Version: {sys.version}')"
         uv run python -c "import os; print(f'PYTHONPATH: {os.environ.get(\"PYTHONPATH\")}')"
         
-    - name: Unified System Validation
+    - name: Epistemic Verification (Vantage Authority)
       env:
         PYTHONUTF8: 1
       run: |
-        uv run python -m scripts.unified_validator
+        uv run python -m kit verify

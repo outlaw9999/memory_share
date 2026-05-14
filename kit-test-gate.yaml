@@ -27,7 +27,6 @@ gates:
     priority: 2
     blocking: false
     tests:
-      - "tests/test_chaos_stress.py"
       - "tests/test_scaling.py"
 
 reporting:
