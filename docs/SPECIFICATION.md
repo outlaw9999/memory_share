@@ -319,3 +319,14 @@ FROZEN (immutable)
 - NOT an API contract (use --help for that)
 - NOT a migration guide (see MIGRATION.md)
 - NOT a test suite
+
+### ⚖️ Execution Contract (Runtime Laws)
+
+| # | Invariant | Rationale | Enforcement |
+|---|-----------|-----------|-------------|
+| I9 | **No Hidden Spawning** | Prevents OS-level contention & IDE lag | `test_isolation()` blocks subprocess |
+| I10| **No Global State** | Prevents Windows file lock competition | Scoped to `tmp_path` or `:memory:` |
+| I11| **Deterministic Teardown**| Ensures repeatable CI/CD runs | `gc.collect()` + `sleep(0.2)` on Win |
+
+---
+*End of Specification*

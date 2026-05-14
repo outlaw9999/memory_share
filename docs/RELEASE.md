@@ -19,15 +19,6 @@ This document tracks the evolution of the KIT system, migration protocols, and r
 
 ---
 
-## 🔒 Execution Contract v1.0
-> **Status:** Locked Invariants for v1.2.x
-
-1. **No Hidden Process Spawning**: Test isolation blocks subprocess kit CLI spawns to prevent IDE lag.
-2. **No Global Filesystem Dependency**: All test state is scoped to `tmp_path` or `:memory:`.
-3. **Deterministic Teardown**: Shutdown sequence includes `gc.collect()` and `time.sleep(0.2)` for Windows file handle safety.
-
----
-
 ## 🛠️ Safe Migration Protocol
 Before any schema or structural change:
 1. `kit snapshot`
