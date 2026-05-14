@@ -7,6 +7,7 @@
 The documentation has been moved to the [docs/](docs/) directory:
 
 - [README](docs/README.md) - Project Overview & Quick Start
+- [TITANIUM v1.2.5](docs/TITANIUM_V1.2.5.md) - **Latest Release Notes & Architecture**
 - [SPECIFICATION](docs/SPECIFICATION.md) - System Architecture & Execution Physics
 - [MIGRATION](docs/MIGRATION.md) - Safe Migration Protocols & Session Logs
 
@@ -25,4 +26,5 @@ kit init
 ```
 
 ---
-v1.2.4.post2
+v1.2.5 (Titanium)
+
