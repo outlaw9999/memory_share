@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unified Validation System v1.2.4
+Unified Validation System v1.2.5
 
 Single source of truth for all validation: CI/CD + TDD + Flow Runtime
 
@@ -40,12 +40,12 @@ class SystemValidationReport:
 
 
 class UnifiedValidator:
-    """Unified validation system for v1.2.4."""
+    """Unified validation system for v1.2.5."""
 
     def __init__(self):
         self.repo_root = Path(__file__).resolve().parents[1]
         self.results: list[ValidationResult] = []
-        # v1.2.4-PURE: Use a fresh, random temp directory for absolute statelessness
+        # v1.2.5-PURE: Use a fresh, random temp directory for absolute statelessness
         self._temp_dir = tempfile.TemporaryDirectory(prefix="kit_val_")
         self.validation_home = Path(self._temp_dir.name)
 
@@ -58,7 +58,7 @@ class UnifiedValidator:
         if cwd is None:
             cwd = self.repo_root
 
-        # v1.2.4-STRICT-CONTRACT: Use the exact same interpreter for all steps
+        # v1.2.5-STRICT-CONTRACT: Use the exact same interpreter for all steps
         env = os.environ.copy()
         env["KIT_BYPASS_RUNTIME_LOCK"] = "1"
         env["KIT_GLOBAL_HOME"] = str(self.validation_home / "global")
@@ -147,14 +147,14 @@ class UnifiedValidator:
         """Validate flow state machine correctness."""
         return self.validate_component(
             "Flow Correctness",
-            self.get_pytest_cmd() + [str(self.repo_root / 'tests' / 'test_flow_v124_core.py'), "-v", "--tb=short"]
+            self.get_pytest_cmd() + [str(self.repo_root / 'tests' / 'test_flow_core.py'), "-v", "--tb=short"]
         )
 
     def validate_resilience(self) -> ValidationResult:
         """Validate system resilience under failure conditions."""
         return self.validate_component(
             "System Resilience",
-            self.get_pytest_cmd() + [str(self.repo_root / 'tests' / 'test_v124_resilience.py'), "-v", "--tb=short"]
+            self.get_pytest_cmd() + [str(self.repo_root / 'tests' / 'test_resilience.py'), "-v", "--tb=short"]
         )
 
     def validate_adaptive_learning(self) -> ValidationResult:
@@ -178,6 +178,13 @@ class UnifiedValidator:
         return self.validate_component(
             "Deterministic Core",
             self.get_pytest_cmd() + [str(self.repo_root / 'tests' / 'test_deterministic.py'), "-v", "--tb=short"]
+        )
+
+    def validate_sealed_contract(self) -> ValidationResult:
+        """Validate the sealed v1.2.5 kernel contract."""
+        return self.validate_component(
+            "Sealed Contract",
+            self.get_pytest_cmd() + [str(self.repo_root / 'tests' / 'test_sealed_contract.py'), "-v", "--tb=short"]
         )
 
     def validate_ci_smoke_test(self) -> ValidationResult:
@@ -246,7 +253,7 @@ class UnifiedValidator:
     def run_full_validation(self) -> SystemValidationReport:
         """Run complete validation suite."""
         self.print_fingerprint()
-        print(">>> Starting Unified Validation System v1.2.4")
+        print(">>> Starting Unified Validation System v1.2.5")
         print("=" * 50)
 
         # Core runtime
@@ -271,6 +278,9 @@ class UnifiedValidator:
         # Deterministic behavior
         print("[DETERMINISM] Validating Deterministic Core...")
         self.validate_deterministic_core()
+
+        print("[SEAL] Validating Sealed Contract...")
+        self.validate_sealed_contract()
 
         # CI smoke tests
         print("[SMOKE] Validating CI Smoke Tests...")

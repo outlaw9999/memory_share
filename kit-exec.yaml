@@ -1,8 +1,8 @@
-version: v1.2.4-TITANIUM
+version: v1.2.5-TITANIUM
 metadata:
   purpose: "Contract-Driven Cognitive Runtime"
-  engine: "SAMBrain 1.2.4"
-  status: "Release Freeze"
+  engine: "SAMBrain 1.2.5"
+  status: "Sealed Stable"
 
 contract:
   cli:

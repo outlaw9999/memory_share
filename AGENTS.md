@@ -1,7 +1,9 @@
-# AGENTS.md (v1.2.5-TITANIUM)
+# AGENTS.md
 
-- Use intents only
-- Runtime is source of truth
-- No direct memory/DB mutation
-- Introspect before assumptions (`kit introspect --json`)
-- Commit frequently (reality anchor)
+- intents only
+- runtime is truth
+- no direct memory/db mutation
+- discover dynamically:
+  - `kit introspect --json`
+  - `kit <cmd> --help`
+- commit frequently

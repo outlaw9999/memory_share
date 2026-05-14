@@ -22,7 +22,7 @@ import pytest
 from kit.api import resolve_paths
 
 
-class TestV124Resilience:
+class TestResilience:
     """Resilience tests for v1.2.5 under failure conditions."""
 
     def setup_method(self):

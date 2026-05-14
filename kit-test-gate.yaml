@@ -1,4 +1,4 @@
-version: v1.2.4-TITANIUM
+version: v1.2.5-TITANIUM
 strategy: "Tiered Release-Gate"
 
 gates:
@@ -11,6 +11,7 @@ gates:
       - "tests/test_cognitive_kernel.py"
       - "tests/test_architecture_lock.py"
       - "tests/test_memory_isolation.py"
+      - "tests/test_sealed_contract.py"
 
   P1_FLOW:
     description: "Must pass for release. Core workflows and recovery."
@@ -18,17 +19,16 @@ gates:
     blocking: true
     tests:
       - "tests/test_recovery.py"
-      - "tests/test_v124_resilience.py"
-      - "tests/test_flow_v124_core.py"
+      - "tests/test_resilience.py"
+      - "tests/test_flow_core.py"
 
   P2_STRESS:
     description: "Production Stress (Stability Soak)"
     priority: 2
     blocking: false
     tests:
-      - "tests/soak_test_v124.py"
-      - "tests/test_v124_stress.py"
       - "tests/test_chaos_stress.py"
+      - "tests/test_scaling.py"
 
 reporting:
   stdout: "minimal"

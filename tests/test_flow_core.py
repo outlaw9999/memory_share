@@ -17,7 +17,7 @@ from kit.api import RankingAssessment, resolve_paths
 from kit.core.kit_cognitive_core import SAMBrain, SAMBrainError
 
 
-class TestFlowV124Core:
+class TestFlowCore:
     """Core flow correctness tests for v1.2.5 Titanium architecture."""
 
     def setup_method(self):
