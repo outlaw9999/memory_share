@@ -1928,10 +1928,13 @@ def _main_impl() -> None:
     kit_env.get_substrate_report()
 
     # --- Workspace Initialization Guard (v1.2.5) ---
+    is_diagnostic = len(sys.argv) > 1 and sys.argv[1] in ["verify", "test", "build", "verify-release", "release"]
+    
     if (
         len(sys.argv) > 1
         and sys.argv[1]
         not in ["init", "init-env", "--help", "-h", "--version", "-v", "where", "status", "stats", "trace"]
+        and not is_diagnostic
         and not _raw_repair_governance_mode()
     ):
         sentinel = Path.cwd() / BOOTSTRAP_SENTINEL
@@ -1944,6 +1947,12 @@ def _main_impl() -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
+    
+    if is_diagnostic:
+        sentinel = Path.cwd() / BOOTSTRAP_SENTINEL
+        if not sentinel.exists():
+            print_diagnostic(f"[STATELESS] Running in ephemeral mode (sentinel '{BOOTSTRAP_SENTINEL}' missing).")
+
 
     _configure_console_encoding()
     if len(sys.argv) == 1:
@@ -2126,6 +2135,7 @@ def _main_impl() -> None:
     # Initialize Kernel API
     should_init_kernel = not (
         args.command == "trace"
+        or args.command in ["verify", "test", "build", "verify-release"]
         or (
             args.command == "stats"
             and (

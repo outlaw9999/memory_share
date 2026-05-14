@@ -1,0 +1,912 @@
+{
+  "files": [
+    {
+      "file": ".\\examples\\minimal_example.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\__main__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\analysis\\risk_engine.py",
+      "language": "python",
+      "nodes": 7
+    },
+    {
+      "file": ".\\kit\\analysis\\security_lens.py",
+      "language": "python",
+      "nodes": 1
+    },
+    {
+      "file": ".\\kit\\api.py",
+      "language": "python",
+      "nodes": 28
+    },
+    {
+      "file": ".\\kit\\cli\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\cli\\adaptive_trainer.py",
+      "language": "python",
+      "nodes": 1
+    },
+    {
+      "file": ".\\kit\\cli\\auto_route.py",
+      "language": "python",
+      "nodes": 13
+    },
+    {
+      "file": ".\\kit\\cli\\doctor.py",
+      "language": "python",
+      "nodes": 2
+    },
+    {
+      "file": ".\\kit\\cli\\main.py",
+      "language": "python",
+      "nodes": 85
+    },
+    {
+      "file": ".\\kit\\coherence\\coherence_engine.py",
+      "language": "python",
+      "nodes": 3
+    },
+    {
+      "file": ".\\kit\\coherence\\enforcement\\mce_gate.py",
+      "language": "python",
+      "nodes": 3
+    },
+    {
+      "file": ".\\kit\\core\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\core\\coherence_schema.py",
+      "language": "python",
+      "nodes": 3
+    },
+    {
+      "file": ".\\kit\\core\\command_registry.py",
+      "language": "python",
+      "nodes": 15
+    },
+    {
+      "file": ".\\kit\\core\\command_routes.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\core\\consistency_validator.py",
+      "language": "python",
+      "nodes": 5
+    },
+    {
+      "file": ".\\kit\\core\\context_compiler.py",
+      "language": "python",
+      "nodes": 3
+    },
+    {
+      "file": ".\\kit\\core\\contract.py",
+      "language": "python",
+      "nodes": 7
+    },
+    {
+      "file": ".\\kit\\core\\deterministic.py",
+      "language": "python",
+      "nodes": 3
+    },
+    {
+      "file": ".\\kit\\core\\deterministic_context.py",
+      "language": "python",
+      "nodes": 10
+    },
+    {
+      "file": ".\\kit\\core\\dispatcher.py",
+      "language": "python",
+      "nodes": 5
+    },
+    {
+      "file": ".\\kit\\core\\drift_repair.py",
+      "language": "python",
+      "nodes": 21
+    },
+    {
+      "file": ".\\kit\\core\\execution_trace.py",
+      "language": "python",
+      "nodes": 9
+    },
+    {
+      "file": ".\\kit\\core\\file_system.py",
+      "language": "python",
+      "nodes": 8
+    },
+    {
+      "file": ".\\kit\\core\\fs_dispatch.py",
+      "language": "python",
+      "nodes": 1
+    },
+    {
+      "file": ".\\kit\\core\\identity_guard.py",
+      "language": "python",
+      "nodes": 2
+    },
+    {
+      "file": ".\\kit\\core\\ipc_protocol.py",
+      "language": "python",
+      "nodes": 21
+    },
+    {
+      "file": ".\\kit\\core\\kernel.py",
+      "language": "python",
+      "nodes": 3
+    },
+    {
+      "file": ".\\kit\\core\\kernel_engine.py",
+      "language": "python",
+      "nodes": 9
+    },
+    {
+      "file": ".\\kit\\core\\kernel_fsm.py",
+      "language": "python",
+      "nodes": 19
+    },
+    {
+      "file": ".\\kit\\core\\kit_baking.py",
+      "language": "python",
+      "nodes": 7
+    },
+    {
+      "file": ".\\kit\\core\\kit_cmc.py",
+      "language": "python",
+      "nodes": 2
+    },
+    {
+      "file": ".\\kit\\core\\kit_cognitive_core.py",
+      "language": "python",
+      "nodes": 64
+    },
+    {
+      "file": ".\\kit\\core\\kit_commit_queue.py",
+      "language": "python",
+      "nodes": 10
+    },
+    {
+      "file": ".\\kit\\core\\kit_compaction.py",
+      "language": "python",
+      "nodes": 2
+    },
+    {
+      "file": ".\\kit\\core\\kit_decision.py",
+      "language": "python",
+      "nodes": 3
+    },
+    {
+      "file": ".\\kit\\core\\kit_env.py",
+      "language": "python",
+      "nodes": 6
+    },
+    {
+      "file": ".\\kit\\core\\kit_governance.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\kit\\core\\kit_hygiene.py",
+      "language": "python",
+      "nodes": 9
+    },
+    {
+      "file": ".\\kit\\core\\kit_invariants.py",
+      "language": "python",
+      "nodes": 5
+    },
+    {
+      "file": ".\\kit\\core\\kit_l0_cache.py",
+      "language": "python",
+      "nodes": 6
+    },
+    {
+      "file": ".\\kit\\core\\kit_lock.py",
+      "language": "python",
+      "nodes": 12
+    },
+    {
+      "file": ".\\kit\\core\\kit_metrics.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\kit\\core\\kit_platform.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\kit\\core\\kit_reflect.py",
+      "language": "python",
+      "nodes": 12
+    },
+    {
+      "file": ".\\kit\\core\\kit_replay_tracer.py",
+      "language": "python",
+      "nodes": 10
+    },
+    {
+      "file": ".\\kit\\core\\kit_retention.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\kit\\core\\kit_sealing.py",
+      "language": "python",
+      "nodes": 3
+    },
+    {
+      "file": ".\\kit\\core\\kit_sre.py",
+      "language": "python",
+      "nodes": 16
+    },
+    {
+      "file": ".\\kit\\core\\kit_symbol_repair.py",
+      "language": "python",
+      "nodes": 5
+    },
+    {
+      "file": ".\\kit\\core\\kit_vantage.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\kit\\core\\l3_registry.py",
+      "language": "python",
+      "nodes": 11
+    },
+    {
+      "file": ".\\kit\\core\\memory_policy.py",
+      "language": "python",
+      "nodes": 13
+    },
+    {
+      "file": ".\\kit\\core\\memory_router.py",
+      "language": "python",
+      "nodes": 54
+    },
+    {
+      "file": ".\\kit\\core\\memory_scoring.py",
+      "language": "python",
+      "nodes": 24
+    },
+    {
+      "file": ".\\kit\\core\\memory_topology.py",
+      "language": "python",
+      "nodes": 18
+    },
+    {
+      "file": ".\\kit\\core\\policy_schema.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\core\\release_guard.py",
+      "language": "python",
+      "nodes": 7
+    },
+    {
+      "file": ".\\kit\\core\\repo_scanner.py",
+      "language": "python",
+      "nodes": 3
+    },
+    {
+      "file": ".\\kit\\core\\rmil.py",
+      "language": "python",
+      "nodes": 2
+    },
+    {
+      "file": ".\\kit\\core\\schema_factory.py",
+      "language": "python",
+      "nodes": 6
+    },
+    {
+      "file": ".\\kit\\core\\schema_migration.py",
+      "language": "python",
+      "nodes": 1
+    },
+    {
+      "file": ".\\kit\\core\\shadow.py",
+      "language": "python",
+      "nodes": 1
+    },
+    {
+      "file": ".\\kit\\core\\state_vector.py",
+      "language": "python",
+      "nodes": 2
+    },
+    {
+      "file": ".\\kit\\core\\vantage_dispatch.py",
+      "language": "python",
+      "nodes": 1
+    },
+    {
+      "file": ".\\kit\\core\\vantage_stream_consumer.py",
+      "language": "python",
+      "nodes": 8
+    },
+    {
+      "file": ".\\kit\\diagnostic\\__init__.py",
+      "language": "python",
+      "nodes": 2
+    },
+    {
+      "file": ".\\kit\\event\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\event\\contract.py",
+      "language": "python",
+      "nodes": 15
+    },
+    {
+      "file": ".\\kit\\flow\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\flow\\engine.py",
+      "language": "python",
+      "nodes": 20
+    },
+    {
+      "file": ".\\kit\\flow\\surface.py",
+      "language": "python",
+      "nodes": 10
+    },
+    {
+      "file": ".\\kit\\flow_vantage_bridge.py",
+      "language": "python",
+      "nodes": 15
+    },
+    {
+      "file": ".\\kit\\graph\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\graph\\api.py",
+      "language": "python",
+      "nodes": 13
+    },
+    {
+      "file": ".\\kit\\graph\\cache.py",
+      "language": "python",
+      "nodes": 14
+    },
+    {
+      "file": ".\\kit\\graph\\materializer.py",
+      "language": "python",
+      "nodes": 15
+    },
+    {
+      "file": ".\\kit\\graph\\query.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\kit\\graph\\resolver.py",
+      "language": "python",
+      "nodes": 18
+    },
+    {
+      "file": ".\\kit\\graph\\schema.py",
+      "language": "python",
+      "nodes": 3
+    },
+    {
+      "file": ".\\kit\\guard\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\guard\\fast_guard.py",
+      "language": "python",
+      "nodes": 7
+    },
+    {
+      "file": ".\\kit\\intent\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\intent\\execution.py",
+      "language": "python",
+      "nodes": 12
+    },
+    {
+      "file": ".\\kit\\intent\\normalizer.py",
+      "language": "python",
+      "nodes": 6
+    },
+    {
+      "file": ".\\kit\\intent\\registry.py",
+      "language": "python",
+      "nodes": 13
+    },
+    {
+      "file": ".\\kit\\intent\\schema.py",
+      "language": "python",
+      "nodes": 36
+    },
+    {
+      "file": ".\\kit\\memory\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\memory\\projection.py",
+      "language": "python",
+      "nodes": 11
+    },
+    {
+      "file": ".\\kit\\meta\\__init__.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\kit\\models\\signal.py",
+      "language": "python",
+      "nodes": 2
+    },
+    {
+      "file": ".\\kit\\runtime\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\runtime\\entrypoint.py",
+      "language": "python",
+      "nodes": 10
+    },
+    {
+      "file": ".\\kit\\runtime\\planner.py",
+      "language": "python",
+      "nodes": 9
+    },
+    {
+      "file": ".\\kit\\runtime\\policy_guard.py",
+      "language": "python",
+      "nodes": 13
+    },
+    {
+      "file": ".\\kit\\runtime\\resolver.py",
+      "language": "python",
+      "nodes": 5
+    },
+    {
+      "file": ".\\kit\\search\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\skills\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\skills\\base.py",
+      "language": "python",
+      "nodes": 5
+    },
+    {
+      "file": ".\\kit\\skills\\executor.py",
+      "language": "python",
+      "nodes": 1
+    },
+    {
+      "file": ".\\kit\\skills\\matcher.py",
+      "language": "python",
+      "nodes": 2
+    },
+    {
+      "file": ".\\kit\\skills\\migrate_brain.py",
+      "language": "python",
+      "nodes": 5
+    },
+    {
+      "file": ".\\kit\\skills\\registry.py",
+      "language": "python",
+      "nodes": 11
+    },
+    {
+      "file": ".\\kit\\skills\\runtime.py",
+      "language": "python",
+      "nodes": 5
+    },
+    {
+      "file": ".\\kit\\vantage\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\kit\\vantage\\bridge.py",
+      "language": "python",
+      "nodes": 5
+    },
+    {
+      "file": ".\\kit\\vantage\\contract.py",
+      "language": "python",
+      "nodes": 23
+    },
+    {
+      "file": ".\\kit\\vantage\\engine.py",
+      "language": "python",
+      "nodes": 8
+    },
+    {
+      "file": ".\\scripts\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\scripts\\install_hooks.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\scripts\\setup_hooks.py",
+      "language": "python",
+      "nodes": 1
+    },
+    {
+      "file": ".\\scripts\\unified_validator.py",
+      "language": "python",
+      "nodes": 23
+    },
+    {
+      "file": ".\\scripts\\vantage_shim.py",
+      "language": "python",
+      "nodes": 1
+    },
+    {
+      "file": ".\\tests\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\tests\\cognitive_harness\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\tests\\cognitive_harness\\consistency.py",
+      "language": "python",
+      "nodes": 16
+    },
+    {
+      "file": ".\\tests\\cognitive_harness\\corpus.py",
+      "language": "python",
+      "nodes": 14
+    },
+    {
+      "file": ".\\tests\\cognitive_harness\\gate.py",
+      "language": "python",
+      "nodes": 15
+    },
+    {
+      "file": ".\\tests\\cognitive_harness\\isolation.py",
+      "language": "python",
+      "nodes": 20
+    },
+    {
+      "file": ".\\tests\\cognitive_harness\\simulator.py",
+      "language": "python",
+      "nodes": 41
+    },
+    {
+      "file": ".\\tests\\cognitive_harness\\state_diff.py",
+      "language": "python",
+      "nodes": 23
+    },
+    {
+      "file": ".\\tests\\conftest.py",
+      "language": "python",
+      "nodes": 8
+    },
+    {
+      "file": ".\\tests\\contract\\test_memory_policy.py",
+      "language": "python",
+      "nodes": 2
+    },
+    {
+      "file": ".\\tests\\cross_lang_audit.py",
+      "language": "python",
+      "nodes": 1
+    },
+    {
+      "file": ".\\tests\\data\\auth_corpus\\auth_01_hard_bypass.py",
+      "language": "python",
+      "nodes": 1
+    },
+    {
+      "file": ".\\tests\\data\\auth_corpus\\auth_02_logic_inversion.py",
+      "language": "python",
+      "nodes": 1
+    },
+    {
+      "file": ".\\tests\\data\\auth_corpus\\auth_03_empty_check.py",
+      "language": "python",
+      "nodes": 1
+    },
+    {
+      "file": ".\\tests\\data\\sql_corpus\\sql_01_fstring.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\tests\\data\\sql_corpus\\sql_02_sqla_text.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\tests\\data\\sql_corpus\\sql_03_loop_dynamic.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\tests\\data\\sql_corpus\\sql_04_concat.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\tests\\data\\sql_corpus\\sql_05_format.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\tests\\data\\sql_corpus\\sql_06_percent.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\tests\\data\\sql_corpus\\sql_07_table_inject.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\tests\\data\\sql_corpus\\sql_08_orderby.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\tests\\data\\sql_corpus\\sql_09_like.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\tests\\data\\sql_corpus\\sql_10_orm_escape.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\tests\\data\\sql_corpus\\sql_11_multi_query.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\tests\\data\\sql_corpus\\sql_12_batch_loop.py",
+      "language": "python",
+      "nodes": 1
+    },
+    {
+      "file": ".\\tests\\harness\\policy_runner.py",
+      "language": "python",
+      "nodes": 3
+    },
+    {
+      "file": ".\\tests\\perf\\test_performance_scale.py",
+      "language": "python",
+      "nodes": 1
+    },
+    {
+      "file": ".\\tests\\perf\\test_reflect.py",
+      "language": "python",
+      "nodes": 5
+    },
+    {
+      "file": ".\\tests\\phase10\\__init__.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\tests\\phase10\\containment_harness.py",
+      "language": "python",
+      "nodes": 24
+    },
+    {
+      "file": ".\\tests\\phase10\\drift_governance.py",
+      "language": "python",
+      "nodes": 28
+    },
+    {
+      "file": ".\\tests\\phase10\\run_harness.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\tests\\phase10\\shadow_harness.py",
+      "language": "python",
+      "nodes": 14
+    },
+    {
+      "file": ".\\tests\\phase10\\test_containment.py",
+      "language": "python",
+      "nodes": 5
+    },
+    {
+      "file": ".\\tests\\phase10\\test_determinism.py",
+      "language": "python",
+      "nodes": 6
+    },
+    {
+      "file": ".\\tests\\phase10\\test_drift.py",
+      "language": "python",
+      "nodes": 0
+    },
+    {
+      "file": ".\\tests\\phase10\\test_reverse_flow.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\tests\\test_architectural_invariants.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\tests\\test_architecture_lock.py",
+      "language": "python",
+      "nodes": 2
+    },
+    {
+      "file": ".\\tests\\test_calibration.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\tests\\test_cognitive_harness.py",
+      "language": "python",
+      "nodes": 22
+    },
+    {
+      "file": ".\\tests\\test_cognitive_kernel.py",
+      "language": "python",
+      "nodes": 13
+    },
+    {
+      "file": ".\\tests\\test_consistency_validator.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\tests\\test_deterministic.py",
+      "language": "python",
+      "nodes": 2
+    },
+    {
+      "file": ".\\tests\\test_dispatcher.py",
+      "language": "python",
+      "nodes": 3
+    },
+    {
+      "file": ".\\tests\\test_drift_repair.py",
+      "language": "python",
+      "nodes": 5
+    },
+    {
+      "file": ".\\tests\\test_execution_trace.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\tests\\test_flow_core.py",
+      "language": "python",
+      "nodes": 12
+    },
+    {
+      "file": ".\\tests\\test_flow_surface.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\tests\\test_freeze_guard.py",
+      "language": "python",
+      "nodes": 5
+    },
+    {
+      "file": ".\\tests\\test_kernel_engine.py",
+      "language": "python",
+      "nodes": 3
+    },
+    {
+      "file": ".\\tests\\test_kernel_fsm.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\tests\\test_kernel_sentinel.py",
+      "language": "python",
+      "nodes": 5
+    },
+    {
+      "file": ".\\tests\\test_kit_system_contract.py",
+      "language": "python",
+      "nodes": 8
+    },
+    {
+      "file": ".\\tests\\test_l3_registry.py",
+      "language": "python",
+      "nodes": 14
+    },
+    {
+      "file": ".\\tests\\test_ledger.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\tests\\test_memory_isolation.py",
+      "language": "python",
+      "nodes": 1
+    },
+    {
+      "file": ".\\tests\\test_memory_router.py",
+      "language": "python",
+      "nodes": 9
+    },
+    {
+      "file": ".\\tests\\test_memory_scoring.py",
+      "language": "python",
+      "nodes": 27
+    },
+    {
+      "file": ".\\tests\\test_recovery.py",
+      "language": "python",
+      "nodes": 3
+    },
+    {
+      "file": ".\\tests\\test_resilience.py",
+      "language": "python",
+      "nodes": 12
+    },
+    {
+      "file": ".\\tests\\test_scaling.py",
+      "language": "python",
+      "nodes": 3
+    },
+    {
+      "file": ".\\tests\\test_sealed_contract.py",
+      "language": "python",
+      "nodes": 9
+    },
+    {
+      "file": ".\\tests\\test_search_regression.py",
+      "language": "python",
+      "nodes": 4
+    },
+    {
+      "file": ".\\tests\\test_snapshot_integrity.py",
+      "language": "python",
+      "nodes": 2
+    }
+  ],
+  "total_nodes": 1407,
+  "ts": 1778751255,
+  "v": "1.2.5"
+}

@@ -56,9 +56,19 @@ def test_policy_integrity_lock():
 
     path = Path(mp.__file__)
 
-    lock_path = path.parent / "memory_policy.lock"
-    with open(lock_path) as f:
-        expected_hash = f.read().strip()
+    from kit.core.kit_ledger import get_certified_hash
+    
+    expected_hash = get_certified_hash("kit/core/memory_policy.py")
+    
+    if not expected_hash:
+        # Fallback to legacy lock file
+        lock_path = path.parent / "memory_policy.lock"
+        if lock_path.exists():
+            with open(lock_path) as f:
+                expected_hash = f.read().strip()
+    
+    assert expected_hash, "No certified hash found in ledger or legacy lock file."
+
 
     with open(path, "rb") as f:
         current_hash = hashlib.sha256(f.read()).hexdigest()
