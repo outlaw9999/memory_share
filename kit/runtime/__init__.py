@@ -1,13 +1,14 @@
-from kit.skills.executor import execute_skill as run_skill
+# kit/runtime/__init__.py
+# v1.2.5 — Runtime Engine: deterministic execution substrate for the KIT system.
 
-def watch(poll_interval: float = 0.2):
-    """Runtime: Stream semantic memory events."""
-    from kit.api import get_brain
-    return get_brain().stream_events(poll_interval)
+from kit.runtime.entrypoint import RuntimeEngine
+from kit.runtime.planner import ExecutionPlan
+from kit.runtime.policy_guard import PlanVerdict, PolicyGuard, PolicyRule
 
-def where() -> str:
-    """Runtime: Get current workspace identity."""
-    from kit.api import get_brain
-    return get_brain().get_workspace_id()
-
-__all__ = ["run_skill", "watch", "where"]
+__all__ = [
+    "RuntimeEngine",
+    "ExecutionPlan",
+    "PolicyGuard",
+    "PolicyRule",
+    "PlanVerdict",
+]

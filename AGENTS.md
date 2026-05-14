@@ -5,22 +5,33 @@
 - No direct DB/FS access. No ad-hoc SQL/scripts.
 - Operate via INTENTS only — never call kit CLI directly.
 
-## 🧠 INTENT ROUTER (IR-C1)
+## 🧠 INTENT ROUTER (IR-C1) — v1.2.5
 
 Agent MUST NOT call kit commands. Emit one of:
 
-| Intent            | When                        |
-| ----------------- | --------------------------- |
-| `INTENT: BUILD`   | structural check            |
-| `INTENT: TEST`    | run unit tests              |
-| `INTENT: VERIFY`  | full integrity scan         |
-| `INTENT: HEALTH`  | env/schema diagnostics      |
-| `INTENT: MIGRATE` | legacy memory path upgrade  |
-| `INTENT: RELEASE` | release gate validation     |
-| `INTENT: LEARN`   | record cognitive observation|
-| `INTENT: RECALL`  | retrieve context            |
+| Intent                         | Domain:Action              | When                        |
+| ------------------------------ | -------------------------- | --------------------------- |
+| `INTENT: GRAPH:BUILD`          | structural check           | structural check            |
+| `INTENT: RELEASE:TEST`         | run unit tests             | run unit tests              |
+| `INTENT: VERIFICATION:VERIFY`  | full integrity scan        | full integrity scan         |
+| `INTENT: RUNTIME:HEALTH`       | env/schema diagnostics     | env/schema diagnostics      |
+| `INTENT: MEMORY:MIGRATE`       | legacy memory path upgrade | legacy memory path upgrade  |
+| `INTENT: RELEASE:RELEASE`      | release gate validation    | release gate validation     |
+| `INTENT: MEMORY:LEARN`         | record cognitive observation| record cognitive observation|
+| `INTENT: MEMORY:RECALL`        | retrieve context           | retrieve context            |
 
-Runtime maps intents → kit execution. The command surface is invisible.
+### Legacy single-token intents (backward compat)
+
+| `INTENT: BUILD`   | → `GRAPH:BUILD`   |
+| `INTENT: TEST`    | → `RELEASE:TEST`  |
+| `INTENT: VERIFY`  | → `VERIFICATION:VERIFY` |
+| `INTENT: HEALTH`  | → `RUNTIME:HEALTH`|
+| `INTENT: MIGRATE` | → `MEMORY:MIGRATE`|
+| `INTENT: RELEASE` | → `RELEASE:RELEASE`|
+| `INTENT: LEARN`   | → `MEMORY:LEARN`  |
+| `INTENT: RECALL`  | → `MEMORY:RECALL` |
+
+Runtime maps intents → execution. The command surface is invisible.
 
 ## ⚡ FAST PATH (Dev Only)
 - build → `task build` (or `python -m py_compile kit/**/*.py`)
@@ -29,6 +40,6 @@ Runtime maps intents → kit execution. The command surface is invisible.
 ## 🛡️ RULES & ESCALATION
 
 - Use `${workspaceFolder}` relative paths.
-- Before mutation: emit `INTENT: HEALTH`.
-- On failure: `INTENT: VERIFY` → `INTENT: HEALTH` → retry.
+- Before mutation: emit `INTENT: RUNTIME:HEALTH`.
+- On failure: `INTENT: VERIFICATION:VERIFY` → `INTENT: RUNTIME:HEALTH` → retry.
 - Never call `kit ...` directly.

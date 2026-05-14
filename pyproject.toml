@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "memory-share-kit"
-version = "1.2.4"
+version = "1.2.5"
 description = "Deterministic memory and governance for developers and AI agents."
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
@@ -42,6 +42,7 @@ dev = [
 kit = "kit.cli.main:main"
 kit-agent = "kit.cli.main:main"
 kit-vantage = "scripts.vantage_shim:main"
+kit-runtime = "kit.runtime.entrypoint:main"
 
 [tool.hatch.envs.default]
 python = "3.14.4"

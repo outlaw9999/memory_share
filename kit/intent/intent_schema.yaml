@@ -1,0 +1,69 @@
+# kit/intent/intent_schema.yaml
+# v1.2.5 — Intent Schema Contract: defines valid domains, actions, and the normalized intent protocol.
+
+version: "1.2.5"
+description: "Canonical semantic surface for KIT. All agents, hooks, and runtime components communicate via DOMAIN:ACTION."
+
+domains:
+  memory:
+    description: "Cognitive memory operations"
+    actions: [learn, recall, reconcile, migrate, evolve, compact]
+  graph:
+    description: "Structural graph operations"
+    actions: [build, rebuild, verify, inspect]
+  runtime:
+    description: "Runtime engine operations"
+    actions: [health, introspect, execute]
+  verification:
+    description: "Integrity and validation operations"
+    actions: [verify, validate, audit]
+  lifecycle:
+    description: "System lifecycle events"
+    actions: [init, seal, unseal, snapshot, restore, pre_commit, post_commit, commit]
+  release:
+    description: "Build, test, and release operations"
+    actions: [test, release]
+  diagnostic:
+    description: "Observability and diagnostic operations"
+    actions: [doctor, trace, metrics]
+
+intent_format:
+  canonical: "DOMAIN:ACTION"
+  example: "MEMORY:LEARN"
+  rules:
+    - "DOMAIN must match one of the defined domains"
+    - "ACTION must match one of the defined actions for that domain"
+    - "Case-insensitive on input; normalized to UPPER on output"
+
+protocol:
+  request:
+    intent: "DOMAIN:ACTION"
+    context:
+      caller_id: "string"
+      origin: "hook | agent | manual | api | runtime"
+      correlation_id: "string"
+      execution_depth: "integer"
+      replay_mode: "boolean"
+      dry_run: "boolean"
+      trace_id: "string"
+    payload:
+      data: "object"
+      git_diff: "string | null"
+      branch: "string | null"
+      commit_hash: "string | null"
+  response:
+    status: "pending | running | success | failed | rolled_back"
+    trace_id: "string"
+    error: "string | null"
+
+origins:
+  hook: "Git lifecycle event (pre-commit, post-commit, post-merge)"
+  agent: "AI agent signal (via AGENTS.md intent router)"
+  manual: "User invocation (debug/inspect mode)"
+  api: "Programmatic API call"
+  runtime: "Internal runtime-originated intent (reconciliation, recovery)"
+
+validation:
+  max_execution_depth: 3
+  max_intent_chain: 5
+  max_hook_depth: 5

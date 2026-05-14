@@ -1,0 +1,93 @@
+# kit/architecture.yaml
+# v1.2.5 — Final Cognitive Substrate Architecture v2
+#
+# THREE CONCERNS, ONE FLOW:
+#   Truth Gate (kit-vantage)    → certifies reality
+#   Safety Gate (PolicyGuard)   → governs traffic
+#   State Sink (MemoryRouter)   → projects memory from approved traces
+#
+# INVARIANT: Memory is a deterministic projection of approved execution traces.
+#            Memory is NOT a decision system.
+
+version: "1.2.5"
+name: "KIT Cognitive Substrate — Final Architecture v2"
+
+planes:
+  plane_1_interaction_surface:
+    description: "Git is the UI. Thin sensors. No cognition."
+    components:
+      - name: "Git"
+        role: "Event bus"
+        emits: ["RawGitEvent"]
+      - name: "Git Hooks"
+        role: "Thin event sensors"
+        rule: "Never parse, never filter, never decide"
+
+  plane_2_cognitive_substrate:
+    description: "Event-driven cognitive loop. No CLI. Only events."
+    components:
+      - name: "Intent Normalizer"
+        role: "Raw → canonical"
+        belongs_to: "kit.intent"
+      - name: "Runtime Planner"
+        role: "DAG construction (pure, frozen)"
+        belongs_to: "kit.runtime"
+      - name: "Epistemic Engine"
+        role: "Truth certification only"
+        belongs_to: "kit.vantage"
+        rule: "Does NOT approve memory. Only certifies reality."
+        output: "Verdict (APPROVED/REJECTED/DEGRADED)"
+      - name: "Runtime Executor"
+        role: "Side-effect execution (single gate)"
+        belongs_to: "kit.runtime"
+      - name: "MemoryRouter"
+        role: "Single write authority"
+        belongs_to: "kit.core"
+        rule: "Receives only already-approved execution traces"
+      - name: "Vantage (Rust Bridge)"
+        role: "Optional cryptographic verifier"
+        belongs_to: "kit.vantage.bridge"
+        rule: "No business logic. No state mutation. No intent interpretation."
+
+  diagnostic_zone:
+    description: "CLI preserved as isolated debug/recovery tool. NOT part of cognitive loop."
+
+authorities:
+  truth_gate:
+    component: "kit-vantage (EpistemicEngine)"
+    power: "Certify reality"
+    scope: ["invariant check", "causal consistency", "idempotency", "optional Rust proof"]
+    forbidden: ["memory write decisions", "traffic governance", "business logic"]
+  safety_gate:
+    component: "PolicyGuard"
+    power: "Govern traffic"
+    scope: ["loop prevention", "rate limiting", "hook storm control"]
+    forbidden: ["epistemic truth checks", "memory decisions"]
+  write_authority:
+    component: "MemoryRouter"
+    power: "Single write path"
+    scope: ["persist approved execution traces"]
+    forbidden: ["self-authoring", "speculative writes", "truth evaluation"]
+
+flow:
+  canonical:
+    - step: "Git hook emits RawGitEvent"
+    - step: "Intent Normalizer → CanonicalIntent"
+    - step: "ExecutionIntent → Planner → frozen ExecutionPlan"
+    - step: "PolicyGuard (single check: depth, storm, fingerprint)"
+    - step: "kit-vantage (EpistemicEngine): truth certification"
+    - step: "RuntimeExecutor: single execution gate"
+    - step: "MemoryRouter: project trace to memory"
+  rule: "Every step before MemoryRouter is read-only or side-effect-free"
+
+invariants:
+  - "kit-vantage does not approve memory. It only certifies reality."
+  - "PolicyGuard does not evaluate truth. It only governs traffic."
+  - "MemoryRouter does not evaluate truth or safety. It only projects."
+  - "Memory is a deterministic consequence of truth, not a source of truth."
+  - "No reverse flow from Plane 2 to Plane 1."
+  - "Runtime never mutates during planning."
+  - "Single execution gate for all side effects."
+  - "Cognition may be probabilistic. Reality transitions must be deterministic."
+  - "Git anchors reality but does not define truth."
+  - "Hallucination is contained, not prevented."

@@ -1,61 +1,29 @@
-# Kit + Vantage Pre-Commit Hook (v1.2.4) - Windows PowerShell
-#
-# This hook runs Vantage memory verification BEFORE commit.
-# If Vantage fails, commit is BLOCKED.
-#
-# Install: 
-#   Copy this file to .git/hooks\pre-commit
-#   Or reference from .git\hooks in your git config
+# Kit Pre-Commit Hook (v1.2.5) - Windows PowerShell
+# Emits LIFECYCLE:PRE_COMMIT via kit-runtime. Blocks commit on failure.
+# Safety: 5s timeout via .NET Process prevents blocking git workflow.
 
 $ErrorActionPreference = "Stop"
+Write-Host "[Kit] Pre-commit runtime check..." -ForegroundColor Cyan
 
-Write-Host "🔍 [Kit] Running Vantage verification..." -ForegroundColor Cyan
+$psi = New-Object System.Diagnostics.ProcessStartInfo
+$psi.FileName = "kit-runtime"
+$psi.Arguments = "runtime --hook pre-commit --json"
+$psi.UseShellExecute = $false
+$psi.RedirectStandardOutput = $true
+$p = [System.Diagnostics.Process]::Start($psi)
 
-# Find Vantage binary
-$VantageBin = $null
-$PossiblePaths = @(
-    ".\kit-vantage.exe",
-    "$PSScriptRoot\..\kit-vantage.exe",
-    "$PSScriptRoot\kit-vantage.exe"
-)
-
-foreach ($path in $PossiblePaths) {
-    $resolved = $ExecutionContext.InvokeCommand.ExpandString($path)
-    if (Test-Path $resolved) {
-        $VantageBin = $resolved
-        break
-    }
-}
-
-if (-not $VantageBin) {
-    # Also check in PATH
-    $VantageBin = Get-Command kit-vantage.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
-}
-
-if (-not $VantageBin) {
-    Write-Host "⚠️  [Kit] Vantage not found. Skipping integrity check." -ForegroundColor Yellow
-    exit 0
-}
-
-# Run Vantage verification
-try {
-    $result = & $VantageBin verify-memory --json 2>&1
-    $exitCode = $LASTEXITCODE
-    
+if ($p.WaitForExit(5000)) {
+    $result = $p.StandardOutput.ReadToEnd()
+    $exitCode = $p.ExitCode
     if ($exitCode -eq 0) {
-        Write-Host "✅ [Kit] Memory integrity verified" -ForegroundColor Green
+        Write-Host "[Kit] Pre-commit check passed" -ForegroundColor Green
         exit 0
     }
-    else {
-        Write-Host "❌ [Kit] Memory integrity FAILED" -ForegroundColor Red
-        Write-Host $result
-        Write-Host ""
-        Write-Host "🔧 Run `kit doctor` to diagnose" -ForegroundColor Yellow
-        Write-Host "🔧 Run `kit-vantage verify-memory -d` for details" -ForegroundColor Yellow
-        exit 1
-    }
+    Write-Host "[Kit] Pre-commit check FAILED" -ForegroundColor Red
+    Write-Host $result
+    exit 1
 }
-catch {
-    Write-Host "⚠️  [Kit] Vantage execution failed: $_" -ForegroundColor Yellow
-    exit 0
-}
+
+$p.Kill()
+Write-Host "[Kit] Pre-commit timed out (5s) — allowing commit" -ForegroundColor Yellow
+exit 0

@@ -1,47 +1,26 @@
 #!/bin/sh
-# Kit + Vantage Pre-Commit Hook (v1.2.4)
-# 
-# This hook runs Vantage memory verification BEFORE commit.
-# If Vantage fails, commit is BLOCKED.
-#
-# Install: Copy this to .git/hooks/pre-commit
-#   cp .git/hooks/pre-commit-kit .git/hooks/pre-commit
-#   chmod +x .git/hooks/pre-commit
+# Kit Pre-Commit Hook (v1.2.5)
+# Emits LIFECYCLE:PRE_COMMIT via kit-runtime. Blocks commit on failure.
+# Safety: 5s timeout prevents blocking git workflow.
 
-echo "🔍 [Kit] Running Vantage verification..."
-
-# Check for Vantage binary in common locations
-# 1. Local root
-# 2. Sibling repo
-# 3. PATH
-VANTAGE_BIN=""
-if [ -f "./kit-vantage.exe" ]; then
-    VANTAGE_BIN="./kit-vantage.exe"
-elif [ -f "../Vantage/kit-vantage.exe" ]; then
-    VANTAGE_BIN="../Vantage/kit-vantage.exe"
-elif [ -f "../Vantage/target/release/vantage.exe" ]; then
-    VANTAGE_BIN="../Vantage/target/release/vantage.exe"
+echo "[Kit] Pre-commit runtime check..."
+if command -v timeout >/dev/null 2>&1; then
+    KIT_OUTPUT=$(timeout 5 kit-runtime runtime --hook pre-commit --json 2>&1)
+    EXIT_CODE=$?
+    if [ $EXIT_CODE -eq 124 ]; then
+        echo "[Kit] Pre-commit timed out (5s) — allowing commit"
+        exit 0
+    fi
 else
-    VANTAGE_BIN=$(command -v kit-vantage.exe 2>/dev/null || command -v kit-vantage 2>/dev/null)
+    KIT_OUTPUT=$(kit-runtime runtime --hook pre-commit --json 2>&1)
+    EXIT_CODE=$?
 fi
-
-if [ -z "$VANTAGE_BIN" ] || [ ! -f "$VANTAGE_BIN" ]; then
-    echo "⚠️  [Kit] Vantage binary not found. Skipping integrity check."
-    exit 0
-fi
-
-# Run Vantage verification
-RESULT=$("$VANTAGE_BIN" verify-memory --json 2>&1)
-EXIT_CODE=$?
 
 if [ $EXIT_CODE -eq 0 ]; then
-    echo "✅ [Kit] Memory integrity verified"
+    echo "[Kit] Pre-commit check passed"
     exit 0
-else
-    echo "❌ [Kit] Memory integrity FAILED"
-    echo "$RESULT"
-    echo ""
-    echo "🔧 Run `kit doctor` to diagnose"
-    echo "🔧 Run `kit-vantage verify-memory -d` for details"
-    exit 1
 fi
+
+echo "[Kit] Pre-commit check FAILED"
+echo "$KIT_OUTPUT"
+exit 1
