@@ -83,6 +83,16 @@ This document consolidates the core specifications of the KIT system, including 
 9. Git anchors reality but does not define truth.
 10. Hallucination is contained, not prevented.
 
+### 🧬 The Polyglot Substrate (v1.2.5)
+To ensure absolute determinism on Windows 11, the system uses a dual-runtime model:
+
+| Layer | Runtime | Responsibility | Authority |
+| :--- | :--- | :--- | :--- |
+| **Cognitive Shell** | Python (kit) | Intent, Workflow, Agent UX | `AGENTS.md` |
+| **Forensic Kernel** | Rust (kit-vantage) | Graph Invariants, Determinism | `VANTAGE.SEAL` |
+
+---
+
 ---
 
 ## 2. CONTAINMENT: Verifiable Epistemic Spec v1.0

@@ -149,4 +149,4 @@ kit doctor --heal   # Automatically repair common artifacts
 
 ## 📌 Version
 
-v1.2.4.post2
+v1.2.5 (Titanium)
