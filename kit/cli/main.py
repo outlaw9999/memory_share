@@ -1298,10 +1298,13 @@ def handle_release(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter
     # 4. Global Synchronization
     print_diagnostic(">>> Phase 4: Global Synchronization (Pushing to main)...")
     try:
-        subprocess.run(["git", "push", "origin", "main", "--tags"], check=True)
+        # Push current branch
+        subprocess.run(["git", "push", "origin", "main"], check=True)
+        # Push specific tag to avoid conflicts with legacy tags
+        subprocess.run(["git", "push", "origin", tag], check=True)
         print_diagnostic("[OK] Reality synchronized globally.")
     except subprocess.CalledProcessError as e:
-        print_diagnostic(f"[FAIL] Push failed: {e}")
+        print_diagnostic(f"[FAIL] Global sync failed: {e}")
         sys.exit(1)
 
     print_diagnostic(f"\n[TITANIUM SEALED] {tag} is now Ground Truth.")
