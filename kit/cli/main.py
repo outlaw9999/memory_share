@@ -309,19 +309,6 @@ def handle_init(args: argparse.Namespace, print_diagnostic: DiagnosticPrinter, *
     print_diagnostic(f"[OK] Workspace initialized and sealed ({get_cli_version()}).")
     print("OK")
 
-    # v1.2.5: Vantage Integrity Gating (Soft Check on Init)
-    import subprocess
-
-    from kit.core.kit_vantage import VANTAGE_BIN
-
-    if VANTAGE_BIN and VANTAGE_BIN.exists() and os.getenv("KIT_DISABLE_ASYNC_BAKE") != "1":
-        try:
-            subprocess.run([str(VANTAGE_BIN), "verify-memory"], capture_output=True, timeout=5.0)
-        except subprocess.TimeoutExpired:
-            logger.warning("Vantage integrity check timed out during init.")
-
-    print("OK")
-
 
 @kit_command(
     name="init-env",
