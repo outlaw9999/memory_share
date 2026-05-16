@@ -120,13 +120,17 @@ def _bootloader_template() -> str:
     """Returns the canonical portable AGENTS.md template (v1.2.5)."""
     return (
         "# AGENTS.md\n\n"
+        "- start every new task/session with:\n"
+        "  - `kit recall`\n"
+        "- git commits are lifecycle triggers:\n"
+        "  - commit frequently\n"
+        "  - hooks synchronize memory + structure\n"
         "- intents only\n"
         "- runtime is truth\n"
         "- no direct memory/db mutation\n"
         "- discover dynamically:\n"
         "  - `kit introspect --json`\n"
         "  - `kit <cmd> --help`\n"
-        "- commit frequently\n"
     )
 
 
@@ -208,23 +212,35 @@ def _materialize_onboarding_files(root_path: Path, print_diagnostic: DiagnosticP
     kit_dir = root_path / ".kit"
     kit_dir.mkdir(parents=True, exist_ok=True)
 
+    # 1. Canonical AGENTS.md
     agents_md = root_path / "AGENTS.md"
     if not agents_md.exists():
-        if not _copy_if_missing(asset_root, "AGENTS.md", root_path):
-            agents_md.write_text(_bootloader_template(), encoding="utf-8")
+        agents_md.write_text(_bootloader_template(), encoding="utf-8")
 
+    # 2. Minimal GEMINI.md
+    gemini_md = root_path / "GEMINI.md"
+    if not gemini_md.exists():
+        gemini_content = (
+            "# GEMINI.md\n\n"
+            "See [AGENTS.md](AGENTS.md) for canonical behavioral contract.\n\n"
+            "Startup Ritual:\n"
+            "Always begin by running `kit recall` to hydrate project context.\n"
+        )
+        gemini_md.write_text(gemini_content, encoding="utf-8")
+    else:
+        # Force overwrite to ensure minimal canonical version
+        gemini_content = (
+            "# GEMINI.md\n\n"
+            "See [AGENTS.md](AGENTS.md) for canonical behavioral contract.\n\n"
+            "Startup Ritual:\n"
+            "Always begin by running `kit recall` to hydrate project context.\n"
+        )
+        gemini_md.write_text(gemini_content, encoding="utf-8")
+
+    # 3. Standard manifests in .kit/
     onboarding_files = ["scripts/kitf.ps1", "bootstrap_agent.yaml"]
     for rel_path in onboarding_files:
         _copy_if_missing(asset_root, rel_path, kit_dir if "scripts" in rel_path else root_path)
-
-    # v1.2.5: Schema Loader external-first fallback
-    kit_schema = kit_dir / "kit_schema.json"
-    if not kit_schema.exists():
-        fallback_schema = Path(__file__).resolve().parent.parent / "core" / "schema_default.json"
-        if fallback_schema.exists():
-            import shutil
-
-            shutil.copyfile(fallback_schema, kit_schema)
 
     # v1.2.5: Materialize runtime metadata
     runtime_json = kit_dir / "runtime.json"
@@ -237,6 +253,16 @@ def _materialize_onboarding_files(root_path: Path, print_diagnostic: DiagnosticP
         }
         with open(runtime_json, "w", encoding="utf-8") as f:
             json.dump(runtime_data, f, indent=2)
+
+    # v1.2.5: Materialize seal state
+    seal_json = kit_dir / "seal_state.json"
+    seal_data = {
+        "is_sealed": True,
+        "sealed_at": datetime.now(UTC).isoformat(),
+        "seal_epoch": INTERNAL_EPOCH,
+    }
+    with open(seal_json, "w", encoding="utf-8") as f:
+        json.dump(seal_data, f, indent=2)
 
 
 def _seed_bootstrap_memories(root_path: Path, project_name: str) -> bool:
